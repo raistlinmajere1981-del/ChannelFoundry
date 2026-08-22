@@ -13,10 +13,11 @@ const runtime = require("./studio-runtime.cjs");
 const { registerStudioIpc } = require("./studio-ipc.cjs");
 const { registerAnalysisEditorialIpc } = require("./analysis-editorial-ipc.cjs");
 const { registerUniverseMaintenanceIpc } = require("./universe-maintenance-ipc.cjs");
+const { registerSubtitleAnalysisIpc } = require("./subtitle-analysis-ipc.cjs");
 
 function windowPreferences() {
   return {
-    preload: path.join(__dirname, "preload.cjs"),
+    preload: path.join(__dirname, "preload-entry.cjs"),
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,
@@ -61,6 +62,7 @@ app.whenReady().then(() => {
   registerStudioIpc();
   registerAnalysisEditorialIpc();
   registerUniverseMaintenanceIpc();
+  registerSubtitleAnalysisIpc(require("electron").ipcMain, runtime);
   runtime.database();
   aiAnalysis.resetInterrupted(runtime.database());
   universeMerge.resetInterrupted(runtime.database());

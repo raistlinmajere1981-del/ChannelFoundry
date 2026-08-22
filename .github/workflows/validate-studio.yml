@@ -7,6 +7,7 @@ on:
       - "apps/studio/**"
       - "apps/web/**"
       - "packages/domain/**"
+      - "packages/subtitle-analysis/**"
       - "package.json"
       - ".github/workflows/validate-studio.yml"
   pull_request:
@@ -14,6 +15,7 @@ on:
       - "apps/studio/**"
       - "apps/web/**"
       - "packages/domain/**"
+      - "packages/subtitle-analysis/**"
       - "package.json"
 
 permissions:
@@ -32,7 +34,7 @@ jobs:
       - name: Verify built-in SQLite
         run: node -e "const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(':memory:'); db.exec('CREATE TABLE ok(id INTEGER);'); console.log('node:sqlite ready')"
       - name: Check Electron main files
-        run: node --check apps/studio/main.cjs && node --check apps/studio/studio-data-paths.cjs && node --check apps/studio/web-connection.cjs && node --check apps/studio/ytdlp-manager.cjs && node --check apps/studio/preload.cjs && node --check apps/studio/storage.cjs && node --check apps/studio/bulk-operations.cjs && node --check apps/studio/youtube-import.cjs && node --check apps/studio/youtube-catalog.cjs && node --check apps/studio/transcript-service.cjs && node --check apps/studio/ai-service.cjs && node --check apps/studio/ai-analysis.cjs && node --check apps/studio/ai-json.cjs && node --check apps/studio/universe-merge.cjs && node --check apps/studio/universe-workspace.cjs && node --check apps/studio/visual-profiles.cjs && node --check apps/studio/verify-studio-data-paths.cjs && node --check apps/studio/verify-web-connection.cjs && node --check apps/studio/verify-ytdlp-manager.cjs && node --check apps/studio/verify-bulk-operations.cjs && node --check apps/studio/verify-youtube-import.cjs && node --check apps/studio/verify-youtube-catalog.cjs && node --check apps/studio/verify-transcript-service.cjs && node --check apps/studio/verify-ai-service.cjs && node --check apps/studio/verify-ai-analysis.cjs && node --check apps/studio/verify-ai-json.cjs && node --check apps/studio/verify-universe-workspace.cjs && node --check apps/studio/verify-visual-profiles.cjs
+        run: node --check apps/studio/main.cjs && node --check apps/studio/preload-entry.cjs && node --check apps/studio/subtitle-analysis-preload.cjs && node --check apps/studio/subtitle-analysis-ipc.cjs && node --check apps/studio/subtitle-search.cjs && node --check packages/subtitle-analysis/index.cjs && node --check apps/studio/verify-subtitle-analysis.cjs && node --check apps/studio/studio-data-paths.cjs && node --check apps/studio/web-connection.cjs && node --check apps/studio/ytdlp-manager.cjs && node --check apps/studio/preload.cjs && node --check apps/studio/storage.cjs && node --check apps/studio/bulk-operations.cjs && node --check apps/studio/youtube-import.cjs && node --check apps/studio/youtube-catalog.cjs && node --check apps/studio/transcript-service.cjs && node --check apps/studio/ai-service.cjs && node --check apps/studio/ai-analysis.cjs && node --check apps/studio/ai-json.cjs && node --check apps/studio/universe-merge.cjs && node --check apps/studio/universe-workspace.cjs && node --check apps/studio/visual-profiles.cjs && node --check apps/studio/verify-studio-data-paths.cjs && node --check apps/studio/verify-web-connection.cjs && node --check apps/studio/verify-ytdlp-manager.cjs && node --check apps/studio/verify-bulk-operations.cjs && node --check apps/studio/verify-youtube-import.cjs && node --check apps/studio/verify-youtube-catalog.cjs && node --check apps/studio/verify-transcript-service.cjs && node --check apps/studio/verify-ai-service.cjs && node --check apps/studio/verify-ai-analysis.cjs && node --check apps/studio/verify-ai-json.cjs && node --check apps/studio/verify-universe-workspace.cjs && node --check apps/studio/verify-visual-profiles.cjs
       - name: Verify project-local Studio data paths
         run: node apps/studio/verify-studio-data-paths.cjs
       - name: Verify custom web connection
@@ -47,6 +49,8 @@ jobs:
         run: node apps/studio/verify-youtube-catalog.cjs
       - name: Verify transcript archive contracts
         run: node apps/studio/verify-transcript-service.cjs
+      - name: Verify subtitle analysis
+        run: node apps/studio/verify-subtitle-analysis.cjs
       - name: Verify AI assistant contracts
         run: node apps/studio/verify-ai-service.cjs
       - name: Verify persistent AI analysis queue
