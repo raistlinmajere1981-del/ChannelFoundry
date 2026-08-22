@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, safeStorage, ipcMain } = require("electron");
 const path = require("node:path");
 const { configureElectronDataPaths } = require("./studio-data-paths.cjs");
 
@@ -17,7 +17,7 @@ const { registerSubtitleAnalysisIpc } = require("./subtitle-analysis-ipc.cjs");
 
 function windowPreferences() {
   return {
-    preload: path.join(__dirname, "preload-entry.cjs"),
+    preload: path.join(__dirname, "preload.cjs"),
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,
@@ -62,7 +62,7 @@ app.whenReady().then(() => {
   registerStudioIpc();
   registerAnalysisEditorialIpc();
   registerUniverseMaintenanceIpc();
-  registerSubtitleAnalysisIpc(require("electron").ipcMain, runtime);
+  registerSubtitleAnalysisIpc(ipcMain, runtime);
   runtime.database();
   aiAnalysis.resetInterrupted(runtime.database());
   universeMerge.resetInterrupted(runtime.database());
