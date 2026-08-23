@@ -131,6 +131,8 @@ function isWordCharacter(value) {
   return Boolean(value && /[\p{L}\p{N}_]/u.test(value));
 }
 
+// V3.1: "contains" is intentionally word-start/prefix matching. This keeps
+// suffix variants such as rütbe/rütbesi/rütbeli, but "izin" no longer matches "sizin".
 function literalMatchIndexes(value, rawQuery, rawMode = "contains") {
   const query = fold(normalizeQuery(rawQuery));
   const text = fold(value);
@@ -145,7 +147,7 @@ function literalMatchIndexes(value, rawQuery, rawMode = "contains") {
     const after = index + query.length < text.length ? text[index + query.length] : "";
     const startBoundaryOk = !isWordCharacter(query[0]) || !isWordCharacter(before);
     const endBoundaryOk = !isWordCharacter(query[query.length - 1]) || !isWordCharacter(after);
-    if (mode === "contains" || (startBoundaryOk && endBoundaryOk)) indexes.push(index);
+    if (startBoundaryOk && (mode === "contains" || endBoundaryOk)) indexes.push(index);
     offset = index + Math.max(1, query.length);
   }
   return indexes;
@@ -164,9 +166,7 @@ function wordRanges(value) {
 }
 
 function mergeRanges(ranges) {
-  const ordered = ranges
-    .map(([start, end]) => [Number(start), Number(end)])
-    .sort((left, right) => left[0] - right[0]);
+  const ordered = ranges.map(([start, end]) => [Number(start), Number(end)]).sort((a, b) => a[0] - b[0]);
   const merged = [];
   for (const range of ordered) {
     const previous = merged[merged.length - 1];
@@ -188,28 +188,19 @@ function longContextWindows(segment, query, matchMode) {
       return { context, occurrenceCount: countLiteralOccurrences(context, query, matchMode), truncated: start > 0 || end < segment.length };
     });
   }
-
   const ranges = [];
   for (const index of indexes) {
     const matchEnd = index + fold(normalizeQuery(query)).length;
     let wordIndex = words.findIndex((word) => word.end > index && word.start < matchEnd);
     if (wordIndex < 0) wordIndex = words.findIndex((word) => word.start >= index);
     if (wordIndex < 0) wordIndex = words.length - 1;
-    ranges.push([
-      Math.max(0, wordIndex - CONTEXT_WORD_RADIUS),
-      Math.min(words.length - 1, wordIndex + CONTEXT_WORD_RADIUS),
-    ]);
+    ranges.push([Math.max(0, wordIndex - CONTEXT_WORD_RADIUS), Math.min(words.length - 1, wordIndex + CONTEXT_WORD_RADIUS)]);
   }
-
   return mergeRanges(ranges).map(([startWord, endWord]) => {
     const start = words[startWord].start;
     const end = words[endWord].end;
     const context = `${startWord ? "… " : ""}${segment.slice(start, end).trim()}${endWord < words.length - 1 ? " …" : ""}`;
-    return {
-      context,
-      occurrenceCount: countLiteralOccurrences(context, query, matchMode),
-      truncated: startWord > 0 || endWord < words.length - 1,
-    };
+    return { context, occurrenceCount: countLiteralOccurrences(context, query, matchMode), truncated: startWord > 0 || endWord < words.length - 1 };
   });
 }
 
@@ -218,29 +209,20 @@ function analyzeTranscript(value, rawQuery, rawMode = "contains") {
   const matchMode = normalizeMatchMode(rawMode);
   const contexts = [];
   let occurrenceCount = 0;
-
   for (const sentence of sentenceSegments(value)) {
     const count = countLiteralOccurrences(sentence, query, matchMode);
     if (!count) continue;
     occurrenceCount += count;
-    if (sentence.length <= MAX_CONTEXT_LENGTH) {
-      contexts.push({ context: sentence, occurrenceCount: count, truncated: false });
-      continue;
-    }
-    contexts.push(...longContextWindows(sentence, query, matchMode));
+    if (sentence.length <= MAX_CONTEXT_LENGTH) contexts.push({ context: sentence, occurrenceCount: count, truncated: false });
+    else contexts.push(...longContextWindows(sentence, query, matchMode));
   }
-
   return { query, matchMode, occurrenceCount, contexts };
 }
 
 function analyzeTranscriptTerms(value, rawTerms, rawMode = "contains") {
   const terms = normalizeTerms(rawTerms);
   const matchMode = normalizeMatchMode(rawMode);
-  return {
-    terms,
-    matchMode,
-    matches: terms.map((term) => analyzeTranscript(value, term, matchMode)),
-  };
+  return { terms, matchMode, matches: terms.map((term) => analyzeTranscript(value, term, matchMode)) };
 }
 
 function prepareDocument(value) {
@@ -274,11 +256,9 @@ function locateTermMatches(document, rawTerm, rawMode = "contains") {
 function locateGroupMatches(document, group, groupIndex, matchMode) {
   const matches = [];
   for (const term of group.terms) {
-    for (const match of locateTermMatches(document, term, matchMode)) {
-      matches.push({ ...match, groupIndex, groupId: group.id, groupLabel: group.label });
-    }
+    for (const match of locateTermMatches(document, term, matchMode)) matches.push({ ...match, groupIndex, groupId: group.id, groupLabel: group.label });
   }
-  matches.sort((left, right) => left.index - right.index || left.end - right.end);
+  matches.sort((a, b) => a.index - b.index || a.end - b.end);
   return matches;
 }
 
@@ -306,10 +286,7 @@ function orderedWindows(groupMatches, proximity) {
     let complete = true;
     for (let groupIndex = 1; groupIndex < groupMatches.length; groupIndex += 1) {
       const candidate = groupMatches[groupIndex].find((match) => match.index > previous.index);
-      if (!candidate) {
-        complete = false;
-        break;
-      }
+      if (!candidate) { complete = false; break; }
       selected.push(candidate);
       previous = candidate;
     }
@@ -319,7 +296,7 @@ function orderedWindows(groupMatches, proximity) {
 }
 
 function unorderedWindows(groupMatches, proximity) {
-  const flat = groupMatches.flat().sort((left, right) => left.index - right.index || left.groupIndex - right.groupIndex);
+  const flat = groupMatches.flat().sort((a, b) => a.index - b.index || a.groupIndex - b.groupIndex);
   const counts = Array.from({ length: groupMatches.length }, () => 0);
   const windows = [];
   let represented = 0;
@@ -360,43 +337,85 @@ function contextRangesForEvidence(document, matches, proximity) {
 }
 
 function buildEvidenceContext(document, ranges) {
-  const fragments = ranges.map(([start, end]) => {
-    const prefix = start > 0 ? "… " : "";
-    const suffix = end < document.text.length ? " …" : "";
-    return `${prefix}${document.text.slice(start, end).trim()}${suffix}`;
-  });
-  return {
-    context: fragments.join("  […]  "),
-    truncated: ranges.length > 1 || ranges[0]?.[0] > 0 || ranges[0]?.[1] < document.text.length,
-  };
+  const fragments = ranges.map(([start, end]) => `${start > 0 ? "… " : ""}${document.text.slice(start, end).trim()}${end < document.text.length ? " …" : ""}`);
+  return { context: fragments.join("  […]  "), truncated: ranges.length > 1 || ranges[0]?.[0] > 0 || ranges[0]?.[1] < document.text.length };
 }
 
 function rangeContainsMatch(ranges, match) {
   return ranges.some(([start, end]) => match.index < end && match.end > start);
 }
 
-function buildEvidenceFromMatches(document, groups, groupMatches, config, excludeMatches) {
-  if (groupMatches.some((matches) => !matches.length)) return [];
-  const rawWindows = config.direction === "ordered"
-    ? orderedWindows(groupMatches, config.proximity)
-    : unorderedWindows(groupMatches, config.proximity);
-  const evidence = [];
-  const seen = new Set();
+function matchKey(match) {
+  return `${match.groupIndex}:${match.index}:${match.end}:${fold(match.term)}`;
+}
 
+function uniqueMatches(matches) {
+  const seen = new Set();
+  const output = [];
+  for (const match of matches) {
+    const key = matchKey(match);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(match);
+  }
+  return output.sort((a, b) => a.index - b.index || a.groupIndex - b.groupIndex);
+}
+
+function rawEvidenceCandidates(document, groupMatches, config, excludeMatches) {
+  if (groupMatches.some((matches) => !matches.length)) return [];
+  const rawWindows = config.direction === "ordered" ? orderedWindows(groupMatches, config.proximity) : unorderedWindows(groupMatches, config.proximity);
+  const candidates = [];
+  const seen = new Set();
   for (const rawMatches of rawWindows) {
-    const matches = rawMatches
-      .slice()
-      .sort((left, right) => left.index - right.index || left.groupIndex - right.groupIndex);
-    const key = `${matches[0].index}:${matches[matches.length - 1].end}:${matches.map((match) => match.groupIndex).join(",")}`;
+    const matches = uniqueMatches(rawMatches);
+    const coreStart = Math.min(...matches.map((match) => match.index));
+    const coreEnd = Math.max(...matches.map((match) => match.end));
+    const key = `${coreStart}:${coreEnd}:${matches.map(matchKey).join("|")}`;
     if (seen.has(key)) continue;
     const ranges = contextRangesForEvidence(document, matches, config.proximity);
     if (excludeMatches.some((match) => rangeContainsMatch(ranges, match))) continue;
     seen.add(key);
-    const distances = relationDistance(matches, config.proximity);
+    candidates.push({ matches, coreStart, coreEnd, ...relationDistance(matches, config.proximity) });
+  }
+  return candidates.sort((a, b) => a.coreStart - b.coreStart || a.coreEnd - b.coreEnd);
+}
+
+function clusterCandidates(candidates) {
+  const clusters = [];
+  for (const candidate of candidates) {
+    const previous = clusters[clusters.length - 1];
+    if (previous && candidate.coreStart <= previous.coreEnd) {
+      previous.candidates.push(candidate);
+      previous.coreEnd = Math.max(previous.coreEnd, candidate.coreEnd);
+    } else {
+      clusters.push({ coreStart: candidate.coreStart, coreEnd: candidate.coreEnd, candidates: [candidate] });
+    }
+  }
+  return clusters;
+}
+
+function minFinite(values) {
+  const finite = values.filter((value) => Number.isFinite(value));
+  return finite.length ? Math.min(...finite) : null;
+}
+
+function buildEvidenceFromMatches(document, groups, groupMatches, config, excludeMatches) {
+  const clusters = clusterCandidates(rawEvidenceCandidates(document, groupMatches, config, excludeMatches));
+  return clusters.map((cluster) => {
+    const matches = uniqueMatches(cluster.candidates.flatMap((candidate) => candidate.matches));
+    const ranges = contextRangesForEvidence(document, matches, config.proximity);
     const context = buildEvidenceContext(document, ranges);
-    evidence.push({
+    const span = relationDistance(matches, config.proximity);
+    const tokenPairCount = cluster.candidates.length;
+    return {
       ...context,
-      ...distances,
+      distance: minFinite(cluster.candidates.map((candidate) => candidate.distance)),
+      wordDistance: minFinite(cluster.candidates.map((candidate) => candidate.wordDistance)),
+      sentenceDistance: minFinite(cluster.candidates.map((candidate) => candidate.sentenceDistance)),
+      spanWordDistance: span.wordDistance,
+      spanSentenceDistance: span.sentenceDistance,
+      tokenPairCount,
+      token_pair_count: tokenPairCount,
       matches: matches.map((match) => ({
         groupIndex: match.groupIndex,
         groupId: match.groupId,
@@ -406,9 +425,8 @@ function buildEvidenceFromMatches(document, groups, groupMatches, config, exclud
         wordIndex: match.wordIndex,
         sentenceIndex: match.sentenceIndex,
       })),
-    });
-  }
-  return evidence;
+    };
+  });
 }
 
 function analyzeRelationshipDocument(value, rawGroups, options = {}) {
@@ -420,12 +438,8 @@ function analyzeRelationshipDocument(value, rawGroups, options = {}) {
   const document = prepareDocument(value);
   const config = { matchMode, proximity, direction };
   if (!document.text) {
-    return {
-      groups, excludeTerms, matchMode, proximity, direction,
-      evidence: [], groupOccurrences: groups.map(() => 0), pairCounts: groups.map(() => groups.map(() => 0)),
-    };
+    return { groups, excludeTerms, matchMode, proximity, direction, evidence: [], relationClusters: 0, tokenPairCount: 0, groupOccurrences: groups.map(() => 0), pairCounts: groups.map(() => groups.map(() => 0)) };
   }
-
   const groupMatches = groups.map((group, index) => locateGroupMatches(document, group, index, matchMode));
   const groupOccurrences = groupMatches.map((matches) => matches.length);
   const excludeMatches = excludeTerms.flatMap((term) => locateTermMatches(document, term, matchMode));
@@ -434,21 +448,19 @@ function analyzeRelationshipDocument(value, rawGroups, options = {}) {
   for (let index = 0; index < groups.length; index += 1) pairCounts[index][index] = groupOccurrences[index];
   for (let left = 0; left < groups.length; left += 1) {
     for (let right = left + 1; right < groups.length; right += 1) {
-      const pairGroups = [
-        { ...groups[left], id: groups[left].id, label: groups[left].label },
-        { ...groups[right], id: groups[right].id, label: groups[right].label },
-      ];
-      const pairMatches = [
-        groupMatches[left].map((match) => ({ ...match, groupIndex: 0 })),
-        groupMatches[right].map((match) => ({ ...match, groupIndex: 1 })),
-      ];
+      const pairGroups = [groups[left], groups[right]];
+      const pairMatches = [groupMatches[left].map((match) => ({ ...match, groupIndex: 0 })), groupMatches[right].map((match) => ({ ...match, groupIndex: 1 }))];
       const count = buildEvidenceFromMatches(document, pairGroups, pairMatches, config, excludeMatches).length;
       pairCounts[left][right] = count;
       pairCounts[right][left] = count;
     }
   }
-
-  return { groups, excludeTerms, matchMode, proximity, direction, evidence, groupOccurrences, pairCounts };
+  return {
+    groups, excludeTerms, matchMode, proximity, direction, evidence,
+    relationClusters: evidence.length,
+    tokenPairCount: evidence.reduce((total, entry) => total + Number(entry.tokenPairCount || 0), 0),
+    groupOccurrences, pairCounts,
+  };
 }
 
 function findRelationshipEvidence(value, rawGroups, options = {}) {
@@ -456,34 +468,9 @@ function findRelationshipEvidence(value, rawGroups, options = {}) {
 }
 
 module.exports = {
-  CONTEXT_WORD_RADIUS,
-  DIRECTIONS,
-  MATCH_MODES,
-  MAX_CONTEXT_LENGTH,
-  MAX_GROUPS,
-  MAX_QUERY_LENGTH,
-  MAX_TERMS,
-  MAX_TERMS_PER_GROUP,
-  MAX_TOTAL_GROUP_TERMS,
-  PROXIMITY_UNITS,
-  analyzeTranscript,
-  analyzeTranscriptTerms,
-  analyzeRelationshipDocument,
-  countLiteralOccurrences,
-  findRelationshipEvidence,
-  fold,
-  literalMatchIndexes,
-  locateTermMatches,
-  normalizeDirection,
-  normalizeGroups,
-  normalizeMatchMode,
-  normalizeProximity,
-  normalizeQuery,
-  normalizeTerms,
-  normalizeTranscript,
-  prepareDocument,
-  relationDistance,
-  sentenceRanges,
-  sentenceSegments,
-  wordRanges,
+  CONTEXT_WORD_RADIUS, DIRECTIONS, MATCH_MODES, MAX_CONTEXT_LENGTH, MAX_GROUPS, MAX_QUERY_LENGTH, MAX_TERMS,
+  MAX_TERMS_PER_GROUP, MAX_TOTAL_GROUP_TERMS, PROXIMITY_UNITS, analyzeTranscript, analyzeTranscriptTerms,
+  analyzeRelationshipDocument, countLiteralOccurrences, findRelationshipEvidence, fold, literalMatchIndexes,
+  locateTermMatches, normalizeDirection, normalizeGroups, normalizeMatchMode, normalizeProximity, normalizeQuery,
+  normalizeTerms, normalizeTranscript, prepareDocument, relationDistance, sentenceRanges, sentenceSegments, wordRanges,
 };

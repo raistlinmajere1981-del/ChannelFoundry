@@ -11,28 +11,22 @@ function normalizeSearchMode(value) {
   if (!SEARCH_MODES.has(mode)) throw new Error("Geçersiz çoklu arama modu.");
   return mode;
 }
-
 function normalizeSortMode(value) {
   const mode = String(value ?? "date");
   if (!SORT_MODES.has(mode)) throw new Error("Geçersiz sıralama modu.");
   return mode;
 }
-
 function normalizeSearchType(value) {
   const type = String(value ?? "terms");
   if (!SEARCH_TYPES.has(type)) throw new Error("Geçersiz altyazı araştırma türü.");
   return type;
 }
-
 function normalizeDate(value, label) {
   const date = String(value ?? "").trim();
   if (!date) return "";
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || Number.isNaN(new Date(`${date}T12:00:00Z`).getTime())) {
-    throw new Error(`${label} YYYY-AA-GG biçiminde olmalıdır.`);
-  }
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || Number.isNaN(new Date(`${date}T12:00:00Z`).getTime())) throw new Error(`${label} YYYY-AA-GG biçiminde olmalıdır.`);
   return date;
 }
-
 function normalizeDateRange(input = {}) {
   const dateFrom = normalizeDate(input.dateFrom, "Başlangıç tarihi");
   const dateTo = normalizeDate(input.dateTo, "Bitiş tarihi");
@@ -74,7 +68,6 @@ function sortResults(results, sortMode) {
   });
   return results;
 }
-
 function sortRelationshipResults(results, sortMode) {
   results.sort((left, right) => {
     if (sortMode === "distance") {
@@ -142,13 +135,11 @@ function median(values) {
   const middle = Math.floor(numbers.length / 2);
   return numbers.length % 2 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
 }
-
 function sumMatrix(target, source) {
   for (let row = 0; row < target.length; row += 1) {
     for (let column = 0; column < target[row].length; column += 1) target[row][column] += Number(source?.[row]?.[column] || 0);
   }
 }
-
 function relationshipGroupStats(groups, results) {
   return groups.map((group, groupIndex) => {
     let videoCount = 0;
@@ -177,33 +168,51 @@ function searchRelationships(db, input = {}) {
   const results = [];
   const matrix = groups.map(() => groups.map(() => 0));
   const allDistances = [];
+  let tokenPairCount = 0;
+
   for (const row of rows) {
     const relation = analysis.analyzeRelationshipDocument(row.text, groups, { matchMode, proximity, direction, excludeTerms });
-    sumMatrix(matrix, relation.pairCounts);
     if (!relation.evidence.length) continue;
+    // V3.1: every matrix cell now uses the same population: videos that satisfy
+    // the complete relationship query. No global diagonal mixed with result-only pairs.
+    sumMatrix(matrix, relation.pairCounts);
     const distances = relation.evidence.map((entry) => entry.distance).filter((value) => Number.isFinite(value));
     allDistances.push(...distances);
+    tokenPairCount += Number(relation.tokenPairCount || 0);
     results.push({
       videoId: String(row.videoId), channelId: String(row.channelId), channelTitle: String(row.channelTitle ?? ""),
       title: String(row.title ?? ""), publishedAt: String(row.publishedAt ?? ""), url: String(row.url ?? ""), language: String(row.language ?? ""),
-      relationCount: relation.evidence.length, bestDistance: distances.length ? Math.min(...distances) : null,
-      groupOccurrences: relation.groupOccurrences, evidence: relation.evidence,
+      relationCount: relation.evidence.length,
+      relationClusters: relation.evidence.length,
+      relation_clusters: relation.evidence.length,
+      tokenPairCount: Number(relation.tokenPairCount || 0),
+      token_pair_count: Number(relation.tokenPairCount || 0),
+      bestDistance: distances.length ? Math.min(...distances) : null,
+      groupOccurrences: relation.groupOccurrences,
+      evidence: relation.evidence.map((entry) => ({ ...entry, token_pair_count: Number(entry.tokenPairCount || 0) })),
     });
   }
+
   sortRelationshipResults(results, sort);
   const relationCount = results.reduce((total, video) => total + video.relationCount, 0);
   const groupStats = relationshipGroupStats(groups, results);
   return {
     searchType: "relationship", generatedAt: new Date().toISOString(), groups, excludeTerms, matchMode, proximity, direction, sort,
-    channelId, dateFrom, dateTo, transcriptCount: rows.length, videoCount: results.length, relationCount,
-    minDistance: allDistances.length ? Math.min(...allDistances) : null, medianDistance: median(allDistances), groupStats,
+    channelId, dateFrom, dateTo, transcriptCount: rows.length, videoCount: results.length,
+    relationCount,
+    relationClusters: relationCount,
+    relation_clusters: relationCount,
+    tokenPairCount,
+    token_pair_count: tokenPairCount,
+    minDistance: allDistances.length ? Math.min(...allDistances) : null,
+    medianDistance: median(allDistances), groupStats,
     matrix: { labels: groups.map((group) => group.label), values: matrix }, results,
   };
 }
 
 function markdownEscape(value) { return String(value ?? "").replace(/\|/gu, "\\|").replace(/\r?\n/gu, " "); }
 function searchModeLabel(value) { return value === "all-in-video" ? "Aynı videoda tüm terimler" : "Bağımsız terimler"; }
-function matchModeLabel(value) { return value === "whole-word" ? "Tam kelime/ifade" : "İçeren"; }
+function matchModeLabel(value) { return value === "whole-word" ? "Tam kelime/ifade" : "Kelime başlangıcı / ekli kullanım"; }
 function proximityLabel(proximity) {
   if (proximity?.unit === "video") return "Aynı video";
   if (proximity?.unit === "sentences") return `±${Number(proximity?.distance || 0)} cümle`;
@@ -213,6 +222,21 @@ function directionLabel(direction) { return direction === "ordered" ? "Grup sır
 function distanceLabel(value, proximity) {
   if (value == null || proximity?.unit === "video") return "aynı video";
   return `${value} ${proximity?.unit === "sentences" ? "cümle" : "kelime"}`;
+}
+function compactEvidenceMatches(matches) {
+  const order = [];
+  const counts = new Map();
+  for (const match of matches || []) {
+    const key = `${match.groupIndex}:${analysis.fold(match.term)}`;
+    if (!counts.has(key)) order.push(key);
+    const current = counts.get(key) || { label: match.groupLabel, term: match.term, count: 0 };
+    current.count += 1;
+    counts.set(key, current);
+  }
+  return order.map((key) => {
+    const item = counts.get(key);
+    return `${item.label}=${item.term}${item.count > 1 ? ` ×${item.count}` : ""}`;
+  }).join(" | ");
 }
 
 function renderTermMarkdownReport(report) {
@@ -252,7 +276,9 @@ function renderRelationshipMarkdownReport(report) {
     `- Yakınlık: ${proximityLabel(report?.proximity)}`, `- Yön: ${directionLabel(report?.direction)}`, `- Eşleşme modu: ${matchModeLabel(report?.matchMode)}`,
     `- Hariç tut: ${(report?.excludeTerms || []).join(", ") || "—"}`, `- Tarih aralığı: ${report?.dateFrom || "başlangıç"} → ${report?.dateTo || "bugün"}`,
     `- Taranan altyazı: ${Number(report?.transcriptCount || 0)}`, `- Eşleşen video: ${Number(report?.videoCount || 0)}`,
-    `- İlişki örneği: ${Number(report?.relationCount || 0)}`, `- En yakın ilişki: ${distanceLabel(report?.minDistance, report?.proximity)}`,
+    `- Bağımsız ilişki kümesi: ${Number(report?.relation_clusters ?? report?.relationCount ?? 0)}`,
+    `- Ham yakınlık eşleşmesi: ${Number(report?.token_pair_count ?? 0)}`,
+    `- En yakın ilişki: ${distanceLabel(report?.minDistance, report?.proximity)}`,
     `- Medyan mesafe: ${distanceLabel(report?.medianDistance, report?.proximity)}`, "", "## Kavram Grupları", "",
   ];
   groups.forEach((group, index) => lines.push(`- Grup ${index + 1} — **${markdownEscape(group.label)}**: ${group.terms.map(markdownEscape).join(" | ")}`));
@@ -263,18 +289,24 @@ function renderRelationshipMarkdownReport(report) {
   if (labels.length) {
     lines.push("", "## Yakınlık Matrisi", "", `| | ${labels.map(markdownEscape).join(" | ")} |`, `| --- | ${labels.map(() => "---:").join(" | ")} |`);
     labels.forEach((label, row) => lines.push(`| ${markdownEscape(label)} | ${(values[row] || []).map((value) => Number(value || 0)).join(" | ")} |`));
-    lines.push("", "_Köşegen grup kullanımını, diğer hücreler seçilen yakınlık koşulundaki ikili ilişki örneklerini gösterir._");
+    lines.push("", "_Tüm hücreler yalnız ilişki sonucu bulunan videolardan hesaplanır. Köşegen bu sonuç kümesindeki grup kullanımını; diğer hücreler seçilen yakınlık koşulundaki bağımsız ikili ilişki kümelerini gösterir._");
   }
   for (const [videoIndex, video] of (report?.results || []).entries()) {
     lines.push("", `## VIDEO ${String(videoIndex + 1).padStart(3, "0")}`, "", `- Başlık: ${markdownEscape(video?.title)}`,
       `- Tarih: ${markdownEscape(video?.publishedAt || "—")}`, `- Kanal: ${markdownEscape(video?.channelTitle || video?.channelId || "—")}`,
-      `- Video ID: ${markdownEscape(video?.videoId)}`, `- URL: ${markdownEscape(video?.url)}`, `- İlişki örneği: ${Number(video?.relationCount || 0)}`,
+      `- Video ID: ${markdownEscape(video?.videoId)}`, `- URL: ${markdownEscape(video?.url)}`,
+      `- İlişki kümesi: ${Number(video?.relation_clusters ?? video?.relationCount ?? 0)}`,
+      `- Ham yakınlık eşleşmesi: ${Number(video?.token_pair_count ?? 0)}`,
       `- En yakın: ${distanceLabel(video?.bestDistance, report?.proximity)}`);
     (video?.evidence || []).forEach((evidence, evidenceIndex) => {
-      const matched = (evidence?.matches || []).map((match) => `${match.groupLabel}=${match.matchedText}`).join(" | ");
-      lines.push("", `### RELATION ${String(evidenceIndex + 1).padStart(3, "0")} · ${distanceLabel(evidence?.distance, report?.proximity)}`, "",
-        `- Eşleşen: ${markdownEscape(matched)}`, `- Kelime mesafesi: ${evidence?.wordDistance ?? "—"}`,
-        `- Cümle mesafesi: ${evidence?.sentenceDistance ?? "—"}`, "", `> ${String(evidence?.context || "").trim().replace(/\n/gu, " ")}`);
+      const matched = compactEvidenceMatches(evidence?.matches || []);
+      lines.push("", `### RELATION CLUSTER ${String(evidenceIndex + 1).padStart(3, "0")} · en yakın ${distanceLabel(evidence?.distance, report?.proximity)}`, "",
+        `- Eşleşen: ${markdownEscape(matched)}`,
+        `- Ham yakınlık eşleşmesi: ${Number(evidence?.token_pair_count ?? evidence?.tokenPairCount ?? 0)}`,
+        `- En yakın kelime mesafesi: ${evidence?.wordDistance ?? "—"}`,
+        `- Küme kapsamı (kelime): ${evidence?.spanWordDistance ?? "—"}`,
+        `- En yakın cümle mesafesi: ${evidence?.sentenceDistance ?? "—"}`,
+        `- Küme kapsamı (cümle): ${evidence?.spanSentenceDistance ?? "—"}`, "", `> ${String(evidence?.context || "").trim().replace(/\n/gu, " ")}`);
     });
   }
   return `${lines.join("\n").trim()}\n`;
