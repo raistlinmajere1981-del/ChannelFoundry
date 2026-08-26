@@ -66,6 +66,7 @@ export default function StudioPipeline() {
   const [workspaceNodes, setWorkspaceNodes] = useState<StudioUniverseWorkspaceNode[]>([]);
   const [workspaceStatus, setWorkspaceStatus] = useState<StudioUniverseWorkspaceStatus | null>(null);
   const [databaseInfo, setDatabaseInfo] = useState<StudioDatabaseInfo | null>(null);
+  const [channels, setChannels] = useState<StudioYoutubeChannel[]>([]);
   const [catalogStats, setCatalogStats] = useState<StudioYoutubeCatalogStats>({ total: 0, imported: 0, transcripts: 0, pendingImport: 0 });
   const [catalogVideos, setCatalogVideos] = useState<StudioYoutubeCatalogVideo[]>([]);
   const [aiStats, setAiStats] = useState<StudioAiAnalysisStats>({ transcripts: 0, analyzed: 0, waiting: 0, running: 0, errors: 0 });
@@ -74,13 +75,15 @@ export default function StudioPipeline() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [channelBusy, setChannelBusy] = useState(false);
 
   const load = async () => {
-    if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setCatalogVideos([]); setReady(true); return; }
+    if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setCatalogVideos([]); setReady(true); return; }
     await bridge.bootstrap({});
-    const [state, info, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo] = await Promise.all([
+    const [state, info, nextChannels, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo] = await Promise.all([
       bridge.loadState(),
       bridge.getDatabaseInfo(),
+      bridge.youtubeCatalogChannels(),
       bridge.youtubeCatalogStats(),
       bridge.youtubeCatalogVideos({}),
       bridge.universeWorkspaceList(),
@@ -92,6 +95,7 @@ export default function StudioPipeline() {
     setItems(state.items);
     setRelations(state.relations);
     setDatabaseInfo(info);
+    setChannels(nextChannels);
     setCatalogStats(stats);
     setCatalogVideos(nextCatalogVideos);
     setWorkspaceNodes(nextWorkspaceNodes);
@@ -117,6 +121,19 @@ export default function StudioPipeline() {
     }
     setActive(section);
   };
+  const setActiveChannel = async (channelId: string) => {
+    if (!bridge || !channelId || channelBusy) return;
+    setChannelBusy(true);
+    try {
+      await bridge.youtubeCatalogSetActive({ channelId });
+      await load();
+      setError(null);
+    } catch (reason) {
+      setError(`Aktif kanal değiştirilemedi: ${errorText(reason)}`);
+    } finally {
+      setChannelBusy(false);
+    }
+  };
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
     const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni muhatap", event: "Yeni olay", file: "Yeni dosya" };
@@ -134,6 +151,7 @@ export default function StudioPipeline() {
   return <div className="studio-shell pipeline-shell">
     <aside className="studio-sidebar pipeline-sidebar">
       <Brand/>
+      <ActiveChannelSelector channels={channels} busy={channelBusy} onChange={(channelId) => void setActiveChannel(channelId)}/>
       <div className="nav-caption">ÜRETİM</div>
       <nav className="studio-nav">{productionSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => activateSection(section)}><span>{section}</span></button>)}</nav>
       <div className="nav-caption system-caption">SİSTEM</div>
@@ -165,6 +183,18 @@ function Brand() {
     <div className="studio-brand-logo-frame">
       <img className="studio-brand-logo" src={studioLogoUrl} alt="Channel Foundry Studio"/>
     </div>
+  </div>;
+}
+
+function ActiveChannelSelector({ channels, busy, onChange }: { channels: StudioYoutubeChannel[]; busy: boolean; onChange: (channelId: string) => void }) {
+  const activeChannel = channels.find((channel) => channel.active) || channels[0] || null;
+  return <div className="active-channel-selector">
+    <span>AKTİF KANAL</span>
+    <select aria-label="Aktif YouTube kanalı" value={activeChannel?.id || ""} disabled={busy || !channels.length} onChange={(event) => onChange(event.target.value)}>
+      {!channels.length && <option value="">Henüz kanal yok</option>}
+      {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}</option>)}
+    </select>
+    <small>{channels.length ? `${channels.length} kanal · seçim katalog ve senkronizasyonu değiştirir` : "Ayarlar bölümünden ilk kanalı ekle"}</small>
   </div>;
 }
 
