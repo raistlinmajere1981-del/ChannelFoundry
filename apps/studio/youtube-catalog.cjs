@@ -62,24 +62,24 @@ async function syncChannel(db, userDataPath, input) {
   }
   input?.onProgress?.({ phase: "saving", processed: videos.length, total: videos.length, currentTitle: "" });
   const result = store.upsertCatalog(db, identity, url, videos, mode);
-  const channel = db.prepare(`
-    SELECT id, url, title, handle, last_synced_at AS lastSyncedAt,
-           last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount
-    FROM youtube_channels WHERE id = ?
-  `).get(identity.channelId);
+  const channel = store.getChannel(db, identity.channelId);
   return { ok: true, mode, tool, channel, ...result, cachedCount, archivedThumbnailCount, detailStats };
 }
 
 module.exports = {
+  activeChannel: store.activeChannel,
+  catalogStats: store.catalogStats,
+  detailedVideoIds: store.detailedVideoIds,
   ensureSchema: store.ensureSchema,
-  normalizeChannelUrl: source.normalizeChannelUrl,
-  normalizeEntry: source.normalizeEntry,
-  uploadsPlaylistUrl: source.uploadsPlaylistUrl,
   flattenEntries: source.flattenEntries,
-  ytDlpStatus: source.ytDlpStatus,
-  syncChannel,
+  getChannel: store.getChannel,
+  importCatalogVideo: store.importCatalogVideo,
   listChannels: store.listChannels,
   listVideos: store.listVideos,
-  importCatalogVideo: store.importCatalogVideo,
-  catalogStats: store.catalogStats,
+  normalizeChannelUrl: source.normalizeChannelUrl,
+  normalizeEntry: source.normalizeEntry,
+  setActiveChannel: store.setActiveChannel,
+  syncChannel,
+  uploadsPlaylistUrl: source.uploadsPlaylistUrl,
+  ytDlpStatus: source.ytDlpStatus,
 };
