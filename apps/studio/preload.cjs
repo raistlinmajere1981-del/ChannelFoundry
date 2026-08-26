@@ -130,3 +130,7 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   communitySetResearch: (input) => ipcRenderer.invoke("studio:community-set-research", input),
   communitySetStatus: (input) => ipcRenderer.invoke("studio:community-set-status", input),
 });
+
+contextBridge.exposeInMainWorld("channelFoundrySubtitleAnalysis", {
+  search: (input) => ipcRenderer.invoke("studio:subtitle-search", input),
+});

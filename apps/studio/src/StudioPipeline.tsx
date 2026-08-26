@@ -10,6 +10,7 @@ import WebConnectionSettings from "./WebConnectionSettings";
 import { studioLogoUrl } from "./studio-assets";
 
 const VideoArchive = lazy(() => import("./VideoArchive"));
+const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
 const AiWorkbench = lazy(() => import("./AiWorkbench"));
 const EditorialWorkspaceV2 = lazy(() => import("./EditorialWorkspaceV2"));
 const CommunityAdmin = lazy(() => import("./CommunityAdmin"));
@@ -18,6 +19,7 @@ const PublishCenter = lazy(() => import("./PublishCenter"));
 const productionSections = [
   "Gösterge Paneli",
   "Video Arşivi",
+  "Altyazı Araştırma",
   "AI Atölyesi",
   "Kayıt Dosyaları",
 ] as const;
@@ -145,6 +147,7 @@ export default function StudioPipeline() {
         <Suspense fallback={<SectionLoading section={active}/> }>
           {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} onNavigate={activateSection}/>}
           {active === "Video Arşivi" && <VideoArchive/>}
+          {active === "Altyazı Araştırma" && <SubtitleResearch/>}
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
           {active === "Kayıt Dosyaları" && <EditorialWorkspaceV2 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin/>}
