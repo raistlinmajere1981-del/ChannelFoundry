@@ -6,6 +6,27 @@ function ensureColumn(db, table, name, definition) {
   if (!columns.some((column) => column.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition};`);
 }
 
+function ensureActiveSelection(db) {
+  const activeRows = db.prepare(`
+    SELECT id FROM youtube_channels WHERE is_active = 1
+    ORDER BY COALESCE(last_synced_at, created_at) DESC, created_at DESC
+  `).all();
+  if (activeRows.length > 1) {
+    const keep = activeRows[0].id;
+    db.prepare("UPDATE youtube_channels SET is_active = CASE WHEN id = ? THEN 1 ELSE 0 END").run(keep);
+    return keep;
+  }
+  if (activeRows.length === 1) return activeRows[0].id;
+  const fallback = db.prepare(`
+    SELECT id FROM youtube_channels
+    ORDER BY COALESCE(last_synced_at, created_at) DESC, created_at DESC
+    LIMIT 1
+  `).get();
+  if (!fallback) return "";
+  db.prepare("UPDATE youtube_channels SET is_active = CASE WHEN id = ? THEN 1 ELSE 0 END").run(fallback.id);
+  return String(fallback.id);
+}
+
 function ensureSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS youtube_channels (
@@ -38,10 +59,60 @@ function ensureSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_youtube_videos_published ON youtube_videos(published_at);
     CREATE INDEX IF NOT EXISTS idx_youtube_videos_duration ON youtube_videos(duration_seconds);
   `);
+  ensureColumn(db, "youtube_channels", "is_active", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "youtube_videos", "subtitle_status", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "youtube_videos", "subtitle_languages_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "youtube_videos", "automatic_caption_languages_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "youtube_videos", "detail_signature", "TEXT NOT NULL DEFAULT ''");
+  ensureActiveSelection(db);
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_youtube_channels_active ON youtube_channels(is_active) WHERE is_active = 1;");
+}
+
+function channelRow(db, channelId) {
+  return db.prepare(`
+    SELECT id, url, title, handle, last_synced_at AS lastSyncedAt,
+           last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount,
+           CASE WHEN is_active = 1 THEN 1 ELSE 0 END AS active
+    FROM youtube_channels WHERE id = ?
+  `).get(String(channelId ?? "").trim());
+}
+
+function getChannel(db, channelId) {
+  ensureSchema(db);
+  const row = channelRow(db, channelId);
+  return row ? { ...row, active: Boolean(row.active) } : null;
+}
+
+function activeChannel(db) {
+  ensureSchema(db);
+  const activeId = ensureActiveSelection(db);
+  if (!activeId) return null;
+  return getChannel(db, activeId);
+}
+
+function setActiveChannel(db, channelId) {
+  ensureSchema(db);
+  const id = String(channelId ?? "").trim();
+  if (!id) throw new Error("Aktif kanal seçilmedi.");
+  const row = channelRow(db, id);
+  if (!row) throw new Error("Seçilen YouTube kanalı yerel katalogda bulunamadı.");
+  db.exec("BEGIN IMMEDIATE;");
+  try {
+    db.prepare("UPDATE youtube_channels SET is_active = 0 WHERE is_active <> 0").run();
+    db.prepare("UPDATE youtube_channels SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+    db.exec("COMMIT;");
+  } catch (error) {
+    db.exec("ROLLBACK;");
+    throw error;
+  }
+  return getChannel(db, id);
+}
+
+function scopedChannelId(db, input = {}) {
+  if (input?.allChannels === true) return "";
+  const explicit = String(input?.channelId ?? "").trim();
+  if (explicit) return explicit;
+  return activeChannel(db)?.id || "";
 }
 
 function detailedVideoIds(db, detailSignature) {
@@ -110,6 +181,7 @@ function upsertCatalog(db, identity, url, videos, mode) {
     db.exec("ROLLBACK;");
     throw error;
   }
+  setActiveChannel(db, identity.channelId);
   return { newCount: videos.filter((video) => !existingIds.has(video.videoId)).length, updatedCount: videos.length, removedCount: staleIds.length };
 }
 
@@ -117,9 +189,11 @@ function listChannels(db) {
   ensureSchema(db);
   return db.prepare(`
     SELECT id, url, title, handle, last_synced_at AS lastSyncedAt,
-           last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount
-    FROM youtube_channels ORDER BY COALESCE(last_synced_at, created_at) DESC
-  `).all();
+           last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount,
+           CASE WHEN is_active = 1 THEN 1 ELSE 0 END AS active
+    FROM youtube_channels
+    ORDER BY is_active DESC, COALESCE(last_synced_at, created_at) DESC
+  `).all().map((row) => ({ ...row, active: Boolean(row.active) }));
 }
 
 function hasTable(db, name) {
@@ -128,7 +202,7 @@ function hasTable(db, name) {
 
 function listVideos(db, input = {}) {
   ensureSchema(db);
-  const channelId = String(input.channelId ?? "").trim();
+  const channelId = scopedChannelId(db, input);
   const sourceTranscriptJoin = hasTable(db, "source_transcripts")
     ? "LEFT JOIN source_transcripts st ON st.provider = 'youtube' AND st.external_id = yv.video_id" : "";
   const contentTranscriptJoin = hasTable(db, "content_transcripts")
@@ -193,30 +267,54 @@ function importCatalogVideo(db, input) {
   return result;
 }
 
-function catalogStats(db) {
+function countForChannel(db, sql, channelId) {
+  return Number(db.prepare(sql).get(...(channelId ? [channelId] : [])).count);
+}
+
+function catalogStats(db, input = {}) {
   ensureSchema(db);
-  const total = Number(db.prepare("SELECT COUNT(*) AS count FROM youtube_videos").get().count);
-  const imported = Number(db.prepare(`
+  const channelId = scopedChannelId(db, input);
+  const where = channelId ? "WHERE yv.channel_id = ?" : "";
+  const total = countForChannel(db, `SELECT COUNT(*) AS count FROM youtube_videos yv ${where}`, channelId);
+  const imported = countForChannel(db, `
     SELECT COUNT(*) AS count FROM youtube_videos yv
     JOIN content_sources cs ON cs.provider='youtube' AND cs.external_id=yv.video_id
-  `).get().count);
+    ${where}
+  `, channelId);
   let transcripts = 0;
   if (hasTable(db, "source_transcripts")) {
-    transcripts = Number(db.prepare(`
+    transcripts = countForChannel(db, `
       SELECT COUNT(DISTINCT yv.video_id) AS count FROM youtube_videos yv
       JOIN source_transcripts st ON st.provider='youtube' AND st.external_id=yv.video_id
-    `).get().count);
+      ${where}
+    `, channelId);
   }
   if (hasTable(db, "content_transcripts")) {
-    const legacyOnly = Number(db.prepare(`
+    const conditions = [];
+    if (channelId) conditions.push("yv.channel_id = ?");
+    if (hasTable(db, "source_transcripts")) conditions.push("st.external_id IS NULL");
+    const legacyOnly = countForChannel(db, `
       SELECT COUNT(DISTINCT yv.video_id) AS count FROM youtube_videos yv
       JOIN content_sources cs ON cs.provider='youtube' AND cs.external_id=yv.video_id
       JOIN content_transcripts ct ON ct.content_key=cs.content_key
-      ${hasTable(db, "source_transcripts") ? "LEFT JOIN source_transcripts st ON st.provider='youtube' AND st.external_id=yv.video_id WHERE st.external_id IS NULL" : ""}
-    `).get().count);
+      ${hasTable(db, "source_transcripts") ? "LEFT JOIN source_transcripts st ON st.provider='youtube' AND st.external_id=yv.video_id" : ""}
+      ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+    `, channelId);
     transcripts += legacyOnly;
   }
   return { total, imported, transcripts, pendingImport: Math.max(0, total - imported) };
 }
 
-module.exports = { catalogStats, detailedVideoIds, ensureSchema, importCatalogVideo, listChannels, listVideos, upsertCatalog };
+module.exports = {
+  activeChannel,
+  catalogStats,
+  detailedVideoIds,
+  ensureSchema,
+  getChannel,
+  importCatalogVideo,
+  listChannels,
+  listVideos,
+  scopedChannelId,
+  setActiveChannel,
+  upsertCatalog,
+};
