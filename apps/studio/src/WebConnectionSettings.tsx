@@ -1,11 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+type ChannelSettingsBridge = NonNullable<typeof window.channelFoundryStudio> & {
+  youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string }): Promise<StudioYoutubeSyncResult>;
+};
+
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
 export default function WebConnectionSettings() {
-  const bridge = window.channelFoundryStudio;
+  const bridge = window.channelFoundryStudio as ChannelSettingsBridge | undefined;
   const [config, setConfig] = useState<StudioWebConnectionConfig | null>(null);
   const [url, setUrl] = useState("");
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
@@ -43,16 +47,16 @@ export default function WebConnectionSettings() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!bridge) return;
+    if (!bridge || !config) return;
     setBusy("save");
     setError("");
     setNotice("");
     try {
-      const next = await bridge.webConnectionSave({ url, youtubeChannelUrl });
+      const next = await bridge.webConnectionSave({ url, youtubeChannelUrl: config.youtubeChannelUrl });
       setConfig(next);
       setUrl(next.url);
       setYoutubeChannelUrl(next.youtubeChannelUrl);
-      setNotice("Web ve YouTube kanal adresleri kaydedildi.");
+      setNotice("Web sunucusu adresi kaydedildi.");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -66,21 +70,15 @@ export default function WebConnectionSettings() {
     setError("");
     setNotice("");
     try {
-      const next = await bridge.webConnectionSave({ url, youtubeChannelUrl });
+      const synced = await bridge.youtubeChannelAdd({ webUrl: url, youtubeChannelUrl });
+      if (!synced.ok) {
+        setNotice("Kanal ekleme işlemi iptal edildi; mevcut aktif kanal ve adresler korundu.");
+        return;
+      }
+      const next = await bridge.webConnectionConfig();
       setConfig(next);
       setUrl(next.url);
       setYoutubeChannelUrl(next.youtubeChannelUrl);
-      const synced = await bridge.youtubeCatalogSync({
-        mode: "recent",
-        excludeShorts: true,
-        excludeLive: true,
-        excludeMembersOnly: true,
-      });
-      if (!synced.ok) {
-        setNotice("Kanal ekleme işlemi iptal edildi; mevcut kanal verileri korundu.");
-        return;
-      }
-      setYoutubeChannelUrl(synced.channel.url);
       setNotice(`“${synced.channel.title || synced.channel.handle || "YouTube kanalı"}” eklendi ve aktif kanal yapıldı · ilk geçişte ${synced.updatedCount} video kataloglandı. Tüm geçmiş için Video Arşivi'nden Tam senkronizasyon çalıştır.`);
       await bridge.refreshMain().catch(() => undefined);
     } catch (reason) {
@@ -119,7 +117,7 @@ export default function WebConnectionSettings() {
           <input className="youtube-channel-address" type="url" value={youtubeChannelUrl} disabled={isBusy} onChange={(event) => { setYoutubeChannelUrl(event.target.value); setNotice(""); setError(""); }} placeholder="https://www.youtube.com/@kanal" autoComplete="url" required/>
         </label>
         <div className="web-connection-actions">
-          <button className="secondary-button" type="submit" disabled={isBusy || !url || !youtubeChannelUrl}>{busy === "save" ? "Kaydediliyor…" : "Adresleri kaydet"}</button>
+          <button className="secondary-button" type="submit" disabled={isBusy || !url || !config}>{busy === "save" ? "Kaydediliyor…" : "Web adresini kaydet"}</button>
           <button className="primary-button" type="button" disabled={isBusy || !url || !youtubeChannelUrl} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ekleniyor…" : "Kanalı ekle ve etkinleştir"}</button>
         </div>
       </form>
