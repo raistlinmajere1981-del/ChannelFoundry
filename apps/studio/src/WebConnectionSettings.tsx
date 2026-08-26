@@ -10,7 +10,7 @@ export default function WebConnectionSettings() {
   const [url, setUrl] = useState("");
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
   const [result, setResult] = useState<StudioWebConnectionTest | null>(null);
-  const [busy, setBusy] = useState<"save" | "test" | "">("");
+  const [busy, setBusy] = useState<"save" | "test" | "add" | "">("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -60,6 +60,36 @@ export default function WebConnectionSettings() {
     }
   };
 
+  const addChannel = async () => {
+    if (!bridge || !url || !youtubeChannelUrl) return;
+    setBusy("add");
+    setError("");
+    setNotice("");
+    try {
+      const next = await bridge.webConnectionSave({ url, youtubeChannelUrl });
+      setConfig(next);
+      setUrl(next.url);
+      setYoutubeChannelUrl(next.youtubeChannelUrl);
+      const synced = await bridge.youtubeCatalogSync({
+        mode: "recent",
+        excludeShorts: true,
+        excludeLive: true,
+        excludeMembersOnly: true,
+      });
+      if (!synced.ok) {
+        setNotice("Kanal ekleme işlemi iptal edildi; mevcut kanal verileri korundu.");
+        return;
+      }
+      setYoutubeChannelUrl(synced.channel.url);
+      setNotice(`“${synced.channel.title || synced.channel.handle || "YouTube kanalı"}” eklendi ve aktif kanal yapıldı · ilk geçişte ${synced.updatedCount} video kataloglandı. Tüm geçmiş için Video Arşivi'nden Tam senkronizasyon çalıştır.`);
+      await bridge.refreshMain().catch(() => undefined);
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusy("");
+    }
+  };
+
   if (!bridge) return null;
   const isBusy = Boolean(busy);
   const changed = Boolean(config && (
@@ -71,11 +101,11 @@ export default function WebConnectionSettings() {
 
   return <section className="panel web-connection-settings">
     <header>
-      <div><small>WEB BAĞLANTISI</small><h2>Sunucu adresi</h2></div>
+      <div><small>WEB BAĞLANTISI</small><h2>Sunucu ve kanal ekleme</h2></div>
       <span className={`web-connection-state ${state}`}><span className="local-dot"/>{stateLabel}</span>
     </header>
     <div className="web-connection-body">
-      <p>Web sunucusunun ve kaynak YouTube kanalının adreslerini burada yönet. Studio servis yollarını web adresinden otomatik oluşturur; Video Arşivi taramaları kayıtlı kanal adresini kullanır.</p>
+      <p>Web sunucusu adresini burada yönet. Yeni bir YouTube kanalı eklemek için kanal adresini girip “Kanalı ekle ve etkinleştir” seçeneğini kullan; eklenen kanallar sol menüdeki Aktif Kanal seçicisinden değiştirilebilir.</p>
       <form onSubmit={(event) => void save(event)}>
         <label>
           <span>Web sayfası</span>
@@ -88,7 +118,10 @@ export default function WebConnectionSettings() {
           <span>YouTube kanal adresi</span>
           <input className="youtube-channel-address" type="url" value={youtubeChannelUrl} disabled={isBusy} onChange={(event) => { setYoutubeChannelUrl(event.target.value); setNotice(""); setError(""); }} placeholder="https://www.youtube.com/@kanal" autoComplete="url" required/>
         </label>
-        <div className="web-connection-actions"><button className="primary-button" type="submit" disabled={isBusy || !url || !youtubeChannelUrl}>{busy === "save" ? "Kaydediliyor…" : "Adresleri kaydet"}</button></div>
+        <div className="web-connection-actions">
+          <button className="secondary-button" type="submit" disabled={isBusy || !url || !youtubeChannelUrl}>{busy === "save" ? "Kaydediliyor…" : "Adresleri kaydet"}</button>
+          <button className="primary-button" type="button" disabled={isBusy || !url || !youtubeChannelUrl} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ekleniyor…" : "Kanalı ekle ve etkinleştir"}</button>
+        </div>
       </form>
       {config && <div className="web-connection-facts">
         <div><span>Studio yayın servisi</span><strong title={config.endpoints.studio}>{config.endpoints.studio}</strong></div>
