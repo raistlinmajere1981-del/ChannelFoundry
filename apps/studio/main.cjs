@@ -14,6 +14,7 @@ const { registerStudioIpc } = require("./studio-ipc.cjs");
 const { registerAnalysisEditorialIpc } = require("./analysis-editorial-ipc.cjs");
 const { registerUniverseMaintenanceIpc } = require("./universe-maintenance-ipc.cjs");
 const { registerSubtitleAnalysisIpc } = require("./subtitle-analysis-ipc.cjs");
+const { registerYoutubeChannelIpc } = require("./youtube-channel-ipc.cjs");
 
 function windowPreferences() {
   return {
@@ -63,6 +64,7 @@ app.whenReady().then(() => {
   registerAnalysisEditorialIpc();
   registerUniverseMaintenanceIpc();
   registerSubtitleAnalysisIpc(ipcMain, runtime);
+  registerYoutubeChannelIpc(ipcMain, runtime);
   runtime.database();
   aiAnalysis.resetInterrupted(runtime.database());
   universeMerge.resetInterrupted(runtime.database());
