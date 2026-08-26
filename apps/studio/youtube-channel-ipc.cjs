@@ -18,15 +18,16 @@ function registerYoutubeChannelIpc(ipcMain, runtime) {
     channelAddRunning = true;
     try {
       const config = webConnection.getConfig();
+      const webUrl = webConnection.normalizeWebUrl(input?.webUrl || config.url);
+      const youtubeChannelUrl = youtubeCatalog.normalizeChannelUrl(input?.youtubeChannelUrl);
       const result = await youtubeCatalog.syncChannel(runtime.database(), app.getPath("userData"), {
         mode: "recent",
-        url: input?.youtubeChannelUrl,
+        url: youtubeChannelUrl,
         excludeShorts: true,
         excludeLive: true,
         excludeMembersOnly: true,
       });
       if (!result?.ok) return result;
-      const webUrl = String(input?.webUrl || config.url).trim();
       webConnection.saveConfig({ url: webUrl, youtubeChannelUrl: result.channel.url });
       runtime.refreshMainWindow();
       return result;
