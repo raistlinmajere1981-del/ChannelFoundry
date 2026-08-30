@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type ChannelSettingsBridge = NonNullable<typeof window.channelFoundryStudio> & {
-  youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string }): Promise<StudioYoutubeSyncResult>;
+  youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
 };
+
+type ArchiveScope = "channel" | "playlist";
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -13,6 +15,9 @@ export default function WebConnectionSettings() {
   const [config, setConfig] = useState<StudioWebConnectionConfig | null>(null);
   const [url, setUrl] = useState("");
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
+  const [activeChannel, setActiveChannel] = useState<StudioYoutubeChannel | null>(null);
+  const [archiveScope, setArchiveScope] = useState<ArchiveScope>("channel");
+  const [youtubePlaylistUrl, setYoutubePlaylistUrl] = useState("");
   const [result, setResult] = useState<StudioWebConnectionTest | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "add" | "">("");
   const [notice, setNotice] = useState("");
@@ -20,11 +25,19 @@ export default function WebConnectionSettings() {
 
   useEffect(() => {
     if (!bridge) return;
-    void bridge.webConnectionConfig().then((next) => {
+    const load = async () => {
+      const [next, channel] = await Promise.all([
+        bridge.webConnectionConfig(),
+        bridge.youtubeCatalogActive(),
+      ]);
       setConfig(next);
       setUrl(next.url);
       setYoutubeChannelUrl(next.youtubeChannelUrl);
-    }).catch((reason) => setError(errorText(reason)));
+      setActiveChannel(channel);
+      setArchiveScope(channel?.playlistUrl ? "playlist" : "channel");
+      setYoutubePlaylistUrl(channel?.playlistUrl || "");
+    };
+    void load().catch((reason) => setError(errorText(reason)));
   }, []);
 
   const test = async () => {
@@ -70,16 +83,25 @@ export default function WebConnectionSettings() {
     setError("");
     setNotice("");
     try {
-      const synced = await bridge.youtubeChannelAdd({ webUrl: url, youtubeChannelUrl });
-      if (!synced.ok) {
-        setNotice("Kanal ekleme işlemi iptal edildi; mevcut aktif kanal ve adresler korundu.");
-        return;
-      }
+      const added = await bridge.youtubeChannelAdd({
+        webUrl: url,
+        youtubeChannelUrl,
+        youtubePlaylistUrl: archiveScope === "playlist" ? youtubePlaylistUrl : "",
+      });
       const next = await bridge.webConnectionConfig();
       setConfig(next);
       setUrl(next.url);
       setYoutubeChannelUrl(next.youtubeChannelUrl);
-      setNotice(`“${synced.channel.title || synced.channel.handle || "YouTube kanalı"}” eklendi ve aktif kanal yapıldı · ilk geçişte ${synced.updatedCount} video kataloglandı. Tüm geçmiş için Video Arşivi'nden Tam senkronizasyon çalıştır.`);
+      setActiveChannel(added.channel);
+      setArchiveScope(added.channel.playlistUrl ? "playlist" : "channel");
+      setYoutubePlaylistUrl(added.channel.playlistUrl || "");
+      const channelName = added.channel.title || added.channel.handle || "YouTube kanalı";
+      const sourceDescription = added.channel.playlistUrl
+        ? `yalnız “${added.channel.playlistTitle || "seçilen playlist"}” kapsamıyla`
+        : "tüm kanal kapsamıyla";
+      setNotice(added.created
+        ? `“${channelName}” için ${sourceDescription} boş arşiv oluşturuldu ve kanal aktif edildi. Video veya altyazı indirilmedi; içeriği Video Arşivi sayfasındaki Tam senkronizasyon ile elle alabilirsin.`
+        : `“${channelName}” zaten kayıtlıydı; ${sourceDescription} yeniden aktif edildi. Mevcut arşiv bir sonraki Tam senkronizasyona kadar korundu.`);
       await bridge.refreshMain().catch(() => undefined);
     } catch (reason) {
       setError(errorText(reason));
@@ -93,6 +115,7 @@ export default function WebConnectionSettings() {
   const changed = Boolean(config && (
     url.trim().replace(/\/$/, "") !== config.url.replace(/\/$/, "")
     || youtubeChannelUrl.trim().replace(/\/$/, "") !== config.youtubeChannelUrl.replace(/\/$/, "")
+    || (archiveScope === "playlist" ? youtubePlaylistUrl.trim() : "") !== (activeChannel?.playlistUrl || "")
   ));
   const state = error ? "error" : changed ? "warning" : result?.ok ? "ready" : config?.customized ? "saved" : "";
   const stateLabel = error ? "Bağlantı başarısız" : changed ? "Kaydedilmemiş adres" : result?.ok ? "Bağlantı hazır" : config?.customized ? "Özel adres" : "Varsayılan adres";
@@ -103,7 +126,7 @@ export default function WebConnectionSettings() {
       <span className={`web-connection-state ${state}`}><span className="local-dot"/>{stateLabel}</span>
     </header>
     <div className="web-connection-body">
-      <p>Web sunucusu adresini burada yönet. Yeni bir YouTube kanalı eklemek için kanal adresini girip “Kanalı ekle ve etkinleştir” seçeneğini kullan; eklenen kanallar sol menüdeki Aktif Kanal seçicisinden değiştirilebilir.</p>
+      <p>Web sunucusu adresini burada yönet. Yeni bir YouTube kanalı eklerken arşiv kapsamını tüm kanal veya tek playlist olarak seçebilirsin. Kanal boş bir arşivle oluşturulur; video ve altyazılar yalnız Video Arşivi sayfasından elle senkronize edilir.</p>
       <form onSubmit={(event) => void save(event)}>
         <label>
           <span>Web sayfası</span>
@@ -114,11 +137,34 @@ export default function WebConnectionSettings() {
         </label>
         <label>
           <span>YouTube kanal adresi</span>
-          <input className="youtube-channel-address" type="url" value={youtubeChannelUrl} disabled={isBusy} onChange={(event) => { setYoutubeChannelUrl(event.target.value); setNotice(""); setError(""); }} placeholder="https://www.youtube.com/@kanal" autoComplete="url" required/>
+          <input className="youtube-channel-address" type="url" value={youtubeChannelUrl} disabled={isBusy} onChange={(event) => {
+            const nextUrl = event.target.value;
+            setYoutubeChannelUrl(nextUrl);
+            if (nextUrl.trim().replace(/\/$/, "") !== (activeChannel?.url || "").replace(/\/$/, "")) {
+              setArchiveScope("channel");
+              setYoutubePlaylistUrl("");
+            }
+            setNotice("");
+            setError("");
+          }} placeholder="https://www.youtube.com/@kanal" autoComplete="url" required/>
         </label>
+        <div className="youtube-archive-source">
+          <label>
+            <span>Video arşivi kapsamı</span>
+            <select value={archiveScope} disabled={isBusy} onChange={(event) => { setArchiveScope(event.target.value as ArchiveScope); setNotice(""); setError(""); }}>
+              <option value="channel">Tüm kanal</option>
+              <option value="playlist">Yalnız bir playlist</option>
+            </select>
+          </label>
+          {archiveScope === "playlist" && <label>
+            <span>YouTube playlist adresi</span>
+            <input className="youtube-channel-address" type="url" value={youtubePlaylistUrl} disabled={isBusy} onChange={(event) => { setYoutubePlaylistUrl(event.target.value); setNotice(""); setError(""); }} placeholder="https://www.youtube.com/playlist?list=..." autoComplete="url" required/>
+          </label>}
+        </div>
+        {archiveScope === "playlist" && <small className="youtube-archive-source-note">Tam senkronizasyon yalnız bu playlist'teki videoları arşive alır. Kanalın diğer videoları eklenmez.</small>}
         <div className="web-connection-actions">
           <button className="secondary-button" type="submit" disabled={isBusy || !url || !config}>{busy === "save" ? "Kaydediliyor…" : "Web adresini kaydet"}</button>
-          <button className="primary-button" type="button" disabled={isBusy || !url || !youtubeChannelUrl} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ekleniyor…" : "Kanalı ekle ve etkinleştir"}</button>
+          <button className="primary-button" type="button" disabled={isBusy || !url || !youtubeChannelUrl || (archiveScope === "playlist" && !youtubePlaylistUrl)} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ve kaynak doğrulanıyor…" : "Kanalı ekle ve etkinleştir"}</button>
         </div>
       </form>
       {config && <div className="web-connection-facts">

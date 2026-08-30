@@ -84,9 +84,13 @@ function registerSourceHandlers() {
     const controller = new AbortController();
     youtubeSyncOperation = { controller, sender: event.sender };
     try {
-      const result = await youtubeCatalog.syncChannel(runtime.database(), app.getPath("userData"), {
+      const db = runtime.database();
+      const channel = youtubeCatalog.activeChannel(db);
+      if (!channel) throw new Error("Senkronizasyon için aktif YouTube kanalı bulunamadı.");
+      const result = await youtubeCatalog.syncChannel(db, app.getPath("userData"), {
+        channelId: channel.id,
         mode: input?.mode,
-        url: webConnection.youtubeChannelUrl(),
+        url: channel.url,
         excludeShorts: input?.excludeShorts !== false,
         excludeLive: input?.excludeLive !== false,
         excludeMembersOnly: input?.excludeMembersOnly !== false,

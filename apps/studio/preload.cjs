@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   youtubeCatalogChannels: () => ipcRenderer.invoke("studio:youtube-catalog-channels"),
   youtubeCatalogActive: () => ipcRenderer.invoke("studio:youtube-catalog-active"),
   youtubeCatalogSetActive: (input) => ipcRenderer.invoke("studio:youtube-catalog-set-active", input),
+  youtubeChannelMediaOptions: (input) => ipcRenderer.invoke("studio:youtube-channel-media-options", input),
+  youtubeChannelMediaOptionsSave: (input) => ipcRenderer.invoke("studio:youtube-channel-media-options-save", input),
   youtubeChannelAdd: (input) => ipcRenderer.invoke("studio:youtube-channel-add", input),
   youtubeCatalogVideos: (input) => ipcRenderer.invoke("studio:youtube-catalog-videos", input),
   youtubeCatalogStats: () => ipcRenderer.invoke("studio:youtube-catalog-stats"),

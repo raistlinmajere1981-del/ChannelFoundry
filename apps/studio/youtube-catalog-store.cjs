@@ -1,6 +1,42 @@
 const fs = require("node:fs");
 const youtubeImporter = require("./youtube-import.cjs");
 
+const DEFAULT_CHANNEL_MEDIA_OPTIONS = Object.freeze({
+  metadataLanguage: "tr",
+  subtitleLanguages: ["tr", "en"],
+  thumbnailSize: "standard",
+});
+const THUMBNAIL_SIZES = new Set(["small", "standard", "large"]);
+
+function validMetadataLanguage(value) {
+  const language = String(value ?? "").trim();
+  return language === "original" || /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/.test(language);
+}
+
+function normalizedSubtitleLanguages(value) {
+  if (!Array.isArray(value)) return [];
+  const languages = [];
+  for (const item of value) {
+    const language = String(item ?? "").trim();
+    if (!/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/.test(language) || languages.includes(language)) continue;
+    languages.push(language);
+    if (languages.length === 4) break;
+  }
+  return languages;
+}
+
+function normalizeChannelMediaOptions(input = {}, fallback = DEFAULT_CHANNEL_MEDIA_OPTIONS) {
+  const fallbackMetadata = validMetadataLanguage(fallback?.metadataLanguage) ? String(fallback.metadataLanguage).trim() : DEFAULT_CHANNEL_MEDIA_OPTIONS.metadataLanguage;
+  const fallbackSubtitles = normalizedSubtitleLanguages(fallback?.subtitleLanguages);
+  const fallbackThumbnail = THUMBNAIL_SIZES.has(String(fallback?.thumbnailSize)) ? String(fallback.thumbnailSize) : DEFAULT_CHANNEL_MEDIA_OPTIONS.thumbnailSize;
+  const requestedSubtitles = normalizedSubtitleLanguages(input?.subtitleLanguages);
+  return {
+    metadataLanguage: validMetadataLanguage(input?.metadataLanguage) ? String(input.metadataLanguage).trim() : fallbackMetadata,
+    subtitleLanguages: requestedSubtitles.length ? requestedSubtitles : (fallbackSubtitles.length ? fallbackSubtitles : [...DEFAULT_CHANNEL_MEDIA_OPTIONS.subtitleLanguages]),
+    thumbnailSize: THUMBNAIL_SIZES.has(String(input?.thumbnailSize)) ? String(input.thumbnailSize) : fallbackThumbnail,
+  };
+}
+
 function ensureColumn(db, table, name, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all();
   if (!columns.some((column) => column.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition};`);
@@ -37,6 +73,11 @@ function ensureSchema(db) {
       last_synced_at TEXT,
       last_full_synced_at TEXT,
       video_count INTEGER NOT NULL DEFAULT 0,
+      metadata_language TEXT NOT NULL DEFAULT '',
+      subtitle_languages_json TEXT NOT NULL DEFAULT '',
+      thumbnail_size TEXT NOT NULL DEFAULT '',
+      playlist_url TEXT NOT NULL DEFAULT '',
+      playlist_title TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) STRICT;
@@ -60,6 +101,11 @@ function ensureSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_youtube_videos_duration ON youtube_videos(duration_seconds);
   `);
   ensureColumn(db, "youtube_channels", "is_active", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "youtube_channels", "metadata_language", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "youtube_channels", "subtitle_languages_json", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "youtube_channels", "thumbnail_size", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "youtube_channels", "playlist_url", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "youtube_channels", "playlist_title", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "youtube_videos", "subtitle_status", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "youtube_videos", "subtitle_languages_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "youtube_videos", "automatic_caption_languages_json", "TEXT NOT NULL DEFAULT '[]'");
@@ -72,6 +118,7 @@ function channelRow(db, channelId) {
   return db.prepare(`
     SELECT id, url, title, handle, last_synced_at AS lastSyncedAt,
            last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount,
+           playlist_url AS playlistUrl, playlist_title AS playlistTitle,
            CASE WHEN is_active = 1 THEN 1 ELSE 0 END AS active
     FROM youtube_channels WHERE id = ?
   `).get(String(channelId ?? "").trim());
@@ -80,7 +127,7 @@ function channelRow(db, channelId) {
 function getChannel(db, channelId) {
   ensureSchema(db);
   const row = channelRow(db, channelId);
-  return row ? { ...row, active: Boolean(row.active) } : null;
+  return row ? { ...row, active: Boolean(row.active), sourceType: row.playlistUrl ? "playlist" : "channel" } : null;
 }
 
 function activeChannel(db) {
@@ -108,6 +155,85 @@ function setActiveChannel(db, channelId) {
   return getChannel(db, id);
 }
 
+function registerChannel(db, identity, url, mediaOptions = DEFAULT_CHANNEL_MEDIA_OPTIONS, sourceOptions) {
+  ensureSchema(db);
+  const id = String(identity?.channelId ?? "").trim();
+  const normalizedUrl = String(url ?? "").trim();
+  if (!id || !normalizedUrl) throw new Error("YouTube kanal kimliği oluşturulamadı.");
+  const created = !channelRow(db, id);
+  const options = normalizeChannelMediaOptions(mediaOptions);
+  const sourceProvided = Boolean(sourceOptions && Object.prototype.hasOwnProperty.call(sourceOptions, "playlistUrl"));
+  const playlistUrl = String(sourceOptions?.playlistUrl ?? "").trim();
+  const playlistTitle = playlistUrl ? String(sourceOptions?.playlistTitle ?? "").trim() : "";
+  db.exec("BEGIN IMMEDIATE;");
+  try {
+    db.prepare("UPDATE youtube_channels SET is_active = 0 WHERE is_active <> 0").run();
+    db.prepare(`
+      INSERT INTO youtube_channels (
+        id, url, title, handle, is_active,
+        metadata_language, subtitle_languages_json, thumbnail_size,
+        playlist_url, playlist_title
+      ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        url=excluded.url,
+        title=excluded.title,
+        handle=excluded.handle,
+        is_active=1,
+        metadata_language=CASE WHEN youtube_channels.metadata_language='' THEN excluded.metadata_language ELSE youtube_channels.metadata_language END,
+        subtitle_languages_json=CASE WHEN youtube_channels.subtitle_languages_json='' THEN excluded.subtitle_languages_json ELSE youtube_channels.subtitle_languages_json END,
+        thumbnail_size=CASE WHEN youtube_channels.thumbnail_size='' THEN excluded.thumbnail_size ELSE youtube_channels.thumbnail_size END,
+        playlist_url=CASE WHEN ?=1 THEN excluded.playlist_url ELSE youtube_channels.playlist_url END,
+        playlist_title=CASE WHEN ?=1 THEN excluded.playlist_title ELSE youtube_channels.playlist_title END,
+        updated_at=CURRENT_TIMESTAMP
+    `).run(
+      id, normalizedUrl, String(identity?.title ?? ""), String(identity?.handle ?? ""),
+      options.metadataLanguage, JSON.stringify(options.subtitleLanguages), options.thumbnailSize,
+      playlistUrl, playlistTitle, sourceProvided ? 1 : 0, sourceProvided ? 1 : 0,
+    );
+    db.exec("COMMIT;");
+  } catch (error) {
+    db.exec("ROLLBACK;");
+    throw error;
+  }
+  return { created, channel: getChannel(db, id) };
+}
+
+function channelMediaOptions(db, channelId, fallback = DEFAULT_CHANNEL_MEDIA_OPTIONS) {
+  ensureSchema(db);
+  const id = String(channelId ?? "").trim() || ensureActiveSelection(db);
+  if (!id) return null;
+  const row = db.prepare(`
+    SELECT metadata_language AS metadataLanguage,
+           subtitle_languages_json AS subtitleLanguagesJson,
+           thumbnail_size AS thumbnailSize
+    FROM youtube_channels WHERE id = ?
+  `).get(id);
+  if (!row) throw new Error("Seçilen YouTube kanalı yerel katalogda bulunamadı.");
+  return {
+    channelId: id,
+    ...normalizeChannelMediaOptions({
+      metadataLanguage: row.metadataLanguage,
+      subtitleLanguages: parseJsonArray(row.subtitleLanguagesJson),
+      thumbnailSize: row.thumbnailSize,
+    }, fallback),
+  };
+}
+
+function saveChannelMediaOptions(db, input, fallback = DEFAULT_CHANNEL_MEDIA_OPTIONS) {
+  ensureSchema(db);
+  const id = String(input?.channelId ?? "").trim() || ensureActiveSelection(db);
+  if (!id) throw new Error("Medya tercihleri için aktif kanal bulunamadı.");
+  const current = channelMediaOptions(db, id, fallback);
+  const options = normalizeChannelMediaOptions(input, current);
+  const result = db.prepare(`
+    UPDATE youtube_channels
+    SET metadata_language=?, subtitle_languages_json=?, thumbnail_size=?, updated_at=CURRENT_TIMESTAMP
+    WHERE id=?
+  `).run(options.metadataLanguage, JSON.stringify(options.subtitleLanguages), options.thumbnailSize, id);
+  if (!result.changes) throw new Error("Seçilen YouTube kanalı yerel katalogda bulunamadı.");
+  return { channelId: id, ...options };
+}
+
 function scopedChannelId(db, input = {}) {
   if (input?.allChannels === true) return "";
   const explicit = String(input?.channelId ?? "").trim();
@@ -115,19 +241,22 @@ function scopedChannelId(db, input = {}) {
   return activeChannel(db)?.id || "";
 }
 
-function detailedVideoIds(db, detailSignature) {
+function detailedVideoIds(db, detailSignature, channelId = "") {
   ensureSchema(db);
   const signature = String(detailSignature || "");
+  const scopedId = String(channelId || "").trim();
   db.prepare(`
     UPDATE youtube_videos SET detail_signature=?
     WHERE detail_signature='' AND published_at<>''
       AND subtitle_status IN ('manual', 'automatic', 'none')
-  `).run(signature);
+      ${scopedId ? "AND channel_id=?" : ""}
+  `).run(signature, ...(scopedId ? [scopedId] : []));
   return db.prepare(`
     SELECT video_id AS videoId FROM youtube_videos
     WHERE published_at<>'' AND subtitle_status IN ('manual', 'automatic', 'none')
       AND detail_signature=?
-  `).all(signature).map((row) => row.videoId);
+      ${scopedId ? "AND channel_id=?" : ""}
+  `).all(signature, ...(scopedId ? [scopedId] : [])).map((row) => row.videoId);
 }
 
 function upsertCatalog(db, identity, url, videos, mode) {
@@ -190,10 +319,15 @@ function listChannels(db) {
   return db.prepare(`
     SELECT id, url, title, handle, last_synced_at AS lastSyncedAt,
            last_full_synced_at AS lastFullSyncedAt, video_count AS videoCount,
+           playlist_url AS playlistUrl, playlist_title AS playlistTitle,
            CASE WHEN is_active = 1 THEN 1 ELSE 0 END AS active
     FROM youtube_channels
     ORDER BY is_active DESC, COALESCE(last_synced_at, created_at) DESC
-  `).all().map((row) => ({ ...row, active: Boolean(row.active) }));
+  `).all().map((row) => ({
+    ...row,
+    active: Boolean(row.active),
+    sourceType: row.playlistUrl ? "playlist" : "channel",
+  }));
 }
 
 function hasTable(db, name) {
@@ -308,12 +442,16 @@ function catalogStats(db, input = {}) {
 module.exports = {
   activeChannel,
   catalogStats,
+  channelMediaOptions,
   detailedVideoIds,
   ensureSchema,
   getChannel,
   importCatalogVideo,
   listChannels,
   listVideos,
+  normalizeChannelMediaOptions,
+  registerChannel,
+  saveChannelMediaOptions,
   scopedChannelId,
   setActiveChannel,
   upsertCatalog,

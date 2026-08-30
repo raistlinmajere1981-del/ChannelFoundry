@@ -5,6 +5,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const store = require("./transcript-store.cjs");
 const ytDlp = require("./ytdlp-manager.cjs");
+const youtubeCatalogStore = require("./youtube-catalog-store.cjs");
 
 const execFileAsync = promisify(execFile);
 
@@ -102,7 +103,7 @@ function subtitleFailureMessage(attempts) {
   const detail = combined.trim().slice(0, 900);
   return detail
     ? `YouTube altyazısı alınamadı. Manuel ve videonun kendi dilindeki otomatik altyazılar denendi. ${detail}`
-    : "Bu video için Türkçe veya İngilizce manuel/otomatik altyazı bulunamadı.";
+    : "Bu video için kanal tercihlerindeki dillerde manuel veya otomatik altyazı bulunamadı.";
 }
 
 function resolveYoutubeTarget(db, input) {
@@ -113,20 +114,33 @@ function resolveYoutubeTarget(db, input) {
       SELECT external_id AS videoId, canonical_url AS canonicalUrl
       FROM content_sources WHERE content_key = ? AND provider = 'youtube'
     `).get(contentKey);
-    if (source) return { contentKey, videoId: source.videoId, canonicalUrl: source.canonicalUrl };
+    if (source) {
+      const channelId = store.tableExists(db, "youtube_videos")
+        ? db.prepare("SELECT channel_id AS channelId FROM youtube_videos WHERE video_id = ?").get(source.videoId)?.channelId ?? ""
+        : "";
+      return { contentKey, videoId: source.videoId, canonicalUrl: source.canonicalUrl, channelId };
+    }
   }
   if (requestedVideoId && store.tableExists(db, "youtube_videos")) {
     const source = db.prepare(`
-      SELECT video_id AS videoId, canonical_url AS canonicalUrl FROM youtube_videos WHERE video_id = ?
+      SELECT video_id AS videoId, canonical_url AS canonicalUrl, channel_id AS channelId
+      FROM youtube_videos WHERE video_id = ?
     `).get(requestedVideoId);
     if (source) {
       const mappedContentKey = store.tableExists(db, "content_sources")
         ? db.prepare("SELECT content_key AS contentKey FROM content_sources WHERE provider = 'youtube' AND external_id = ?").get(requestedVideoId)?.contentKey ?? ""
         : "";
-      return { contentKey: mappedContentKey, videoId: source.videoId, canonicalUrl: source.canonicalUrl };
+      return { contentKey: mappedContentKey, videoId: source.videoId, canonicalUrl: source.canonicalUrl, channelId: source.channelId };
     }
   }
   throw new Error(contentKey ? "Bu kayıt bir YouTube kaynağına bağlı değil." : "Video yerel YouTube kataloğunda bulunamadı.");
+}
+
+function subtitleLanguagesForTarget(db, target) {
+  const fallback = ytDlp.mediaOptions();
+  if (!target?.channelId) return [...fallback.subtitleLanguages];
+  const options = youtubeCatalogStore.channelMediaOptions(db, target.channelId, fallback);
+  return options?.subtitleLanguages?.length ? [...options.subtitleLanguages] : [...fallback.subtitleLanguages];
 }
 
 async function fetchYoutubeTranscript(db, input) {
@@ -139,7 +153,7 @@ async function fetchYoutubeTranscript(db, input) {
 
   const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-transcript-"));
   try {
-    const languages = status.subtitleLanguages || ytDlp.mediaOptions().subtitleLanguages;
+    const languages = subtitleLanguagesForTarget(db, target);
     const outputTemplate = path.join(tempDirectory, "%(id)s.%(ext)s");
     const attempts = [];
     // Avoid wildcard languages: auto-translated composite keys can trigger HTTP 429.
@@ -178,4 +192,13 @@ async function fetchYoutubeTranscript(db, input) {
   }
 }
 
-module.exports = { chooseSubtitleFile, fetchYoutubeTranscript, subtitleAttemptArgs, subtitleFailureMessage, vttToPlainText, ytDlpStatus };
+module.exports = {
+  chooseSubtitleFile,
+  fetchYoutubeTranscript,
+  resolveYoutubeTarget,
+  subtitleAttemptArgs,
+  subtitleFailureMessage,
+  subtitleLanguagesForTarget,
+  vttToPlainText,
+  ytDlpStatus,
+};

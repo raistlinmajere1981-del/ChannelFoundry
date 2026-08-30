@@ -14,5 +14,7 @@ module.exports = {
   transcriptStats: store.transcriptStats,
   subtitleAttemptArgs: youtube.subtitleAttemptArgs,
   chooseSubtitleFile: youtube.chooseSubtitleFile,
+  resolveYoutubeTarget: youtube.resolveYoutubeTarget,
+  subtitleLanguagesForTarget: youtube.subtitleLanguagesForTarget,
   subtitleFailureMessage: youtube.subtitleFailureMessage,
 };

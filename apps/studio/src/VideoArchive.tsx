@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_PAGE_SIZE = 50;
+const channelLanguages = [
+  ["tr", "Türkçe"], ["en", "İngilizce"], ["de", "Almanca"], ["fr", "Fransızca"],
+  ["es", "İspanyolca"], ["ar", "Arapça"], ["ru", "Rusça"],
+] as const;
 
 type DurationFilter = "all" | "0-10" | "10-30" | "30-60" | "60+";
 type ArchiveFilter = "all" | "missing" | "ready";
@@ -113,21 +117,25 @@ export default function VideoArchive() {
   const [busy, setBusy] = useState<"recent" | "full" | "archive-bulk" | string | null>(null);
   const [syncProgress, setSyncProgress] = useState<StudioYoutubeSyncProgress | null>(null);
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
+  const [mediaOptions, setMediaOptions] = useState<StudioYoutubeChannelMediaOptions | null>(null);
+  const [optionsBusy, setOptionsBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     if (!bridge) return;
-    const [nextTool, nextChannels, nextVideos, nextStats] = await Promise.all([
+    const [nextTool, nextChannels, nextVideos, nextStats, nextMediaOptions] = await Promise.all([
       bridge.youtubeCatalogStatus(),
       bridge.youtubeCatalogChannels(),
       bridge.youtubeCatalogVideos({}),
       bridge.youtubeCatalogStats(),
+      bridge.youtubeChannelMediaOptions(),
     ]);
     setTool(nextTool);
     setChannels(nextChannels);
     setVideos(nextVideos);
     setStats(nextStats);
+    setMediaOptions(nextMediaOptions);
     setSelected((current) => new Set([...current].filter((videoId) => nextVideos.some((video) => video.videoId === videoId && !video.hasTranscript))));
   };
 
@@ -137,6 +145,21 @@ export default function VideoArchive() {
     const stopProgress = bridge?.onYoutubeCatalogProgress?.((progress) => setSyncProgress(progress));
     return () => { stopData?.(); stopProgress?.(); };
   }, []);
+
+  const saveMediaOptions = async (next: Partial<Omit<StudioYoutubeChannelMediaOptions, "channelId">>) => {
+    if (!bridge || !mediaOptions || busy || optionsBusy) return;
+    setOptionsBusy(true);
+    setSyncNotice(null);
+    try {
+      const updated = await bridge.youtubeChannelMediaOptionsSave({ ...mediaOptions, ...next });
+      setMediaOptions(updated);
+      setSyncNotice({ text: "Kanalın dil ve görsel tercihleri kaydedildi; sonraki senkronizasyon ve altyazı arşivlemesinde kullanılacak.", tone: "success" });
+    } catch (reason) {
+      setSyncNotice({ text: `Kanal tercihleri kaydedilemedi · ${errorText(reason)}`, tone: "error" });
+    } finally {
+      setOptionsBusy(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
@@ -170,13 +193,15 @@ export default function VideoArchive() {
   const availableSubtitleCount = videos.filter((video) => video.subtitleStatus === "manual" || video.subtitleStatus === "automatic").length;
   const archivedTranscriptCount = videos.filter((video) => video.hasTranscript).length;
   const unarchivedTranscriptCount = Math.max(0, videos.length - archivedTranscriptCount);
+  const primarySubtitle = mediaOptions?.subtitleLanguages[0] || "tr";
+  const fallbackSubtitle = mediaOptions?.subtitleLanguages[1] || "";
 
   useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = selectedResultCount > 0 && !allResultsSelected;
   }, [selectedResultCount, allResultsSelected, catalogView]);
 
   const sync = async (mode: "recent" | "full") => {
-    if (!bridge) return;
+    if (!bridge || !mediaOptions || optionsBusy) return;
     if (mode === "full" && channels.length && !confirm("Tam senkronizasyon seçili kapsamdaki tüm videoların tarih ve altyazı bilgisini yeniden tarayacak, eksik thumbnail'leri yerel cache'e alacak. Ayrıntılı tarama biraz zaman alabilir. Devam edilsin mi?")) return;
     setBusy(mode);
     setCanceling(false);
@@ -319,13 +344,33 @@ export default function VideoArchive() {
   return <div className="video-archive-page">
     <section className="channel-sync panel">
       <div className="channel-sync-controls">
-        <div className="channel-scan-options" aria-label="Kanal tarama kapsamı">
-          <label><input type="checkbox" checked={excludeShorts} disabled={Boolean(busy)} onChange={(event) => setExcludeShorts(event.target.checked)}/><span>Shorts videolarını tarama</span></label>
-          <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy)} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınları tarama</span></label>
-          <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy)} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel videoları tarama</span></label>
+        <div className="channel-sync-options">
+          <div className="channel-scan-options" aria-label="Kanal tarama kapsamı">
+            <label><input type="checkbox" checked={excludeShorts} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeShorts(event.target.checked)}/><span>Shorts videolarını tarama</span></label>
+            <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınları tarama</span></label>
+            <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel videoları tarama</span></label>
+          </div>
+          {mediaOptions && <div className="channel-media-options" aria-label="Kanal dil ve görsel tercihleri">
+            <label><span>Başlık dili</span><select aria-label="Kanal başlık ve metadata dili" value={mediaOptions.metadataLanguage} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
+              <option value="original">Özgün dil</option>
+              {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select></label>
+            <label><span>Altyazı</span><select aria-label="Kanal öncelikli altyazı dili" value={primarySubtitle} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [event.target.value, fallbackSubtitle].filter(Boolean) })}>
+              {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select></label>
+            <label><span>Yedek altyazı</span><select aria-label="Kanal yedek altyazı dili" value={fallbackSubtitle} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [primarySubtitle, event.target.value].filter(Boolean) })}>
+              <option value="">Kullanma</option>
+              {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select></label>
+            <label><span>Thumbnail</span><select aria-label="Kanal thumbnail boyutu" value={mediaOptions.thumbnailSize} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ thumbnailSize: event.target.value as StudioYoutubeChannelMediaOptions["thumbnailSize"] })}>
+              <option value="small">Kompakt</option>
+              <option value="standard">Standart</option>
+              <option value="large">Büyük</option>
+            </select></label>
+          </div>}
         </div>
-        <div className={`channel-sync-progress${syncBusy ? " active" : ""}${!syncBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite">{progressLabel(syncProgress) || syncNotice?.text || ""}</div>
-        <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
+        <div className={`channel-sync-progress${syncBusy || optionsBusy ? " active" : ""}${!syncBusy && !optionsBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite">{optionsBusy ? "Kanal tercihleri kaydediliyor…" : progressLabel(syncProgress) || syncNotice?.text || ""}</div>
+        <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || !mediaOptions || optionsBusy || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
       </div>
     </section>
 

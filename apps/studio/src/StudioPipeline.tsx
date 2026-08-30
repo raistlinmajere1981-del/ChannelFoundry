@@ -196,13 +196,18 @@ function Brand() {
 
 function ActiveChannelSelector({ channels, activeChannelId, busy, onChange }: { channels: StudioYoutubeChannel[]; activeChannelId: string; busy: boolean; onChange: (channelId: string) => void }) {
   const selectedId = activeChannelId || channels[0]?.id || "";
+  const selectedChannel = channels.find((channel) => channel.id === selectedId);
   return <div className="active-channel-selector">
     <span>AKTİF KANAL</span>
     <select aria-label="Aktif YouTube kanalı" value={selectedId} disabled={busy || !channels.length} onChange={(event) => onChange(event.target.value)}>
       {!channels.length && <option value="">Henüz kanal yok</option>}
-      {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}</option>)}
+      {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}{channel.sourceType === "playlist" ? " · Playlist" : ""}</option>)}
     </select>
-    <small>{channels.length ? `${channels.length} kanal · seçim katalog ve senkronizasyonu değiştirir` : "Ayarlar bölümünden ilk kanalı ekle"}</small>
+    <small title={selectedChannel?.playlistUrl || undefined}>{channels.length
+      ? selectedChannel?.sourceType === "playlist"
+        ? `Playlist · ${selectedChannel.playlistTitle || "seçili liste"} · ${channels.length} kanal`
+        : `${channels.length} kanal · seçim katalog ve senkronizasyonu değiştirir`
+      : "Ayarlar bölümünden ilk kanalı ekle"}</small>
   </div>;
 }
 

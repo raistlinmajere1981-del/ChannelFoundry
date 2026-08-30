@@ -83,7 +83,8 @@
 }
 
 .web-connection-control input,
-.youtube-channel-address {
+.youtube-channel-address,
+.youtube-archive-source select {
   width: 100%;
   min-width: 0;
   min-height: 44px;
@@ -96,7 +97,21 @@
 }
 
 .web-connection-control input:focus,
-.youtube-channel-address:focus { border-color: rgba(215, 181, 109, .55); }
+.youtube-channel-address:focus,
+.youtube-archive-source select:focus { border-color: rgba(215, 181, 109, .55); }
+.youtube-archive-source {
+  display: grid;
+  grid-template-columns: minmax(190px, .35fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.youtube-archive-source select { appearance: auto; }
+.youtube-archive-source-note {
+  margin-top: -7px;
+  color: #77818e;
+  font-size: 9px;
+  line-height: 1.5;
+}
 .web-connection-control button { min-height: 44px; }
 .web-connection-actions { display: flex; justify-content: flex-end; }
 .web-connection-actions button { min-height: 44px; }
@@ -134,5 +149,6 @@
 
 @media (max-width: 900px) {
   .web-connection-control { grid-template-columns: 1fr; }
+  .youtube-archive-source { grid-template-columns: 1fr; }
   .web-connection-facts { grid-template-columns: 1fr; }
 }

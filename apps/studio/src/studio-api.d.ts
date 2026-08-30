@@ -23,7 +23,19 @@ type StudioBulkResult = { ok: true; action: "publish" | "draft" | "delete"; requ
 
 type StudioYoutubePreview = { provider: "youtube"; videoId: string; url: string; title: string; channel: string; thumbnailUrl: string };
 type StudioYoutubeImportResult = { imported: boolean; reason?: "already_exists"; item: StudioPersistedItem; source: Omit<StudioYoutubePreview, "title"> };
-type StudioYoutubeChannel = { id: string; url: string; title: string; handle: string; lastSyncedAt: string | null; lastFullSyncedAt: string | null; videoCount: number };
+type StudioYoutubeChannel = {
+  id: string;
+  url: string;
+  title: string;
+  handle: string;
+  lastSyncedAt: string | null;
+  lastFullSyncedAt: string | null;
+  videoCount: number;
+  active?: boolean;
+  sourceType: "channel" | "playlist";
+  playlistUrl: string;
+  playlistTitle: string;
+};
 type StudioYoutubeCatalogVideo = {
   videoId: string; channelId: string; title: string; publishedAt: string; durationSeconds: number | null; url: string; thumbnailUrl: string; thumbnailFile: string;
   availability: string; liveStatus: string; subtitleStatus: "manual" | "automatic" | "none" | "unknown" | "";
@@ -31,6 +43,13 @@ type StudioYoutubeCatalogVideo = {
   contentKey: string | null; editorialStatus: "published" | "draft" | null; hasTranscript: boolean; thumbnailCached: boolean;
 };
 type StudioYoutubeCatalogStats = { total: number; imported: number; transcripts: number; pendingImport: number };
+type StudioYoutubeChannelAddResult = { ok: true; created: boolean; channel: StudioYoutubeChannel };
+type StudioYoutubeChannelMediaOptions = {
+  channelId: string;
+  metadataLanguage: string;
+  subtitleLanguages: string[];
+  thumbnailSize: "small" | "standard" | "large";
+};
 type StudioYoutubeSyncResult = {
   ok: true; mode: "recent" | "full"; tool: StudioTranscriptToolStatus; channel: StudioYoutubeChannel;
   newCount: number; updatedCount: number; removedCount: number; cachedCount: number; archivedThumbnailCount: number;
@@ -354,14 +373,16 @@ interface Window {
     youtubeImport(input: { url: string }): Promise<StudioYoutubeImportResult>;
     youtubeCatalogStatus(): Promise<StudioTranscriptToolStatus>;
     ytDlpStatus(): Promise<StudioYtDlpStatus>;
-    ytDlpSaveOptions(input: {
-      autoCheck?: boolean; autoUpdate?: boolean; metadataLanguage?: string;
-      subtitleLanguages?: string[]; thumbnailSize?: StudioYtDlpStatus["thumbnailSize"];
-    }): Promise<StudioYtDlpStatus>;
+    ytDlpSaveOptions(input: { autoCheck?: boolean; autoUpdate?: boolean }): Promise<StudioYtDlpStatus>;
     ytDlpCheck(): Promise<StudioYtDlpStatus>;
     ytDlpInstall(): Promise<StudioYtDlpStatus>;
     onYtDlpChanged(callback: () => void): () => void;
     youtubeCatalogChannels(): Promise<StudioYoutubeChannel[]>;
+    youtubeCatalogActive(): Promise<StudioYoutubeChannel | null>;
+    youtubeCatalogSetActive(input: { channelId: string }): Promise<StudioYoutubeChannel>;
+    youtubeChannelMediaOptions(input?: { channelId?: string }): Promise<StudioYoutubeChannelMediaOptions | null>;
+    youtubeChannelMediaOptionsSave(input: StudioYoutubeChannelMediaOptions): Promise<StudioYoutubeChannelMediaOptions>;
+    youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
     youtubeCatalogVideos(input?: { channelId?: string }): Promise<StudioYoutubeCatalogVideo[]>;
     youtubeCatalogStats(): Promise<StudioYoutubeCatalogStats>;
     youtubeCatalogSync(input: { mode: "recent" | "full"; excludeShorts?: boolean; excludeLive?: boolean; excludeMembersOnly?: boolean }): Promise<StudioYoutubeSyncResult>;

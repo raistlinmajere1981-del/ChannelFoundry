@@ -8,6 +8,9 @@ const appearance = read("src/studio-appearance.ts");
 const settings = read("src/AppearanceSettings.tsx");
 const pipeline = read("src/StudioPipeline.tsx");
 const aiWorkbench = read("src/AiWorkbench.tsx");
+const videoArchive = read("src/VideoArchive.tsx");
+const webConnectionSettings = read("src/WebConnectionSettings.tsx");
+const ytDlpSettings = read("src/YtDlpSettings.tsx");
 const entry = read("src/main.tsx");
 const accessibility = read("src/studio-accessibility.css");
 const workspaceLayout = read("src/studio-workspace-layout.css");
@@ -24,6 +27,12 @@ for (const option of ["standard", "comfortable", "large", "dark", "light"]) {
 }
 assert.match(settings, /Okuma yardımı etkin/, "Okuma konforu davranışı kullanıcıya açıklanmalı");
 assert.match(pipeline, /<AppearanceSettings\/>/, "Görünüm seçenekleri Ayarlar sayfasına bağlanmalı");
+assert.match(videoArchive, /youtubeChannelMediaOptionsSave/, "Kanal medya tercihleri Video Arşivi üzerinden kaydedilmeli");
+assert.match(videoArchive, /Kanal başlık ve metadata dili/, "Video Arşivi kanal bazlı metadata dili sunmalı");
+assert.match(videoArchive, /Kanal thumbnail boyutu/, "Video Arşivi kanal bazlı thumbnail boyutu sunmalı");
+assert.doesNotMatch(ytDlpSettings, /ytdlp-media-group/, "Kanal içerik tercihleri global yt-dlp ayarlarında kalmamalı");
+assert.match(webConnectionSettings, /Yalnız bir playlist/, "Kanal ekleme alanı tek playlist kapsamı sunmalı");
+assert.match(webConnectionSettings, /youtubePlaylistUrl/, "Playlist kaynağı kanal ekleme IPC çağrısına bağlanmalı");
 
 assert.match(entry, /applyStudioAppearance\(readStudioAppearance\(\)\)/, "Tercihler React render edilmeden uygulanmalı");
 const tokenImport = entry.indexOf('import "./studio-theme-tokens.css"');

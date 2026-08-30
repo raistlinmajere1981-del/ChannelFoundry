@@ -27,6 +27,26 @@ function normalizeChannelUrl(input) {
   return url.toString().replace(/\/$/, "");
 }
 
+function normalizePlaylistUrl(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) throw new Error("YouTube playlist bağlantısı gerekli.");
+  let url;
+  try { url = new URL(raw.includes("://") ? raw : `https://${raw}`); } catch {
+    throw new Error("Geçerli bir YouTube playlist bağlantısı gir.");
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  if (!["youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"].includes(host)) {
+    throw new Error("Yalnız YouTube playlist bağlantıları destekleniyor.");
+  }
+  const playlistId = String(url.searchParams.get("list") ?? "").trim();
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(playlistId)) {
+    throw new Error("Playlist bağlantısında geçerli bir list kimliği bulunamadı.");
+  }
+  const normalized = new URL("https://www.youtube.com/playlist");
+  normalized.searchParams.set("list", playlistId);
+  return normalized.toString();
+}
+
 function fallbackChannelId(url) {
   return `channel-${crypto.createHash("sha1").update(url).digest("hex").slice(0, 16)}`;
 }
@@ -53,8 +73,8 @@ function detailSignature(options = ytDlp.mediaOptions()) {
   });
 }
 
-function currentDetailSignature() {
-  return detailSignature(ytDlp.mediaOptions());
+function currentDetailSignature(options = ytDlp.mediaOptions()) {
+  return detailSignature(options);
 }
 
 function normalizeEntry(entry, channelId, options = ytDlp.mediaOptions()) {
@@ -285,6 +305,20 @@ function channelIdentity(payload, url) {
   return { channelId, title, handle };
 }
 
+function playlistMetadata(payload, url) {
+  const normalizedUrl = normalizePlaylistUrl(url);
+  const playlistId = String(payload?.id ?? new URL(normalizedUrl).searchParams.get("list") ?? "").trim();
+  if (!playlistId || (!Array.isArray(payload?.entries) && !String(payload?.title ?? "").trim())) {
+    throw new Error("Playlist bilgileri YouTube'dan alınamadı. Playlist'in herkese açık olduğundan emin ol.");
+  }
+  return {
+    playlistId,
+    title: String(payload?.title ?? "YouTube Playlist").trim() || "YouTube Playlist",
+    channelId: String(payload?.channel_id ?? payload?.playlist_channel_id ?? "").trim(),
+    url: normalizedUrl,
+  };
+}
+
 function uploadsPlaylistUrl(channelId) {
   const id = String(channelId ?? "").trim();
   if (!/^UC[A-Za-z0-9_-]+$/.test(id)) return "";
@@ -304,6 +338,7 @@ function channelTabUrl(channelUrl, tab) {
 }
 
 function catalogTargets(channelUrl, channelId, input = {}) {
+  if (input?.playlistUrl) return [normalizePlaylistUrl(input.playlistUrl)];
   const filters = scanFilters(input);
   if (!filters.excludeShorts && !filters.excludeLive) {
     return [uploadsPlaylistUrl(channelId) || normalizeChannelUrl(channelUrl)];
@@ -334,12 +369,12 @@ function flattenEntries(entries) {
 
 async function fetchCatalog(channelUrl, mode, input = {}) {
   // Resolve identity once, then query only the channel tabs selected by the user.
-  const options = ytDlp.mediaOptions();
+  const options = input?.mediaOptions ?? ytDlp.mediaOptions();
   const filters = scanFilters(input);
   input.onProgress?.({ phase: "preparing", processed: 0, total: 0, currentTitle: "" });
   const identityPayload = await fetchJson(channelUrl, "recent", true, options, input);
   const identity = channelIdentity(identityPayload, channelUrl);
-  const targets = catalogTargets(channelUrl, identity.channelId, filters);
+  const targets = catalogTargets(channelUrl, identity.channelId, { ...filters, playlistUrl: input?.playlistUrl });
   input.onProgress?.({ phase: "catalog", processed: 0, total: 0, currentTitle: "" });
   const flatPayloads = await Promise.all(targets.map((target) => fetchJson(target, mode, false, options, input)));
   const flatGroups = flatPayloads.map((payload) => flattenEntries(payload?.entries));
@@ -390,9 +425,21 @@ async function fetchCatalog(channelUrl, mode, input = {}) {
   };
 }
 
+async function fetchChannelIdentity(channelUrl, input = {}) {
+  const url = normalizeChannelUrl(channelUrl);
+  const payload = await fetchJson(url, "recent", true, ytDlp.mediaOptions(), input);
+  return channelIdentity(payload, url);
+}
+
+async function fetchPlaylistMetadata(playlistUrl, input = {}) {
+  const url = normalizePlaylistUrl(playlistUrl);
+  const payload = await fetchJson(url, "recent", true, ytDlp.mediaOptions(), input);
+  return playlistMetadata(payload, url);
+}
+
 module.exports = {
   catalogArgs, catalogTargets, currentDetailSignature, detailArgs, detailOutputTemplate, detailSignature,
-  fetchCatalog, fetchDetailedEntries, flattenEntries,
-  normalizeChannelUrl, normalizeEntry, parseDetailOutput, scanFilters, shouldIncludeEntry,
+  fetchCatalog, fetchChannelIdentity, fetchDetailedEntries, fetchPlaylistMetadata, flattenEntries,
+  normalizeChannelUrl, normalizeEntry, normalizePlaylistUrl, parseDetailOutput, playlistMetadata, scanFilters, shouldIncludeEntry,
   thumbnailUrls, uploadsPlaylistUrl, ytDlpStatus,
 };

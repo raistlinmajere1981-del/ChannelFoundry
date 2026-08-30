@@ -2,21 +2,55 @@ const fs = require("node:fs");
 const source = require("./youtube-catalog-source.cjs");
 const store = require("./youtube-catalog-store.cjs");
 const { cacheThumbnails, thumbnailCacheFile } = require("./youtube-thumbnail-cache.cjs");
+const ytDlp = require("./ytdlp-manager.cjs");
+
+async function addChannel(db, input) {
+  store.ensureSchema(db);
+  const tool = await source.ytDlpStatus();
+  if (!tool.available) throw new Error("Kanal eklemek için yt-dlp kurulu olmalı.");
+  const url = source.normalizeChannelUrl(input?.url);
+  const playlistUrl = input?.playlistUrl ? source.normalizePlaylistUrl(input.playlistUrl) : "";
+  const [identity, playlist] = await Promise.all([
+    source.fetchChannelIdentity(url),
+    playlistUrl ? source.fetchPlaylistMetadata(playlistUrl) : Promise.resolve(null),
+  ]);
+  if (playlist?.channelId && /^UC[A-Za-z0-9_-]+$/.test(identity.channelId) && playlist.channelId !== identity.channelId) {
+    throw new Error("Seçilen playlist, girilen YouTube kanalına ait değil.");
+  }
+  const result = store.registerChannel(db, identity, url, ytDlp.mediaOptions(), {
+    playlistUrl,
+    playlistTitle: playlist?.title || "",
+  });
+  return { ok: true, ...result };
+}
+
+function channelMediaOptions(db, input = {}) {
+  return store.channelMediaOptions(db, input?.channelId, ytDlp.mediaOptions());
+}
+
+function saveChannelMediaOptions(db, input = {}) {
+  return store.saveChannelMediaOptions(db, input, ytDlp.mediaOptions());
+}
 
 async function syncChannel(db, userDataPath, input) {
   store.ensureSchema(db);
   const tool = await source.ytDlpStatus();
   if (!tool.available) throw new Error("Kanal senkronizasyonu için yt-dlp kurulu olmalı.");
-  const url = source.normalizeChannelUrl(input?.url);
+  const selectedChannel = input?.channelId ? store.getChannel(db, input.channelId) : store.activeChannel(db);
+  if (!selectedChannel) throw new Error("Senkronizasyon için aktif YouTube kanalı bulunamadı.");
+  const mediaOptions = store.channelMediaOptions(db, selectedChannel.id, ytDlp.mediaOptions());
+  const url = source.normalizeChannelUrl(input?.url || selectedChannel.url);
   const mode = input?.mode === "recent" ? "recent" : "full";
-  const detailSignature = source.currentDetailSignature();
+  const detailSignature = source.currentDetailSignature(mediaOptions);
   const { payload, identity, options, filters, detailStats } = await source.fetchCatalog(url, mode, {
+    mediaOptions,
+    playlistUrl: selectedChannel.playlistUrl,
     excludeShorts: input?.excludeShorts,
     excludeLive: input?.excludeLive,
     excludeMembersOnly: input?.excludeMembersOnly,
     signal: input?.signal,
     onProgress: input?.onProgress,
-    skipVideoIds: store.detailedVideoIds(db, detailSignature),
+    skipVideoIds: store.detailedVideoIds(db, detailSignature, selectedChannel.id),
   });
   const videos = source.flattenEntries(payload?.entries)
     .filter((entry) => source.shouldIncludeEntry(entry, filters))
@@ -67,8 +101,10 @@ async function syncChannel(db, userDataPath, input) {
 }
 
 module.exports = {
+  addChannel,
   activeChannel: store.activeChannel,
   catalogStats: store.catalogStats,
+  channelMediaOptions,
   detailedVideoIds: store.detailedVideoIds,
   ensureSchema: store.ensureSchema,
   flattenEntries: source.flattenEntries,
@@ -78,6 +114,8 @@ module.exports = {
   listVideos: store.listVideos,
   normalizeChannelUrl: source.normalizeChannelUrl,
   normalizeEntry: source.normalizeEntry,
+  normalizePlaylistUrl: source.normalizePlaylistUrl,
+  saveChannelMediaOptions,
   setActiveChannel: store.setActiveChannel,
   syncChannel,
   uploadsPlaylistUrl: source.uploadsPlaylistUrl,

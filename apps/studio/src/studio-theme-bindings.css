@@ -426,6 +426,13 @@ body{
   background:var(--accent-soft)!important;
 }
 
+.channel-media-options label>span{color:var(--text-muted)!important}
+.channel-media-options select{
+  border-color:var(--border-control)!important;
+  background:var(--surface-input)!important;
+  color:var(--text-primary)!important;
+}
+
 /* Settings. Community facts are the other final hard-coded dark island. */
 .community-connection-settings>header,.web-connection-settings>header{border-color:var(--border-soft)!important}
 .community-connection-settings>p,.web-connection-body>p{color:var(--text-muted)!important}

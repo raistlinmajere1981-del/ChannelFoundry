@@ -1,4 +1,3 @@
-const { app } = require("electron");
 const youtubeCatalog = require("./youtube-catalog.cjs");
 const webConnection = require("./web-connection.cjs");
 
@@ -13,6 +12,14 @@ function registerYoutubeChannelIpc(ipcMain, runtime) {
     runtime.refreshMainWindow();
     return channel;
   });
+  ipcMain.handle("studio:youtube-channel-media-options", (_event, input) => (
+    youtubeCatalog.channelMediaOptions(runtime.database(), input)
+  ));
+  ipcMain.handle("studio:youtube-channel-media-options-save", (_event, input) => {
+    const options = youtubeCatalog.saveChannelMediaOptions(runtime.database(), input);
+    runtime.refreshMainWindow();
+    return options;
+  });
   ipcMain.handle("studio:youtube-channel-add", async (_event, input) => {
     if (channelAddRunning) throw new Error("Başka bir kanal ekleme işlemi zaten çalışıyor.");
     channelAddRunning = true;
@@ -20,14 +27,13 @@ function registerYoutubeChannelIpc(ipcMain, runtime) {
       const config = webConnection.getConfig();
       const webUrl = webConnection.normalizeWebUrl(input?.webUrl || config.url);
       const youtubeChannelUrl = youtubeCatalog.normalizeChannelUrl(input?.youtubeChannelUrl);
-      const result = await youtubeCatalog.syncChannel(runtime.database(), app.getPath("userData"), {
-        mode: "recent",
+      const youtubePlaylistUrl = input?.youtubePlaylistUrl
+        ? youtubeCatalog.normalizePlaylistUrl(input.youtubePlaylistUrl)
+        : "";
+      const result = await youtubeCatalog.addChannel(runtime.database(), {
         url: youtubeChannelUrl,
-        excludeShorts: true,
-        excludeLive: true,
-        excludeMembersOnly: true,
+        playlistUrl: youtubePlaylistUrl,
       });
-      if (!result?.ok) return result;
       webConnection.saveConfig({ url: webUrl, youtubeChannelUrl: result.channel.url });
       runtime.refreshMainWindow();
       return result;

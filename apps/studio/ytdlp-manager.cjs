@@ -362,10 +362,7 @@ async function saveOptions(input) {
   const autoUpdate = input?.autoUpdate === undefined ? current.autoUpdate : Boolean(input.autoUpdate);
   const requestedAutoCheck = input?.autoCheck === undefined ? current.autoCheck : Boolean(input.autoCheck);
   const autoCheck = requestedAutoCheck || autoUpdate;
-  const metadataLanguage = normalizeMetadataLanguage(input?.metadataLanguage ?? current.metadataLanguage);
-  const subtitleLanguages = normalizeSubtitleLanguages(input?.subtitleLanguages ?? current.subtitleLanguages);
-  const thumbnailSize = normalizeThumbnailSize(input?.thumbnailSize ?? current.thumbnailSize);
-  writeSettings({ ...current, autoCheck, autoUpdate, metadataLanguage, subtitleLanguages, thumbnailSize, lastError: "" });
+  writeSettings({ ...current, autoCheck, autoUpdate, lastError: "" });
   emit();
   if (autoCheck && (!current.autoCheck || autoUpdate && !current.autoUpdate)) {
     setTimeout(() => { void checkForUpdates().catch(() => undefined); }, 250);

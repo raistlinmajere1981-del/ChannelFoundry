@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 
-const languages = [
-  ["tr", "Türkçe"], ["en", "İngilizce"], ["de", "Almanca"], ["fr", "Fransızca"],
-  ["es", "İspanyolca"], ["ar", "Arapça"], ["ru", "Rusça"],
-] as const;
-
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -26,7 +21,6 @@ export default function YtDlpSettings() {
   const [status, setStatus] = useState<StudioYtDlpStatus | null>(null);
   const [action, setAction] = useState<"options" | "check" | "install" | "">("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const refresh = async () => {
     if (!bridge) return;
@@ -42,29 +36,8 @@ export default function YtDlpSettings() {
     if (!bridge) return;
     setAction("options");
     setError("");
-    setNotice("");
     try {
       setStatus(await bridge.ytDlpSaveOptions({ autoCheck, autoUpdate }));
-    } catch (reason) {
-      setError(errorText(reason));
-    } finally {
-      setAction("");
-    }
-  };
-
-  const saveMediaOptions = async (next: Partial<Pick<StudioYtDlpStatus, "metadataLanguage" | "subtitleLanguages" | "thumbnailSize">>) => {
-    if (!bridge || !status) return;
-    setAction("options");
-    setError("");
-    setNotice("");
-    try {
-      const updated = await bridge.ytDlpSaveOptions({
-        metadataLanguage: next.metadataLanguage ?? status.metadataLanguage,
-        subtitleLanguages: next.subtitleLanguages ?? status.subtitleLanguages,
-        thumbnailSize: next.thumbnailSize ?? status.thumbnailSize,
-      });
-      setStatus(updated);
-      setNotice("İçerik tercihleri kaydedildi. Başlık ve thumbnail değişiklikleri sonraki kanal senkronizasyonunda uygulanır.");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -76,7 +49,6 @@ export default function YtDlpSettings() {
     if (!bridge) return;
     setAction(kind);
     setError("");
-    setNotice("");
     try {
       setStatus(kind === "check" ? await bridge.ytDlpCheck() : await bridge.ytDlpInstall());
     } catch (reason) {
@@ -98,10 +70,6 @@ export default function YtDlpSettings() {
       : status?.available
         ? "Kullanıma hazır"
         : "Kurulum gerekli";
-  const subtitleLanguages = status?.subtitleLanguages?.length ? status.subtitleLanguages : ["tr", "en"];
-  const primarySubtitle = subtitleLanguages[0] || "tr";
-  const fallbackSubtitle = subtitleLanguages[1] || "";
-
   return <section className="panel ytdlp-settings">
     <header className="ytdlp-settings-head">
       <div><small>YOUTUBE ARAÇLARI</small><h2>yt-dlp yönetimi</h2></div>
@@ -109,7 +77,7 @@ export default function YtDlpSettings() {
         <span className="local-dot"/>{stateLabel}
       </span>
     </header>
-    <p>Video kataloğu ve altyazı işlemlerinde kullanılan aracı Windows veya Linux üzerinde Studio içinden kurup günceller.</p>
+    <p>Video kataloğu ve altyazı işlemlerinde kullanılan aracı Windows veya Linux üzerinde Studio içinden kurup günceller. Dil ve thumbnail tercihleri her kanal için Video Arşivi sayfasında saklanır.</p>
 
     <div className="ytdlp-facts">
       <div><span>Platform</span><strong>{status?.platform || "Algılanıyor…"}</strong></div>
@@ -118,39 +86,6 @@ export default function YtDlpSettings() {
       <div><span>Son sürüm</span><strong>{status?.latestVersion || "Denetlenmedi"}</strong></div>
       <div className="wide"><span>Son denetim</span><strong>{formatDate(status?.lastCheckedAt || "")}</strong></div>
     </div>
-
-    <fieldset className="ytdlp-media-group" disabled={busy || !status}>
-      <legend>İÇERİK TERCİHLERİ</legend>
-      <label>
-        <span>Video başlığı / metadata dili<small>YouTube’da Türkçe çeviri varsa katalogda Türkçe başlık kullanılır.</small></span>
-        <select value={status?.metadataLanguage || "tr"} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
-          <option value="tr">Türkçe</option>
-          <option value="original">Videonun özgün dili</option>
-          {languages.filter(([code]) => code !== "tr").map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>Thumbnail boyutu<small>Büyük görsel bulunamazsa Studio bir alt boyuta güvenli biçimde döner.</small></span>
-        <select value={status?.thumbnailSize || "standard"} onChange={(event) => void saveMediaOptions({ thumbnailSize: event.target.value as StudioYtDlpStatus["thumbnailSize"] })}>
-          <option value="small">Kompakt · 320×180</option>
-          <option value="standard">Standart · 480×360</option>
-          <option value="large">Büyük · 1280×720’ye kadar</option>
-        </select>
-      </label>
-      <label>
-        <span>Öncelikli altyazı dili<small>Manuel altyazı önce, otomatik altyazı ikinci aşamada aranır.</small></span>
-        <select value={primarySubtitle} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [event.target.value, fallbackSubtitle].filter(Boolean) })}>
-          {languages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>Yedek altyazı dili<small>Öncelikli dil bulunamadığında bu dil denenir.</small></span>
-        <select value={fallbackSubtitle} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [primarySubtitle, event.target.value].filter(Boolean) })}>
-          <option value="">Yedek dil kullanma</option>
-          {languages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-        </select>
-      </label>
-    </fieldset>
 
     <fieldset className="ytdlp-option-group" disabled={busy || !status?.supported}>
       <legend>OTOMASYON</legend>
@@ -164,8 +99,8 @@ export default function YtDlpSettings() {
       </label>
     </fieldset>
 
-    {(status?.message || error || notice || status?.lastError) && <div className={`ytdlp-notice ${error || status?.phase === "error" || status?.lastError ? "error" : ""}`}>
-      {error || notice || status?.message || status?.lastError}
+    {(status?.message || error || status?.lastError) && <div className={`ytdlp-notice ${error || status?.phase === "error" || status?.lastError ? "error" : ""}`}>
+      {error || status?.message || status?.lastError}
     </div>}
     {status && !status.supported && <div className="ytdlp-notice error">Yönetilen kurulum bu platformda desteklenmiyor. Windows ile Linux x64/arm64 desteklenir.</div>}
 
@@ -177,6 +112,6 @@ export default function YtDlpSettings() {
         {action === "install" || status?.phase === "downloading" || status?.phase === "installing" ? "Kuruluyor…" : installLabel}
       </button>
     </div>
-    <p className="ytdlp-footnote">Kurulum sistem dizinlerini değiştirmez; araç Studio’nun yerel veri alanında tutulur ve resmî SHA-256 özetiyle doğrulanır.</p>
+    <p className="ytdlp-footnote">Kurulum sistem dizinlerini değiştirmez; araç Studio’nun yerel veri alanında tutulur ve resmî SHA-256 özetiyle doğrulanır. Kanal içerik tercihlerini Video Arşivi’ndeki senkronizasyon çubuğundan yönetebilirsin.</p>
   </section>;
 }

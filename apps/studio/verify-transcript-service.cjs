@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { DatabaseSync } = require("node:sqlite");
 const service = require("./transcript-service.cjs");
+const youtubeStore = require("./youtube-catalog-store.cjs");
 
 const db = new DatabaseSync(":memory:");
 db.exec("PRAGMA foreign_keys = ON;");
@@ -48,6 +49,23 @@ const germanArgs = service.subtitleAttemptArgs({
 });
 assert.equal(germanArgs[germanArgs.indexOf("--sub-langs") + 1], "de,tr");
 assert.equal(service.chooseSubtitleFile(["video.tr.vtt", "video.de.vtt"], ["de", "tr"]), "video.de.vtt");
+
+youtubeStore.ensureSchema(db);
+youtubeStore.registerChannel(db, {
+  channelId: "english-channel", title: "English Channel", handle: "@english",
+}, "https://www.youtube.com/@english", {
+  metadataLanguage: "original", subtitleLanguages: ["en", "de"], thumbnailSize: "large",
+});
+db.prepare(`
+  INSERT INTO youtube_videos (video_id, channel_id, title, canonical_url, thumbnail_url)
+  VALUES (?, ?, ?, ?, ?)
+`).run(
+  "abcdefghijk", "english-channel", "English Video",
+  "https://www.youtube.com/watch?v=abcdefghijk", "https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg",
+);
+const target = service.resolveYoutubeTarget(db, { videoId: "abcdefghijk" });
+assert.equal(target.channelId, "english-channel");
+assert.deepEqual(service.subtitleLanguagesForTarget(db, target), ["en", "de"]);
 
 const rateLimitMessage = service.subtitleFailureMessage([{ stderr: "HTTP Error 429: Too Many Requests", stdout: "", error: null }]);
 assert.match(rateLimitMessage, /429/);

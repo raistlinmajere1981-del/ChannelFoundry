@@ -14,23 +14,16 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-ytdlp-settin
       subtitleLanguages: ["tr", "en"],
       thumbnailSize: "standard",
     });
-    await manager.saveOptions({
-      metadataLanguage: "original",
-      subtitleLanguages: ["de", "tr", "de"],
-      thumbnailSize: "large",
-    });
-    assert.deepEqual(manager.mediaOptions(), {
-      metadataLanguage: "original",
-      subtitleLanguages: ["de", "tr"],
-      thumbnailSize: "large",
-    });
-    await manager.saveOptions({ metadataLanguage: "invalid language", subtitleLanguages: ["*"], thumbnailSize: "giant" });
+    await manager.saveOptions({ autoCheck: true, autoUpdate: false });
     assert.deepEqual(manager.mediaOptions(), {
       metadataLanguage: "tr",
       subtitleLanguages: ["tr", "en"],
       thumbnailSize: "standard",
     });
-    console.log("yt-dlp media preferences ready");
+    const status = await manager.status();
+    assert.equal(status.autoCheck, true);
+    assert.equal(status.autoUpdate, false);
+    console.log("yt-dlp tool preferences remain global while media preferences stay channel-owned");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
