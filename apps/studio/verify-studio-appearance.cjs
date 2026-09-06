@@ -18,6 +18,7 @@ const tokens = read("src/studio-theme-tokens.css");
 const bindings = read("src/studio-theme-bindings.css");
 const activeChannelStyles = read("src/active-channel.css");
 const videoArchiveStyles = read("src/video-archive.css");
+const videoArchiveSettingsStyles = read("src/video-archive-settings.css");
 const subtitleResearchStyles = read("src/subtitle-research.css");
 
 assert.match(appearance, /theme:\s*"dark",\s*textSize:\s*"comfortable"/, "Studio varsayılanı uzun okumaya uygun rahat metin olmalı");
@@ -109,8 +110,10 @@ assert.match(bindings, /\.theme-publication-metrics>div/, "Yayınlama metrikleri
 assert.match(bindings, /\.narrative-header,[\s\S]*\.visual-completion-list>button/, "05 ve 06 aşamaları semantic tema sisteminde kapsanmalı");
 assert.match(activeChannelStyles, /var\(--surface-panel-soft\)/, "Aktif kanal seçicisi semantic yüzey kullanmalı");
 assert.match(videoArchiveStyles, /\.catalog-metric strong\{[\s\S]*var\(--text-primary\)/, "Video Arşivi metrikleri semantic ana metin kullanmalı");
+assert.match(videoArchiveSettingsStyles, /\.channel-scan-options label\{[\s\S]*var\(--surface-panel-soft\)/, "Video Arşivi kontrol katmanı semantic yüzey kullanmalı");
+assert.match(videoArchiveSettingsStyles, /\.catalog-display-controls button\{[\s\S]*var\(--surface-panel\)/, "Video Arşivi görünüm düğmeleri semantic yüzey kullanmalı");
 assert.match(subtitleResearchStyles, /\.subtitle-research-hero h2\{[\s\S]*var\(--text-primary\)/, "Altyazı Araştırma başlığı semantic ana metin kullanmalı");
-for (const [name, stylesheet] of [["aktif kanal", activeChannelStyles], ["Video Arşivi", videoArchiveStyles], ["Altyazı Araştırma", subtitleResearchStyles]]) {
+for (const [name, stylesheet] of [["aktif kanal", activeChannelStyles], ["Video Arşivi", videoArchiveStyles], ["Video Arşivi kontrol", videoArchiveSettingsStyles], ["Altyazı Araştırma", subtitleResearchStyles]]) {
   assert.doesNotMatch(stylesheet, /#(?:[0-9a-f]{3,8})\b|rgba?\([^)]*\)|hsla?\([^)]*\)/i, name + " stillerinde hard-coded renk adası bulunmamalı");
 }
 assert.doesNotMatch(bindings, /html\[data-studio-theme="light"\]/, "Binding katmanı tema özel selector kullanmamalı; fark token değerlerinde kalmalı");
