@@ -51,6 +51,8 @@ jobs:
         run: node apps/studio/verify-transcript-service.cjs
       - name: Verify subtitle analysis
         run: node apps/studio/verify-subtitle-analysis.cjs
+      - name: Verify Studio appearance contract
+        run: node apps/studio/verify-studio-appearance.cjs
       - name: Verify AI assistant contracts
         run: node apps/studio/verify-ai-service.cjs
       - name: Verify persistent AI analysis queue
