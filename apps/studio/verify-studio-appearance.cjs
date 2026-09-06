@@ -16,6 +16,9 @@ const accessibility = read("src/studio-accessibility.css");
 const workspaceLayout = read("src/studio-workspace-layout.css");
 const tokens = read("src/studio-theme-tokens.css");
 const bindings = read("src/studio-theme-bindings.css");
+const activeChannelStyles = read("src/active-channel.css");
+const videoArchiveStyles = read("src/video-archive.css");
+const subtitleResearchStyles = read("src/subtitle-research.css");
 
 assert.match(appearance, /theme:\s*"dark",\s*textSize:\s*"comfortable"/, "Studio varsayılanı uzun okumaya uygun rahat metin olmalı");
 assert.match(appearance, /channel-foundry:studio-appearance-v1/, "Görünüm tercihi cihazda kalıcı saklanmalı");
@@ -104,6 +107,12 @@ assert.match(bindings, /\.support-records-list>button\.active\{[\s\S]*var\(--sur
 assert.match(bindings, /\.support-published-state\{[\s\S]*var\(--state-success\)/, "Sponsor & Katkı yayın durumu semantic başarı tokenını kullanmalı");
 assert.match(bindings, /\.theme-publication-metrics>div/, "Yayınlama metrikleri semantic tema binding'inde kapsanmalı");
 assert.match(bindings, /\.narrative-header,[\s\S]*\.visual-completion-list>button/, "05 ve 06 aşamaları semantic tema sisteminde kapsanmalı");
+assert.match(activeChannelStyles, /var\(--surface-panel-soft\)/, "Aktif kanal seçicisi semantic yüzey kullanmalı");
+assert.match(videoArchiveStyles, /\.catalog-metric strong\{[\s\S]*var\(--text-primary\)/, "Video Arşivi metrikleri semantic ana metin kullanmalı");
+assert.match(subtitleResearchStyles, /\.subtitle-research-hero h2\{[\s\S]*var\(--text-primary\)/, "Altyazı Araştırma başlığı semantic ana metin kullanmalı");
+for (const [name, stylesheet] of [["aktif kanal", activeChannelStyles], ["Video Arşivi", videoArchiveStyles], ["Altyazı Araştırma", subtitleResearchStyles]]) {
+  assert.doesNotMatch(stylesheet, /#(?:[0-9a-f]{3,8})\b|rgba?\([^)]*\)|hsla?\([^)]*\)/i, name + " stillerinde hard-coded renk adası bulunmamalı");
+}
 assert.doesNotMatch(bindings, /html\[data-studio-theme="light"\]/, "Binding katmanı tema özel selector kullanmamalı; fark token değerlerinde kalmalı");
 assert.doesNotMatch(bindings, /#[0-9a-f]{3,8}\b/i, "Tema binding katmanında hard-coded hex renk bulunmamalı; renk değerleri yalnız token dosyasında yaşamalı");
 
