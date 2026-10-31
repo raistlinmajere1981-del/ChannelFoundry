@@ -101,7 +101,7 @@ async function complete(config, messages, options = {}) {
     apiKey: config.apiKey,
     timeoutMs: options.timeoutMs || Math.max(60000, Number(config.timeoutSeconds || 420) * 1000),
     signal: options.signal,
-  }, { prompt, model: { providerID: id.slice(0, slash), modelID: id.slice(slash + 1) } });
+  }, { prompt, model: { providerID: id.slice(0, slash), id: id.slice(slash + 1) } });
   const content = String(response?.data?.text ?? response?.data?.content ?? response?.text ?? response?.content ?? "").trim();
   if (!content) throw new Error("OpenCode sunucusu metin üretmedi.");
   return { content, model: id, finishReason: "stop" };

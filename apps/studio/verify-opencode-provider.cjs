@@ -71,7 +71,8 @@ const aiClient = require("./ai-client.cjs");
     }, [{ role: "user", content: "Reply OK" }]);
     assert.equal(response.content, "OK");
     assert.equal(seen[1].body.model.providerID, "opencode");
-    assert.equal(seen[1].body.model.modelID, "deepseek-v4.1-flash-free");
+    assert.equal(seen[1].body.model.id, "deepseek-v4.1-flash-free");
+    assert.ok(!("modelID" in seen[1].body.model));
     assert.equal(seen[1].url, "/api/experimental/generate/text");
   } finally { await new Promise((resolve) => server.close(resolve)); }
   console.log("OpenCode authenticated server, model discovery, stateless test and no standalone CLI PASS");
