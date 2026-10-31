@@ -31,7 +31,7 @@ type Props = {
 const idleSnapshot: ActivitySnapshot = {
   mode: "idle",
   title: "AI hazır",
-  detail: "Video çözümleme, Evrene İşleme veya görsel üretimi başladığında ilerleme burada görünür.",
+  detail: "",
   model: "",
   progress: 0,
   active: false,
@@ -183,9 +183,9 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
     <div className="ai-activity-main">
       <div className="ai-activity-head">
         <div className="ai-activity-copy" role="status" aria-live="polite">
-          <small>İŞLEM VE MESAJ DURUMU</small>
+
           <strong><i className={snapshot.active ? "pulse" : ""}/>{title}{snapshot.active && <b>{snapshot.mode === "visual" ? "çalışıyor" : `${pct}%`}</b>}</strong>
-          <span className={notice?.tone ?? (persistentError ? "error" : "")}>{detail}</span>
+          {detail && <span className={notice?.tone ?? (persistentError ? "error" : "")}>{detail}</span>}
         </div>
         <button type="button" className="ai-activity-model" onClick={(event) => { event.stopPropagation(); openOverlay(); }} aria-haspopup="dialog" aria-expanded={overlayOpen} title="AI çalışma günlüğünü aç">
           <span className="ai-activity-model-copy">
@@ -207,12 +207,12 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
       </div>}
     </div>
 
-    <div className="ai-activity-summary" aria-label="AI Atölyesi özeti">
-      <span className={summary.errors ? "error" : ""}><b>{number(summary.errors)}</b> hata</span>
-      <span><b>{number(summary.queue)}</b> kuyruk</span>
-      <span><b>{number(summary.review)}</b> inceleme</span>
-      <span className="ready"><b>{number(summary.approved)}</b> onaylı</span>
-    </div>
-    <p className="ai-activity-helper">İstekler, mesajlar ve model cevaplarını görmek için tıkla.</p>
+    {(summary.errors > 0 || summary.queue > 0 || summary.review > 0 || summary.approved > 0) &&
+      <div className="ai-activity-summary" aria-label="AI Atölyesi özeti">
+        {summary.errors > 0 && <span className="error"><b>{number(summary.errors)}</b> hata</span>}
+        {summary.queue > 0 && <span><b>{number(summary.queue)}</b> kuyruk</span>}
+        {summary.review > 0 && <span><b>{number(summary.review)}</b> inceleme</span>}
+        {summary.approved > 0 && <span className="ready"><b>{number(summary.approved)}</b> onaylı</span>}
+      </div>}
   </section><AiActivityOverlay open={overlayOpen} onClose={closeOverlay} initialSnapshot={activitySnapshot}/></>;
 }

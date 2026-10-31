@@ -262,11 +262,6 @@ export default function SubtitleResearch() {
   };
 
   return <div className="subtitle-research-page">
-    <section className="subtitle-research-hero panel">
-      <div><small>ALTYAZI ARAŞTIRMA</small><h2>Terimden ilişkiye</h2><p>Tekil/çoklu kelime aramasını korur; ilişki modunda kavram gruplarını seçilen kelime veya cümle yakınlığında birlikte arar.</p></div>
-      <div className="subtitle-research-note">V3 · kavram grupları · yakınlık · yön · NOT · tarih · Markdown + JSON</div>
-    </section>
-
     <section className="subtitle-search-panel panel">
       <div className="subtitle-mode-tabs">
         <button type="button" className={searchType === "terms" ? "active" : ""} onClick={() => { setSearchType("terms"); setReport(null); }}>Terim Arama</button>
@@ -284,6 +279,7 @@ export default function SubtitleResearch() {
             <div className="relation-exclude"><label><span>Hariç tut (NOT)</span><div className="subtitle-term-input-row"><input value={excludeDraft} onChange={(event) => setExcludeDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addExclude)} placeholder="Bu bağlamlarda varsa sonucu çıkar…"/><button className="secondary-button" type="button" onClick={() => addExclude()}>Ekle</button></div></label><div className="subtitle-term-chips">{excludeTerms.map((term) => <button type="button" key={termKey(term)} onClick={() => setExcludeTerms((current) => current.filter((entry) => termKey(entry) !== termKey(term)))}>{term}<b>×</b></button>)}</div></div>
           </div>}
 
+        <details className="subtitle-advanced-filters"><summary>Filtreler{dateFrom || dateTo ? " · Tarih seçili" : ""}</summary>
         <div className="subtitle-control-grid">
           <label><span>Kanal</span><select value={channelId} onChange={(event) => setChannelId(event.target.value)}><option value="">Tüm kanallar</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}</option>)}</select></label>
           {searchType === "terms" && <label><span>Çoklu arama</span><select value={searchMode} onChange={(event) => setSearchMode(event.target.value as SearchMode)}><option value="independent">Bağımsız · herhangi biri</option><option value="all-in-video">Aynı videoda · hepsi</option></select></label>}
@@ -294,6 +290,7 @@ export default function SubtitleResearch() {
           <label><span>Bitiş</span><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}/></label>
         </div>
 
+        </details>
         <div className="subtitle-search-actions">
           <div className="subtitle-presets"><select value={selectedPreset} onChange={(event) => loadPreset(event.target.value)}><option value="">Kayıtlı sorgular…</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select><button type="button" className="secondary-button" onClick={savePreset}>Sorguyu kaydet</button><button type="button" className="secondary-button" onClick={deletePreset} disabled={!selectedPreset}>Sil</button></div>
           <button className="primary-button" type="submit" disabled={busy || !analysis}>{busy ? "Taranıyor…" : searchType === "relationship" ? "İlişkileri tara" : "Altyazılarda ara"}</button>
@@ -316,7 +313,7 @@ export default function SubtitleResearch() {
 }
 
 function TermBuilder({ terms, draft, setDraft, addTerm, removeTerm, onEnter }: { terms: string[]; draft: string; setDraft(value: string): void; addTerm(): void; removeTerm(term: string): void; onEnter(event: KeyboardEvent<HTMLInputElement>, action: () => void): void }) {
-  return <div className="subtitle-term-builder"><label className="subtitle-query-field"><span>Kelime veya ifade</span><div className="subtitle-term-input-row"><input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addTerm)} placeholder="Terim yaz ve Enter'a bas…"/><button className="secondary-button" type="button" onClick={addTerm}>Ekle</button></div></label><div className="subtitle-term-chips">{terms.map((term) => <button type="button" key={termKey(term)} onClick={() => removeTerm(term)}>{term}<b>×</b></button>)}{!terms.length && <small>Tek kelime veya çok kelimeli ifade ekleyebilirsin.</small>}</div></div>;
+  return <div className="subtitle-term-builder"><label className="subtitle-query-field"><span>Kelime veya ifade</span><div className="subtitle-term-input-row"><input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addTerm)} placeholder="Terim yaz ve Enter'a bas…"/><button className="secondary-button" type="button" onClick={addTerm}>Ekle</button></div></label><div className="subtitle-term-chips">{terms.map((term) => <button type="button" key={termKey(term)} onClick={() => removeTerm(term)}>{term}<b>×</b></button>)}{!terms.length && <small>Terim eklenmedi.</small>}</div></div>;
 }
 function ReportMetrics({ report }: { report: ResearchReport }) {
   return <div className="subtitle-report-metrics"><Metric label="Taranan altyazı" value={report.transcriptCount} note="yerel arşiv"/><Metric label={report.searchType === "relationship" ? "Kavram grubu" : "Aranan terim"} value={report.searchType === "relationship" ? report.groups.length : report.terms.length} note={report.searchType === "relationship" ? distanceLabel(report.proximity.distance, report.proximity.unit) : report.searchMode}/><Metric label="Eşleşen video" value={report.videoCount} note="sonuç bulunan"/><Metric label={report.searchType === "relationship" ? "İlişki örneği" : "Toplam kullanım"} value={report.searchType === "relationship" ? report.relationCount : report.totalOccurrences} note={report.matchMode}/></div>;

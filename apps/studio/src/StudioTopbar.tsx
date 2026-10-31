@@ -58,7 +58,6 @@ export default function StudioTopbar({ section, projects, activeProjectId, busy,
 
   return <header className="studio-topbar-global">
     <div className="studio-topbar-title">
-      <small>CHANNEL FOUNDRY / STUDIO</small>
       <strong>{section}</strong>
     </div>
     <div className="studio-topbar-controls" ref={anchor}>

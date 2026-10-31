@@ -119,3 +119,70 @@ html[data-studio-theme="light"]{
   --shadow-panel:0 8px 24px rgba(61,43,24,.055);
   --shadow-overlay:0 26px 72px rgba(74,54,32,.24);
 }
+
+/* Shared palette variants and high-contrast overrides for Studio appearance. */
+html[data-studio-theme="soft-dark"]{
+  --surface-canvas:#1a1c20;
+  --surface-canvas-deep:#15181c;
+  --surface-sidebar:#1f2327;
+  --surface-panel:#272a2e;
+  --surface-panel-soft:#2e3135;
+  --surface-panel-strong:#303439;
+  --surface-inset:#212429;
+  --surface-input:#292d31;
+  --surface-hover:#343a3e;
+  --surface-selected:#3a3934;
+  --surface-overlay:#292c30;
+  --text-primary:#eeeae2;
+  --text-secondary:#d5d1c9;
+  --text-muted:#aaa9a2;
+  --text-subtle:#94968f;
+  --border-subtle:#3a3f42;
+  --border-soft:#414548;
+  --border-control:#52565a;
+  --border-strong:#77736b;
+  --shadow-panel:0 6px 18px rgba(0,0,0,.09);
+  --shadow-overlay:0 20px 68px rgba(0,0,0,.37);
+}
+html[data-studio-accent="blue"]{
+  --accent:#6c9bbc;
+  --accent-strong:#8dbbdc;
+  --accent-muted:#779cb6;
+  --accent-soft:rgba(108,155,188,.12);
+  --accent-hover:rgba(108,155,188,.2);
+  --focus-ring:#8dbbdc;
+  --selection-bg:rgba(108,155,188,.35);
+}
+html[data-studio-accent="green"]{
+  --accent:#7b9c7b;
+  --accent-strong:#a2c39e;
+  --accent-muted:#84a384;
+  --accent-soft:rgba(123,156,123,.12);
+  --accent-hover:rgba(123,156,123,.2);
+  --focus-ring:#a2c39e;
+  --selection-bg:rgba(123,156,123,.35);
+}
+html[data-studio-accent="neutral"]{
+  --accent:#a7a9ad;
+  --accent-strong:#d1d2d3;
+  --accent-muted:#aaaeb1;
+  --accent-soft:rgba(167,169,173,.12);
+  --accent-hover:rgba(167,169,173,.19);
+  --focus-ring:#d1d2d3;
+  --selection-bg:rgba(167,169,173,.35);
+}
+html[data-studio-theme="light"][data-studio-accent="blue"]{
+  --accent:#356a95;--accent-strong:#285b82;--accent-muted:#527a9a;
+}
+html[data-studio-theme="light"][data-studio-accent="green"]{
+  --accent:#44734b;--accent-strong:#315e39;--accent-muted:#537459;
+}
+html[data-studio-theme="light"][data-studio-accent="neutral"]{
+  --accent:#68605d;--accent-strong:#4c4947;--accent-muted:#79706b;
+}
+html[data-studio-contrast="high"]{
+  --text-secondary:var(--text-primary);
+  --text-muted:var(--text-primary);
+  --border-soft:var(--border-strong);
+  --border-control:var(--border-strong);
+}
