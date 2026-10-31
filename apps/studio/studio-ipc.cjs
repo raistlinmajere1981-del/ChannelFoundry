@@ -150,7 +150,7 @@ function registerAiHandlers() {
     runtime.refreshMainWindow();
     return saved;
   });
-  ipcMain.handle("studio:ai-providers", () => require("./ai-provider-registry.cjs").entries);
+  ipcMain.handle("studio:ai-providers", () => require("./ai-provider-registry.cjs").entries);\n  ipcMain.handle("studio:ai-opencode-service", () => require("./ai-opencode.cjs").sharedService());\n  ipcMain.handle("studio:ai-opencode-service", () => require("./ai-opencode.cjs").sharedService());
   ipcMain.handle("studio:ai-test-candidate", (_event, input) => aiService.testConnection(app.getPath("userData"), { candidate: input }));
   ipcMain.handle("studio:ai-image-test-candidate", (_event, input) => aiService.testImageCandidate(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-models", (_event, input) => aiService.listModels(app.getPath("userData"), input));

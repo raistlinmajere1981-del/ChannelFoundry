@@ -43,6 +43,8 @@ const aiClient = require("./ai-client.cjs");
     fs.rmSync(root, { recursive: true, force: true });
   }
   const seen = [];
+  const sessionId = "ses_cf_testonly_1";
+  let messagesRead = 0;
   const server = http.createServer((req, res) => {
     const expected = "Basic " + Buffer.from("opencode:test-local-secret").toString("base64");
     if (req.headers.authorization !== expected) {
@@ -55,9 +57,26 @@ const aiClient = require("./ai-client.cjs");
     req.on("end", () => {
       seen.push({ url: req.url, method: req.method, body: body ? JSON.parse(body) : {} });
       res.writeHead(200, { "content-type": "application/json" });
-      if (req.url === "/api/model") res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash" }] }));
-      else if (req.url === "/api/experimental/generate/text") res.end(JSON.stringify({ data: { text: "OK" } }));
-      else res.end(JSON.stringify({ data: {} }));
+      if (req.url === "/api/model") {
+        res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash" }] }));
+      } else if (req.url === "/api/session" && req.method === "POST") {
+        res.end(JSON.stringify({ data: { id: sessionId } }));
+      } else if (req.url === "/api/session/" + sessionId + "/prompt") {
+        res.end(JSON.stringify({ data: { type: "user" } }));
+      } else if (req.url === "/api/session/" + sessionId + "/message?limit=50") {
+        messagesRead++;
+        res.end(JSON.stringify({ data: messagesRead === 1 ? [] : [
+          { type: "user", id: "msg_u" },
+          { type: "assistant", id: "msg_a", finish: "stop", time: { completed: 42 }, content: [{ type: "text", text: "OK" }] },
+          { type: "idle", outcome: "succeeded" },
+        ] }));
+      } else if (req.url === "/api/session/" + sessionId && req.method === "DELETE") {
+        res.statusCode = 204;
+        res.end();
+      } else {
+        res.writeHead(404, { "content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Not found" }));
+      }
     });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -70,11 +89,16 @@ const aiClient = require("./ai-client.cjs");
       endpoint, apiKey: "test-local-secret", model: models.models[0].id,
     }, [{ role: "user", content: "Reply OK" }]);
     assert.equal(response.content, "OK");
-    assert.equal(seen[1].body.model.providerID, "opencode");
-    assert.equal(seen[1].body.model.id, "deepseek-v4.1-flash-free");
-    assert.ok(!("modelID" in seen[1].body.model));
-    assert.equal(seen[1].url, "/api/experimental/generate/text");
+    const created = seen.find((item) => item.url === "/api/session" && item.method === "POST");
+    assert.equal(created.body.model.providerID, "opencode");
+    assert.equal(created.body.model.id, "deepseek-v4.1-flash-free");
+    assert.deepEqual(created.body.permissions, [{ action: "*", resource: "*", effect: "deny" }]);
+    assert.match(created.body.location.directory, /channel-foundry-ai-/);
+    const sent = seen.find((item) => item.url === "/api/session/" + sessionId + "/prompt");
+    assert.match(sent.body.text, /Reply OK/);
+    assert.ok(seen.some((item) => item.url === "/api/session/" + sessionId && item.method === "DELETE"));
+    assert.ok(!seen.some((item) => item.url.includes("/api/experimental/generate")));
   } finally { await new Promise((resolve) => server.close(resolve)); }
-  console.log("OpenCode authenticated server, model discovery, stateless test and no standalone CLI PASS");
+  console.log("OpenCode authenticated server, model discovery, isolated session request, permissions and cleanup PASS");
 
 })().catch((error) => { console.error(error); process.exitCode = 1; });

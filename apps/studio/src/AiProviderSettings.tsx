@@ -4,7 +4,7 @@ import "./ai-minimal.css";
 type Provider = { id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean };
 type Role = "text" | "image";
 type CatalogEntry = { id: string; label?: string; supportedReasoningEfforts?: Array<{ reasoningEffort: string }> };
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method [^:]+: (?:Error: )?/, "").replace(/^Error: /, "");
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method [\x27\x22][^\x27\x22]+[\x27\x22]: (?:Error: )?/, "").replace(/^Error: /, "");
 const isCompatible = (id: string) => id === "google-ai-studio" || id === "openai-compatible" || id === "ollama";
 const backendId = (id: string): StudioAiProvider => id === "google-ai-studio" ? "openai-compatible" : id as StudioAiProvider;
 function inferText(config: StudioAiConfig) {
@@ -69,12 +69,25 @@ export default function AiProviderSettings() {
     if (!definition) return;
     setFeedback();
     if (role === "text") {
-      setTextProvider(id); setTextEndpoint(id === "opencode-cli" ? "http://127.0.0.1:4096" : definition.endpoint);
+      setTextProvider(id); setTextEndpoint(definition.endpoint);
       setTextModel(""); setFallbackModel(""); setReasoning(""); setTextModels([]); setTextKey(""); setTextVerified(false);
     } else {
       setImageProvider(id); setImageEndpoint(definition.endpoint);
       setImageModel(""); setImageModels([]); setImageKey(""); setImageVerified(false);
     }
+  };
+  const useSharedService = async () => {
+    if (!bridge || busy) return;
+    setBusy("service"); setFeedback();
+    try {
+      const detected = await bridge.aiOpenCodeService();
+      if (detected !== textEndpoint) {
+        setTextEndpoint(detected); setTextKey(""); setTextModels([]);
+        setTextModel(""); setFallbackModel(""); setTextVerified(false);
+      }
+      setResult("Ortak servis · " + detected);
+    } catch (reason) { setError(errorText(reason)); }
+    finally { setBusy(""); }
   };
   const chooseModel = (id: string) => {
     setFeedback();
@@ -175,7 +188,7 @@ export default function AiProviderSettings() {
           <option key={entry.id} value={entry.id}>{entry.label}</option>)}
       </select></label>
       {current?.transport === "api" || current?.transport === "local" ? <>
-        <label><span>Endpoint</span><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => { if (role === "text") { setTextEndpoint(event.target.value); setTextVerified(false); } else { setImageEndpoint(event.target.value); setImageVerified(false); } setFeedback(); }}/></label>
+        <label><span>Endpoint</span><div className="ai-endpoint-row"><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => { if (role === "text") { setTextEndpoint(event.target.value); setTextVerified(false); } else { setImageEndpoint(event.target.value); setImageVerified(false); } setFeedback(); }}/>{role === "text" && currentProvider === "opencode-cli" && <button type="button" className="secondary-button" onClick={() => void useSharedService()} disabled={Boolean(busy)}>{busy === "service" ? "Aranıyor…" : "Ortak servis"}</button>}</div></label>
         {current.secret && <label><span>{currentProvider === "opencode-cli" ? "Sunucu parolası" : "API anahtarı"}</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "••••••••••••" : currentProvider === "opencode-cli" ? "OpenCode sunucu parolası" : "API anahtarı"} onChange={(event) => { if (role === "text") setTextKey(event.target.value); else setImageKey(event.target.value); setFeedback(); }}/></label>}
       </> : null}
       {currentProvider !== "disabled" && <>

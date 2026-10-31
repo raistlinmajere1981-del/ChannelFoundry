@@ -414,7 +414,8 @@ interface Window {
     transcriptDelete(contentKey: string): Promise<{ deleted: boolean; contentKey: string }>;
     transcriptToolStatus(): Promise<StudioTranscriptToolStatus>;
     transcriptFetchYoutube(input: { contentKey?: string; videoId?: string }): Promise<StudioTranscript & { ytDlpVersion: string; filename: string; captionType?: string }>;
-    aiProviders(): Promise<Array<{ id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean }>>;
+    aiProviders(): Promise<Array<{ id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean }>>;\n    aiOpenCodeService(): Promise<string>;
+    aiOpenCodeService(): Promise<string>;
     aiTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; reply: string; config: StudioAiConfig }>;
     aiImageTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; model: string; bytes: number }>;
     aiConfig(): Promise<StudioAiConfig>;
