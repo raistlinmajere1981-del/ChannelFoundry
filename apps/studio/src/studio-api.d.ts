@@ -84,7 +84,7 @@ type StudioYtDlpStatus = {
   message: string;
 };
 
-type StudioAiProvider = "ollama" | "openai-compatible" | "codex-cli";
+type StudioAiProvider = "ollama" | "openai-compatible" | "codex-cli" | "opencode-cli";
 type StudioAiImageMode = "auto" | "enabled" | "disabled";
 type StudioAiImageProvider = "openai-compatible" | "cloudflare-workers-ai" | "codex-cli";
 type StudioCodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
@@ -414,6 +414,9 @@ interface Window {
     transcriptDelete(contentKey: string): Promise<{ deleted: boolean; contentKey: string }>;
     transcriptToolStatus(): Promise<StudioTranscriptToolStatus>;
     transcriptFetchYoutube(input: { contentKey?: string; videoId?: string }): Promise<StudioTranscript & { ytDlpVersion: string; filename: string; captionType?: string }>;
+    aiProviders(): Promise<Array<{ id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean }>>;
+    aiTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; reply: string; config: StudioAiConfig }>;
+    aiImageTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; model: string; bytes: number }>;
     aiConfig(): Promise<StudioAiConfig>;
     aiCliStatus(): Promise<StudioAiCliStatus>;
     aiRevealKey(kind: "text" | "image"): Promise<string>;

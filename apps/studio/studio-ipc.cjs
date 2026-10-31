@@ -148,9 +148,11 @@ function registerAiHandlers() {
   ipcMain.handle("studio:ai-save-config", (_event, input) => {
     const saved = aiService.saveConfig(app.getPath("userData"), input);
     runtime.refreshMainWindow();
-    if (saved.configured) void runtime.processAnalysisQueue();
     return saved;
   });
+  ipcMain.handle("studio:ai-providers", () => require("./ai-provider-registry.cjs").entries);
+  ipcMain.handle("studio:ai-test-candidate", (_event, input) => aiService.testConnection(app.getPath("userData"), { candidate: input }));
+  ipcMain.handle("studio:ai-image-test-candidate", (_event, input) => aiService.testImageCandidate(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-models", (_event, input) => aiService.listModels(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-image-models", (_event, input) => aiService.listImageModels(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-test", () => aiService.testConnection(app.getPath("userData")));

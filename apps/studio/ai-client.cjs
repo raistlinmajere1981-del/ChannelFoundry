@@ -7,6 +7,7 @@ const {
 } = require("./ai-config.cjs");
 const aiJson = require("./ai-json.cjs");
 const aiCli = require("./ai-cli.cjs");
+const openCode = require("./ai-opencode.cjs");
 const aiActivity = require("./ai-activity.cjs");
 
 const TRANSIENT_FETCH_CODES = new Set([
@@ -324,6 +325,10 @@ function throwIfOutputLimited(config, result) {
 }
 
 async function requestTextCompletion(config, messages, options = {}) {
+  if (config?.provider === "opencode-cli") {
+    const result = await openCode.complete(config, messages, options);
+    return { ...result, fallbackUsed: false };
+  }
   if (aiCli.isCliProvider(config?.provider)) {
     const activityRequest = aiActivity.beginRequest(options.activity, {
       provider: config?.provider,
@@ -422,20 +427,26 @@ function normalizeListedModels(entries) {
 function modelListConfig(userDataPath, input) {
   const existing = readConfig(userDataPath);
   if (!input || typeof input !== "object") return existing;
-  const provider = input.provider === "ollama" || input.provider === "openai-compatible" || aiCli.isCliProvider(input.provider)
+  const provider = input.provider === "ollama" || input.provider === "openai-compatible" || aiCli.isCliProvider(input.provider) || input.provider === "opencode-cli"
     ? input.provider
     : existing.provider;
   return {
     ...existing,
     provider,
     endpoint: typeof input.endpoint === "string" ? input.endpoint : existing.endpoint,
-    apiKey: typeof input.apiKey === "string" ? input.apiKey.trim() : existing.apiKey,
+    // Credentials are never inherited when the endpoint or provider changes.
+    apiKey: typeof input.apiKey === "string" ? input.apiKey.trim()
+      : provider === existing.provider && (!input.endpoint || input.endpoint === existing.endpoint) ? existing.apiKey : "",
     timeoutSeconds: input.timeoutSeconds == null ? existing.timeoutSeconds : normalizeTimeoutSeconds(input.timeoutSeconds, existing.timeoutSeconds),
   };
 }
 
 async function listModels(userDataPath, input = null) {
   const config = modelListConfig(userDataPath, input);
+  if (config.provider === "opencode-cli") {
+    const catalog = await openCode.listModels({ timeoutMs: 30000 });
+    return { ...catalog, config: publicConfig(config) };
+  }
   if (aiCli.isCliProvider(config.provider)) {
     const catalog = await aiCli.listModels({
       timeoutMs: Math.min(60000, normalizeTimeoutSeconds(config.timeoutSeconds) * 1000),
@@ -492,21 +503,27 @@ async function chat(userDataPath, messages, options = {}) {
 }
 
 async function testConnection(userDataPath, options = {}) {
-  const config = readConfig(userDataPath);
+  const stored = readConfig(userDataPath);
+  const candidate = options.candidate;
+  const config = candidate
+    ? { ...stored, ...candidate,
+      apiKey: typeof candidate.apiKey === "string" ? candidate.apiKey
+        : candidate.provider === stored.provider && (candidate.endpoint ?? stored.endpoint) === stored.endpoint ? stored.apiKey : "" }
+    : stored;
   if (!config.model && !aiCli.isCliProvider(config.provider)) throw new Error("Önce Ayarlar bölümünden bir AI modeli yapılandır.");
   const messages = [
     { role: "system", content: "You are a connectivity test. Reply with only OK." },
     { role: "user", content: "OK yaz." },
   ];
   const requestOptions = { temperature: 0, maxTokens: 12, timeoutMs: 60000, retryDelaysMs: options.retryDelaysMs };
-  if (aiCli.isCliProvider(config.provider)) {
+  if (aiCli.isCliProvider(config.provider) || config.provider === "opencode-cli") {
     try {
       const primary = await requestTextCompletion(config, messages, { ...requestOptions, allowFallback: false });
       return {
         ok: true,
         reply: primary.content.trim().slice(0, 80),
         fallback: null,
-        config: getConfig(userDataPath),
+        config: publicConfig(config),
       };
     } catch (error) {
       const failure = new Error(`Codex CLI bağlantı testi başarısız: ${String(error?.message ?? error).slice(0, 600)}`);
@@ -534,7 +551,7 @@ async function testConnection(userDataPath, options = {}) {
     ok: true,
     reply: primary.content.trim().slice(0, 80),
     fallback: fallback ? { model: fallback.model, reply: fallback.content.trim().slice(0, 80) } : null,
-    config: getConfig(userDataPath),
+    config: publicConfig(config),
   };
 }
 

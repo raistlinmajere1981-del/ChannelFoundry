@@ -5,6 +5,7 @@ const analysisContent = require("./ai-analysis-content.cjs");
 const image = require("./ai-image.cjs");
 const quickstart = require("./gemini-quickstart.cjs");
 const cli = require("./ai-cli.cjs");
+const openCode = require("./ai-opencode.cjs");
 
 // Stable public facade for Electron IPC and existing verification scripts.
 module.exports = {
@@ -16,10 +17,12 @@ module.exports = {
   listImageModels: image.listImageModels,
   testConnection: client.testConnection,
   cliStatus: cli.status,
+  openCodeModels: openCode.listModels,
   suggestContent: content.suggestContent,
   analyzeTranscript: analysisContent.analyzeTranscript,
   detectImageCapability: image.detectImageCapability,
   generateImage: image.generateImage,
+  testImageCandidate: image.testImageCandidate,
   normalizeEndpoint: config.normalizeEndpoint,
   normalizeTimeoutSeconds: config.normalizeTimeoutSeconds,
   parseAssistantJson: client.parseAssistantJson,

@@ -74,3 +74,7 @@ Ayarlar'ın diğer bölümleri AI, Topluluk, Yerel veri şeklinde ayrıdır.
 Projenin `deploymentEnabled` bayrağı kapalıyken Studio canlı web yayınını
 engeller; Birdesengör Natro kurulumu için bu durum değiştirilmedi. Temiz
 başlangıç öncesi mevcut indirilen arşiv verilerine dokunulmadı.
+
+## AI servisleri ve OpenCode
+
+Ayarlar > AI servisleri iki bağımsız Metin / Görsel sekmesi kullanır. OpenCode CLI yalnız Metin için desteklenir. Modeller sistemdeki OpenCode kataloğundan alınır; metin üretimi ayrı geçici dizinde, standalone oturumda, araç izinleri kapalı yürütülür. Görsel Codex CLI, Cloudflare ve OpenAI uyumlu servislerle bağımsız çalışır. Testler ayarları kaydetmez ve AI kuyruğunu başlatmaz.

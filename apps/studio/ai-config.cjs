@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const TEXT_PROVIDERS = new Set(["ollama", "openai-compatible", "codex-cli"]);
+const TEXT_PROVIDERS = new Set(["ollama", "openai-compatible", "codex-cli", "opencode-cli"]);
 const IMAGE_PROVIDERS = new Set(["openai-compatible", "cloudflare-workers-ai", "codex-cli"]);
 const CODEX_REASONING_EFFORT_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/u;
 
@@ -64,10 +64,10 @@ function isCliProvider(provider) {
 
 function sanitizeConfig(input, existing = DEFAULT_CONFIG) {
   const provider = normalizeProvider(input?.provider ?? existing.provider);
-  const cliProvider = isCliProvider(provider);
+  const cliProvider = isCliProvider(provider) || provider === "opencode-cli";
   const model = String(input?.model ?? existing.model ?? "").trim();
   const reasoningEffort = normalizeReasoningEffort(input?.reasoningEffort ?? existing.reasoningEffort, true);
-  if (!model && !cliProvider) throw new Error("AI model adı gerekli.");
+  if (!model && provider !== "codex-cli") throw new Error("AI model adı gerekli.");
   const requestedFallbackModel = String(input?.fallbackModel ?? existing.fallbackModel ?? "").trim();
   const fallbackModel = !cliProvider && requestedFallbackModel && requestedFallbackModel !== model ? requestedFallbackModel : "";
   const endpoint = cliProvider ? "" : normalizeEndpoint(input?.endpoint ?? existing.endpoint, provider);
@@ -102,11 +102,11 @@ function readConfig(userDataPath) {
     const provider = normalizeProvider(raw?.provider);
     return {
       provider,
-      endpoint: isCliProvider(provider) ? "" : String(raw?.endpoint ?? DEFAULT_CONFIG.endpoint),
+      endpoint: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.endpoint ?? DEFAULT_CONFIG.endpoint),
       model: String(raw?.model ?? ""),
       reasoningEffort: normalizeReasoningEffort(raw?.reasoningEffort),
-      fallbackModel: isCliProvider(provider) ? "" : String(raw?.fallbackModel ?? ""),
-      apiKey: isCliProvider(provider) ? "" : String(raw?.apiKey ?? ""),
+      fallbackModel: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.fallbackModel ?? ""),
+      apiKey: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.apiKey ?? ""),
       timeoutSeconds: normalizeTimeoutSeconds(raw?.timeoutSeconds),
       imageMode: ["auto", "enabled", "disabled"].includes(requestedImageMode) ? requestedImageMode : "auto",
       imageProvider: IMAGE_PROVIDERS.has(raw?.imageProvider) ? raw.imageProvider : "openai-compatible",
@@ -120,7 +120,7 @@ function readConfig(userDataPath) {
 }
 
 function publicConfig(config) {
-  const cliProvider = isCliProvider(config.provider);
+  const cliProvider = isCliProvider(config.provider) || config.provider === "opencode-cli";
   return {
     provider: config.provider,
     endpoint: config.endpoint,
@@ -128,7 +128,7 @@ function publicConfig(config) {
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
     fallbackModel: config.fallbackModel,
     timeoutSeconds: normalizeTimeoutSeconds(config.timeoutSeconds),
-    configured: cliProvider || Boolean(config.model && config.endpoint),
+    configured: config.provider === "codex-cli" || (config.provider === "opencode-cli" ? Boolean(config.model) : Boolean(config.model && config.endpoint)),
     apiKeyConfigured: Boolean(config.apiKey),
     image: {
       mode: config.imageMode,

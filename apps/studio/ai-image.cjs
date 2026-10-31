@@ -52,7 +52,7 @@ function normalizeCloudflareModels(entries) {
 function imageModelListConfig(userDataPath, input) {
   const existing = readConfig(userDataPath);
   if (!input || typeof input !== "object") return existing;
-  const provider = input.provider === "ollama" || input.provider === "openai-compatible" || input.provider === "codex-cli"
+  const provider = input.provider === "ollama" || input.provider === "openai-compatible" || input.provider === "codex-cli" || input.provider === "opencode-cli"
     ? input.provider
     : existing.provider;
   const nextImageProvider = input.imageProvider === "cloudflare-workers-ai" || input.imageProvider === "openai-compatible" || input.imageProvider === "codex-cli"
@@ -67,7 +67,8 @@ function imageModelListConfig(userDataPath, input) {
     timeoutSeconds: input.timeoutSeconds == null ? existing.timeoutSeconds : normalizeTimeoutSeconds(input.timeoutSeconds, existing.timeoutSeconds),
     imageProvider: nextImageProvider,
     imageEndpoint: typeof input.imageEndpoint === "string" ? input.imageEndpoint : existing.imageEndpoint,
-    imageApiKey: typeof input.imageApiKey === "string" ? input.imageApiKey.trim() : imageProviderChanged ? "" : existing.imageApiKey,
+    imageApiKey: typeof input.imageApiKey === "string" ? input.imageApiKey.trim()
+      : imageProviderChanged || typeof input.imageEndpoint === "string" && input.imageEndpoint !== existing.imageEndpoint ? "" : existing.imageApiKey,
   };
 }
 
@@ -286,4 +287,20 @@ async function generateImage(userDataPath, input) {
   }
 }
 
-module.exports = { detectImageCapability, generateImage, imageModelListConfig, listImageModels };
+async function testImageCandidate(userDataPath, candidate) {
+  const existing = readConfig(userDataPath);
+  const config = { ...existing, ...candidate,
+    imageApiKey: typeof candidate?.imageApiKey === "string" ? candidate.imageApiKey
+      : candidate?.imageProvider === existing.imageProvider && (candidate?.imageEndpoint ?? existing.imageEndpoint) === existing.imageEndpoint
+        ? existing.imageApiKey : "" };
+  if (!config.imageModel && config.imageProvider !== "codex-cli") throw new Error("Önce görsel modeli seç.");
+  if (config.imageMode === "disabled") throw new Error("Görsel üretimi kapalı.");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.min(120000, normalizeTimeoutSeconds(config.timeoutSeconds) * 1000));
+  try {
+    const result = await requestGeneratedImage(config, "Minimal abstract blue circle on a plain white background.", "1024x1024", controller.signal);
+    if (!result.buffer?.length) throw new Error("Görsel modeli boş yanıt döndürdü.");
+    return { ok: true, model: config.imageModel || result.controllerModel || "Codex", bytes: result.buffer.length };
+  } finally { clearTimeout(timeout); }
+}
+module.exports = { detectImageCapability, generateImage, imageModelListConfig, listImageModels, testImageCandidate };
