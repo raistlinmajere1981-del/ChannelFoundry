@@ -7,6 +7,7 @@ import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
 import YtDlpSettings from "./YtDlpSettings";
 import YtDlpSidebarStatus from "./YtDlpSidebarStatus";
 import WebConnectionSettings from "./WebConnectionSettings";
+import ChannelProjectsSettings from "./ChannelProjectsSettings";
 import { studioLogoUrl } from "./studio-assets";
 
 const VideoArchive = lazy(() => import("./VideoArchive"));
@@ -71,6 +72,9 @@ export default function StudioPipeline() {
   const [workspaceStatus, setWorkspaceStatus] = useState<StudioUniverseWorkspaceStatus | null>(null);
   const [databaseInfo, setDatabaseInfo] = useState<StudioDatabaseInfo | null>(null);
   const [channels, setChannels] = useState<StudioYoutubeChannel[]>([]);
+  const [projects, setProjects] = useState<StudioChannelProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState("");
+  const [projectBusy, setProjectBusy] = useState(false);
   const [activeChannelId, setActiveChannelId] = useState("");
   const [catalogStats, setCatalogStats] = useState<StudioYoutubeCatalogStats>({ total: 0, imported: 0, transcripts: 0, pendingImport: 0 });
   const [catalogVideos, setCatalogVideos] = useState<StudioYoutubeCatalogVideo[]>([]);
@@ -85,7 +89,7 @@ export default function StudioPipeline() {
   const load = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
     await bridge.bootstrap({});
-    const [state, info, nextChannels, nextActiveChannel, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo] = await Promise.all([
+    const [state, info, nextChannels, nextActiveChannel, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo, nextProjects] = await Promise.all([
       bridge.loadState(),
       bridge.getDatabaseInfo(),
       bridge.youtubeCatalogChannels(),
@@ -97,7 +101,10 @@ export default function StudioPipeline() {
       bridge.aiAnalysisStats(),
       bridge.universeMergeStatus(),
       bridge.getPublicationInfo(),
+      bridge.channelProjects(),
     ]);
+    setProjects(nextProjects.projects);
+    setActiveProjectId(nextProjects.activeId);
     setItems(state.items);
     setRelations(state.relations);
     setDatabaseInfo(info);
@@ -142,6 +149,17 @@ export default function StudioPipeline() {
       setChannelBusy(false);
     }
   };
+  const selectProject = async (id: string) => {
+    if (!bridge || projectBusy || !id || id === activeProjectId) return;
+    setProjectBusy(true);
+    try {
+      await bridge.channelProjectSelect({ id });
+      // Proje seçimi Electron tarafından yeniden başlatılarak uygulanır.
+    } catch (reason) {
+      setError(`Proje değiştirilemedi: ${errorText(reason)}`);
+      setProjectBusy(false);
+    }
+  };
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
     const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni muhatap", event: "Yeni olay", file: "Yeni dosya" };
@@ -159,6 +177,7 @@ export default function StudioPipeline() {
   return <div className="studio-shell pipeline-shell">
     <aside className="studio-sidebar pipeline-sidebar">
       <Brand/>
+      <ProjectSelector projects={projects} activeId={activeProjectId} busy={projectBusy} onChange={(id) => void selectProject(id)} onManage={() => setActive("Ayarlar")}/>
       <ActiveChannelSelector channels={channels} activeChannelId={activeChannelId} busy={channelBusy} onChange={(channelId) => void setActiveChannel(channelId)}/>
       <div className="nav-caption">ÜRETİM</div>
       <nav className="studio-nav">{productionSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => activateSection(section)}><span>{section}</span></button>)}</nav>
@@ -194,11 +213,31 @@ function Brand() {
   </div>;
 }
 
+function ProjectSelector({ projects, activeId, busy, onChange, onManage }: {
+  projects: StudioChannelProject[];
+  activeId: string;
+  busy: boolean;
+  onChange: (id: string) => void;
+  onManage: () => void;
+}) {
+  return <div className="channel-project-selector">
+    <div className="channel-project-selector-head">
+      <span>KANAL PROJESİ</span>
+      <button type="button" onClick={onManage} title="Kanal projelerini yönet">Yönet</button>
+    </div>
+    <select aria-label="Aktif kanal projesi" disabled={busy || !projects.length} value={activeId} onChange={(event) => onChange(event.target.value)}>
+      {!projects.length && <option value="">Henüz proje yok</option>}
+      {projects.map((project) => <option value={project.id} key={project.id}>{project.displayName}</option>)}
+    </select>
+    <small>{busy ? "Yeni çalışma alanı açılıyor…" : "AI, arşiv ve yayın verisi projeye özeldir"}</small>
+  </div>;
+}
+
 function ActiveChannelSelector({ channels, activeChannelId, busy, onChange }: { channels: StudioYoutubeChannel[]; activeChannelId: string; busy: boolean; onChange: (channelId: string) => void }) {
   const selectedId = activeChannelId || channels[0]?.id || "";
   const selectedChannel = channels.find((channel) => channel.id === selectedId);
   return <div className="active-channel-selector">
-    <span>AKTİF KANAL</span>
+    <span>YOUTUBE KATALOĞU</span>
     <select aria-label="Aktif YouTube kanalı" value={selectedId} disabled={busy || !channels.length} onChange={(event) => onChange(event.target.value)}>
       {!channels.length && <option value="">Henüz kanal yok</option>}
       {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}{channel.sourceType === "playlist" ? " · Playlist" : ""}</option>)}
@@ -218,6 +257,7 @@ function SectionLoading({ section }: { section: Section }) {
 function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
   const manualItemCount = Math.max(0, (databaseInfo?.itemCount ?? 0) - catalog.imported);
   return <div className="settings-page">
+    <ChannelProjectsSettings/>
     <AppearanceSettings/>
     <WebConnectionSettings/>
     <div className="settings-pipeline">

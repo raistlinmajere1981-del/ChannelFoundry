@@ -12,6 +12,7 @@ const { registerNarrativeIpc } = require("./narrative-ipc.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const webConnection = require("./web-connection.cjs");
+const channelProjects = require("./channel-projects.cjs");
 const ytDlpManager = require("./ytdlp-manager.cjs");
 const runtime = require("./studio-runtime.cjs");
 const {
@@ -214,6 +215,8 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:web-connection-test", (_event, input) => webConnection.testConnection(input));
   ipcMain.handle("studio:web-connection-save", (_event, input) => {
     const result = webConnection.saveConfig(input);
+    const activeProject = channelProjects.activeProject();
+    if (activeProject && !result.environmentOverride) channelProjects.updateProject({ id: activeProject.id, webUrl: result.url });
     communityAdmin.resetConnection();
     runtime.refreshMainWindow();
     return result;
@@ -242,4 +245,4 @@ function registerStudioIpc() {
   registerPublishingHandlers();
 }
 
-module.exports = { registerStudioIpc };
+module.exports = { registerStudioIpc, youtubeSyncIsRunning: () => Boolean(youtubeSyncOperation) };

@@ -126,8 +126,8 @@ export CHANNEL_FOUNDRY_DEPLOY_HOST=user@example.com
 export CHANNEL_FOUNDRY_DEPLOY_ROOT=/srv/www/site
 export CHANNEL_FOUNDRY_PUBLIC_URL=https://example.com
 
-npm run deploy:web -- --dry-run
-npm run deploy:web
+npm --prefix channels/birdesengor/web run deploy:natro -- --plan
+npm --prefix channels/birdesengor/web run deploy:natro -- --deploy
 ```
 
 `CHANNEL_FOUNDRY_DEPLOY_HOST` ve `CHANNEL_FOUNDRY_DEPLOY_ROOT` zorunludur. `CHANNEL_FOUNDRY_PUBLIC_URL` yalnız HTTP smoke testi için isteğe bağlıdır.

@@ -3,5 +3,7 @@
   "displayName": "BirDeSenGör",
   "youtubeChannelUrl": "https://www.youtube.com/@BirDeSenGor",
   "webRepository": "https://github.com/raistlinmajere1981-del/birdesengor-web",
-  "webDirectory": "web"
+  "webDirectory": "web",
+  "hostingProvider": "Natro",
+  "webUrl": ""
 }

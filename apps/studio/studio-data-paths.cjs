@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const channelProjects = require("./channel-projects.cjs");
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
@@ -27,10 +28,12 @@ function ensureDirectory(directory) {
 }
 
 function configureElectronDataPaths(electronApp, options = {}) {
-  const paths = dataPaths({
-    ...options,
-    environment: options.environment ?? process.env,
-  });
+  const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const environment = options.environment ?? process.env;
+  const selectedEnvironment = String(environment.CHANNEL_FOUNDRY_DATA_ROOT ?? "").trim()
+    ? environment
+    : { ...environment, CHANNEL_FOUNDRY_DATA_ROOT: channelProjects.activeDataRoot(projectRoot) };
+  const paths = dataPaths({ ...options, projectRoot, environment: selectedEnvironment });
   ensureDirectory(paths.root);
   ensureDirectory(paths.studio);
   ensureDirectory(paths.runtime);

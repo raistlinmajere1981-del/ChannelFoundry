@@ -17,3 +17,6 @@ apps/studio/local-data/
 
 # Kanal projelerinin yerel Studio verileri
 /channels/*/.local-data/
+
+# Aktif kanal seçimi sadece bu bilgisayara özgüdür.
+/.channel-active.json

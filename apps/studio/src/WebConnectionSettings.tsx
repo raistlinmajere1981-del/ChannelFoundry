@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type ChannelSettingsBridge = NonNullable<typeof window.channelFoundryStudio> & {
-  youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
+  youtubeChannelAdd(input: { youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
 };
 
 type ArchiveScope = "channel" | "playlist";
@@ -78,14 +78,13 @@ export default function WebConnectionSettings() {
   };
 
   const addChannel = async () => {
-    if (!bridge || !url || !youtubeChannelUrl) return;
+    if (!bridge || !youtubeChannelUrl) return;
     setBusy("add");
     setError("");
     setNotice("");
     try {
       const added = await bridge.youtubeChannelAdd({
-        webUrl: url,
-        youtubeChannelUrl,
+          youtubeChannelUrl,
         youtubePlaylistUrl: archiveScope === "playlist" ? youtubePlaylistUrl : "",
       });
       const next = await bridge.webConnectionConfig();
@@ -122,11 +121,11 @@ export default function WebConnectionSettings() {
 
   return <section className="panel web-connection-settings">
     <header>
-      <div><small>WEB BAĞLANTISI</small><h2>Sunucu ve kanal ekleme</h2></div>
+      <div><small>WEB BAĞLANTISI</small><h2>Web yayını ve YouTube kaynağı</h2></div>
       <span className={`web-connection-state ${state}`}><span className="local-dot"/>{stateLabel}</span>
     </header>
     <div className="web-connection-body">
-      <p>Web sunucusu adresini burada yönet. Yeni bir YouTube kanalı eklerken arşiv kapsamını tüm kanal veya tek playlist olarak seçebilirsin. Kanal boş bir arşivle oluşturulur; video ve altyazılar yalnız Video Arşivi sayfasından elle senkronize edilir.</p>
+      <p>Site adresi yalnız yayınlama bağlantısı için kullanılır; bir YouTube kanalı eklemek için site veya hosting bağlantısı gerekmez. Video ve altyazılar Video Arşivi bölümünden isteğe bağlı senkronize edilir.</p>
       <form onSubmit={(event) => void save(event)}>
         <label>
           <span>Web sayfası</span>
@@ -164,7 +163,7 @@ export default function WebConnectionSettings() {
         {archiveScope === "playlist" && <small className="youtube-archive-source-note">Tam senkronizasyon yalnız bu playlist'teki videoları arşive alır. Kanalın diğer videoları eklenmez.</small>}
         <div className="web-connection-actions">
           <button className="secondary-button" type="submit" disabled={isBusy || !url || !config}>{busy === "save" ? "Kaydediliyor…" : "Web adresini kaydet"}</button>
-          <button className="primary-button" type="button" disabled={isBusy || !url || !youtubeChannelUrl || (archiveScope === "playlist" && !youtubePlaylistUrl)} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ve kaynak doğrulanıyor…" : "Kanalı ekle ve etkinleştir"}</button>
+          <button className="primary-button" type="button" disabled={isBusy || !youtubeChannelUrl || (archiveScope === "playlist" && !youtubePlaylistUrl)} onClick={() => void addChannel()}>{busy === "add" ? "Kanal ve kaynak doğrulanıyor…" : "Kanalı ekle ve etkinleştir"}</button>
         </div>
       </form>
       {config && <div className="web-connection-facts">

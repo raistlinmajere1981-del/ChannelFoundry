@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const channelProjects = require("./channel-projects.cjs");
 
 const DEFAULT_WEB_URL = "http://localhost:5173";
 const DEFAULT_YOUTUBE_CHANNEL_URL = "";
@@ -73,7 +74,7 @@ function readStoredConfig() {
 }
 
 function webUrl() {
-  return normalizeWebUrl(process.env.CHANNEL_FOUNDRY_WEB_URL || readStoredConfig().url || DEFAULT_WEB_URL);
+  return normalizeWebUrl(process.env.CHANNEL_FOUNDRY_WEB_URL || readStoredConfig().url || channelProjects.activeProject()?.webUrl || DEFAULT_WEB_URL);
 }
 
 function youtubeChannelUrl() {

@@ -34,7 +34,7 @@ function database() {
     aiAnalysis.ensureSchema(studioDatabase);
     universeMerge.ensureSchema(studioDatabase);
     universeWorkspace.ensureSchema(studioDatabase);
-    visualProfiles.ensureSchema(studioDatabase);
+    visualProfiles.ensureSchema(studioDatabase, app.getPath("userData"));
   }
   return studioDatabase;
 }
@@ -369,7 +369,10 @@ async function generateVisualImage(input) {
   }
 }
 
+function workersBusy() { return analysisWorkerRunning || universeWorkerRunning; }
+
 module.exports = {
+  workersBusy,
   cancelAnalysisQueue,
   cancelUniverseQueue,
   createPublicExport,

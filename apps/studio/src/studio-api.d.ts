@@ -330,6 +330,19 @@ type StudioPublicExportResult = { root: string; file: string; generatedAt: strin
 type StudioLivePublication = { ok: true; published: true; generatedAt: string; itemCount: number; relationCount: number; bytes: number; sha256: string; verified: boolean; publicUrl: string; admin: { id: number; username: string } };
 type StudioPublicPublishResult = StudioPublicExportResult & { live: StudioLivePublication };
 type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number };
+type StudioChannelProject = {
+  id: string;
+  displayName: string;
+  youtubeChannelUrl: string;
+  webRepository: string;
+  webDirectory: string;
+  webUrl: string;
+  hostingProvider: string;
+  hasWeb: boolean;
+};
+type StudioChannelProjects = { activeId: string; projects: StudioChannelProject[] };
+type StudioChannelProjectInput = Pick<StudioChannelProject, "id" | "displayName" | "youtubeChannelUrl" | "webRepository" | "webUrl" | "hostingProvider">;
+
 type StudioWebConnectionConfig = {
   url: string;
   youtubeChannelUrl: string;
@@ -357,6 +370,10 @@ type StudioCommunitySession = {
 
 interface Window {
   channelFoundryStudio?: {
+    channelProjects(): Promise<StudioChannelProjects>;
+    channelProjectCreate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
+    channelProjectUpdate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
+    channelProjectSelect(input: { id: string }): Promise<{ changed: boolean; project: StudioChannelProject }>;
     bootstrap(payload?: Partial<StudioDatabaseState>): Promise<{ seeded: boolean }>;
     loadState(): Promise<StudioDatabaseState>;
     saveItem(item: StudioPersistedItem): Promise<StudioPersistedItem>;
@@ -382,7 +399,7 @@ interface Window {
     youtubeCatalogSetActive(input: { channelId: string }): Promise<StudioYoutubeChannel>;
     youtubeChannelMediaOptions(input?: { channelId?: string }): Promise<StudioYoutubeChannelMediaOptions | null>;
     youtubeChannelMediaOptionsSave(input: StudioYoutubeChannelMediaOptions): Promise<StudioYoutubeChannelMediaOptions>;
-    youtubeChannelAdd(input: { webUrl: string; youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
+    youtubeChannelAdd(input: { youtubeChannelUrl: string; youtubePlaylistUrl?: string }): Promise<StudioYoutubeChannelAddResult>;
     youtubeCatalogVideos(input?: { channelId?: string }): Promise<StudioYoutubeCatalogVideo[]>;
     youtubeCatalogStats(): Promise<StudioYoutubeCatalogStats>;
     youtubeCatalogSync(input: { mode: "recent" | "full"; excludeShorts?: boolean; excludeLive?: boolean; excludeMembersOnly?: boolean }): Promise<StudioYoutubeSyncResult>;

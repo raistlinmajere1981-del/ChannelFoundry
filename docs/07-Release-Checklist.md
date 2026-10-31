@@ -36,7 +36,7 @@ Public kaynak ağacında demo/gerçek Studio verisi bulunmamalıdır; test veris
 
 ```bash
 npm run build:web
-npm run deploy:web -- --dry-run
+npm --prefix channels/birdesengor/web run deploy:natro -- --plan
 ```
 
 Deploy scripti için en az şu değişkenler açıkça tanımlanmış olmalıdır:
@@ -68,7 +68,7 @@ Bu sınır sayesinde arayüz/API kodu güncellenirken editoryal publication pake
 ## 5. Web kodunu yayınla
 
 ```bash
-npm run deploy:web
+npm --prefix channels/birdesengor/web run deploy:natro -- --deploy
 ```
 
 Script build, PHP syntax, SSH hedefi, staging alanı, uzak yedek ve rsync karşılaştırmasını yürütür. `CHANNEL_FOUNDRY_PUBLIC_URL` verilmişse sonunda HTTP smoke testi de yapılır.

@@ -16,7 +16,7 @@ const assetApi = read("apps/web/public/api/studio/asset.php");
 const publicationApi = read("apps/web/public/api/studio/publication.php");
 const publicationBuilder = read("apps/studio/publication-v2.cjs");
 const communityProvider = read("apps/web/src/community/http-provider.js");
-const deployWeb = read("scripts/deploy-web.sh");
+const deployWeb = read("apps/web/scripts/deploy-natro.mjs");
 
 assert.match(center, /KİTAP WEB · PUBLICATION V2/, "Yayınlama merkezi tek hedefi Kitap Web publication v2 olarak göstermeli");
 assert.match(center, /Kitap Web'i canlıya yayınla/, "Canlı yayın publication v2 Web hedefini açıkça belirtmeli");
@@ -51,7 +51,8 @@ assert.match(publicationBuilder, /publicationSupport\(db\)/, "Publication v2 ona
 assert.match(publicationApi, /publication_validate_support/, "Sunucu publication support sözleşmesini doğrulamalı");
 assert.match(publicationApi, /community-credits\.json/, "Sunucu eski web sürümleri için community credits dosyasını publication ile üretmeli");
 assert.match(communityProvider, /publication\?\.support/, "Web sponsorları öncelikle yetkili publication paketinden okumalı");
-assert.match(deployWeb, /--exclude=\/content\/community-credits\.json/, "Web deploy sunucunun ürettiği community credits dosyasını korumalı");
+assert.match(deployWeb, /mirror -R/, "Web aktarımı ayrı web reposunun dist çıktısını kullanmalı");
+assert.doesNotMatch(deployWeb, /--delete/, "Web aktarımı sunucu yayın ve topluluk dosyalarını silmemeli");
 
 for (const legacy of [
   "apps/studio/publication-preview.cjs",
