@@ -13,6 +13,7 @@ const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const webConnection = require("./web-connection.cjs");
 const channelProjects = require("./channel-projects.cjs");
+const { resolveYoutubeSyncChannel } = require("./youtube-sync-source.cjs");
 const ytDlpManager = require("./ytdlp-manager.cjs");
 const runtime = require("./studio-runtime.cjs");
 const {
@@ -86,17 +87,17 @@ function registerSourceHandlers() {
     youtubeSyncOperation = { controller, sender: event.sender };
     try {
       const db = runtime.database();
-      const channel = youtubeCatalog.activeChannel(db);
-      if (!channel) throw new Error("Senkronizasyon için aktif YouTube kanalı bulunamadı.");
-      const project = channelProjects.activeProject();
-      if (!project?.youtubeChannelUrl) throw new Error("Önce kanal projesinin YouTube kaynağını tanımla.");
-      {
-        const expectedUrl = youtubeCatalog.normalizeChannelUrl(project.youtubeChannelUrl);
-        const expectedPlaylist = project.youtubePlaylistUrl
-          ? youtubeCatalog.normalizePlaylistUrl(project.youtubePlaylistUrl) : "";
-        if (channel.url !== expectedUrl || (channel.playlistUrl || "") !== expectedPlaylist) {
-          throw new Error("Aktif katalog proje kaynağından farklı. Önce Ayarlar > Kanal projeleri üzerinden kaynağı bağla.");
-        }
+      const channel = await resolveYoutubeSyncChannel({
+        catalog: youtubeCatalog,
+        project: channelProjects.activeProject(),
+        db,
+        signal: controller.signal,
+        onProgress: (progress) => sendYoutubeSyncProgress(event.sender, progress),
+      });
+      if (controller.signal.aborted) {
+        const canceled = new Error("Senkronizasyon iptal edildi.");
+        canceled.code = "CHANNEL_FOUNDRY_SYNC_CANCELLED";
+        throw canceled;
       }
 
       const result = await youtubeCatalog.syncChannel(db, app.getPath("userData"), {

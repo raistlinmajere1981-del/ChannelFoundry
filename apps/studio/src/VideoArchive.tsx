@@ -78,7 +78,7 @@ function wait(ms: number) {
 
 function progressLabel(progress: StudioYoutubeSyncProgress | null) {
   if (!progress) return "";
-  if (progress.phase === "preparing") return "Kanal taraması hazırlanıyor…";
+  if (progress.phase === "preparing") return progress.currentTitle || "Kanal taraması hazırlanıyor…";
   if (progress.phase === "catalog") return "Kanal video listesi denetleniyor…";
   if (progress.phase === "scanning") return progress.total
     ? `Tarih ve altyazılar taranıyor · ${progress.processed} / ${progress.total} video · %${progress.percent}`
@@ -201,7 +201,7 @@ export default function VideoArchive() {
   }, [selectedResultCount, allResultsSelected, catalogView]);
 
   const sync = async (mode: "recent" | "full") => {
-    if (!bridge || !mediaOptions || optionsBusy) return;
+    if (!bridge || optionsBusy) return;
     if (mode === "full" && channels.length && !confirm("Tam senkronizasyon seçili kapsamdaki tüm videoların tarih ve altyazı bilgisini yeniden tarayacak, eksik thumbnail'leri yerel cache'e alacak. Ayrıntılı tarama biraz zaman alabilir. Devam edilsin mi?")) return;
     setBusy(mode);
     setCanceling(false);
@@ -370,7 +370,7 @@ export default function VideoArchive() {
           </div>}
         </div>
         <div className={`channel-sync-progress${syncBusy || optionsBusy ? " active" : ""}${!syncBusy && !optionsBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite">{optionsBusy ? "Kanal tercihleri kaydediliyor…" : progressLabel(syncProgress) || syncNotice?.text || ""}</div>
-        <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || !mediaOptions || optionsBusy || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
+        <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || optionsBusy || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
       </div>
     </section>
 
