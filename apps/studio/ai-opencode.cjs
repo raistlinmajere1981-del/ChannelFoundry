@@ -1,7 +1,6 @@
 "use strict";
 
 const { execFile } = require("node:child_process");
-const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -15,19 +14,6 @@ function sharedService() {
     }, (error, stdout) => {
       if (error) return reject(new Error("OpenCode ortak servisi bulunamadı."));
       const match = String(stdout).match(/http[^\s]+/);
-      if (!match) return reject(new Error("OpenCode ortak servis adresi bulunamadı."));
-      try { resolve(serverEndpoint({ endpoint: match[0] })); }
-      catch { reject(new Error("OpenCode ortak servis adresi geçersiz.")); }
-    });
-  });
-}
-function sharedService() {
-  return new Promise((resolve, reject) => {
-    execFile("opencode", ["service", "status"], {
-      shell: false, timeout: 5000, encoding: "utf8", maxBuffer: 4096,
-    }, (error, stdout) => {
-      if (error) return reject(new Error("OpenCode ortak servisi bulunamadı."));
-      const match = String(stdout).match(/https?:\\/\\/127\\.0\\.0\\.1:\\d{2,5}/);
       if (!match) return reject(new Error("OpenCode ortak servis adresi bulunamadı."));
       try { resolve(serverEndpoint({ endpoint: match[0] })); }
       catch { reject(new Error("OpenCode ortak servis adresi geçersiz.")); }

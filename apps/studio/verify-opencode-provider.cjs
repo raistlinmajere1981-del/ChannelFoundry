@@ -13,6 +13,7 @@ const aiClient = require("./ai-client.cjs");
   assert.ok(registry.list("text").some((item) => item.id === "opencode-cli"));
   assert.ok(!registry.list("image").some((item) => item.id === "opencode-cli"));
   assert.ok(registry.list("image").some((item) => item.id === "codex-cli"));
+  assert.equal((fs.readFileSync(path.join(__dirname, "ai-opencode.cjs"), "utf8").match(/function sharedService\(\)/g) || []).length, 1);
   const settingsUi = fs.readFileSync(path.join(__dirname, "src/AiProviderSettings.tsx"), "utf8");
   assert.match(settingsUi, /bridge\.aiProviders\(\)/, "Provider options must come from the backend");
   assert.match(settingsUi, /Modelleri getir/, "Model discovery must be explicit");
