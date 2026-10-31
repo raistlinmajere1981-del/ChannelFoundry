@@ -229,7 +229,6 @@ export default function AiActivityOverlay({ open, onClose, initialSnapshot }: Pr
         <div>
           <small>CANLI AI ÇALIŞMA GÜNLÜĞÜ</small>
           <h2 id="ai-log-title">İstekler, mesajlar ve model cevapları</h2>
-          <p>Video çözümleme, Evren Birleştirme ve görsel üretim çağrıları bu uygulama oturumu boyunca burada tutulur.</p>
         </div>
         <div className="ai-log-head-state">
           {snapshot?.activeSessionId && <span><i/>Canlı güncelleniyor</span>}

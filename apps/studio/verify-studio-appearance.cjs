@@ -22,6 +22,18 @@ const activeChannelStyles = read("src/active-channel.css");
 const videoArchiveStyles = read("src/video-archive.css");
 const videoArchiveSettingsStyles = read("src/video-archive-settings.css");
 const subtitleResearchStyles = read("src/subtitle-research.css");
+const aiLogStyles = read("src/ai-activity-monitor.css");
+const aiLogOverlay = read("src/AiActivityOverlay.tsx");
+const logSection = aiLogStyles.slice(aiLogStyles.indexOf(".ai-log-backdrop{"));
+assert.match(aiLogOverlay, /createPortal\(/, "AI günlüğü gövde portalında açılmalı");
+assert.match(logSection, /\.ai-log-backdrop\{[\s\S]*?var\(--surface-canvas\)/, "Günlük arka perdesi temayı izlemeli");
+assert.match(logSection, /\.ai-log-overlay\{[\s\S]*?background:var\(--surface-panel\)/, "Günlük penceresi ortak panel temasını kullanmalı");
+assert.match(logSection, /\.ai-log-sessions>div>button\.active\{[\s\S]*?var\(--surface-selected\)/, "Günlük seçili kayıtları ortak seçim rengini kullanmalı");
+assert.match(logSection, /\.ai-log-event\.error \.ai-log-event-body\{[^}]*var\(--state-danger-soft\)/, "Günlük hataları semantik uyarı renkleriyle gösterilmeli");
+assert.match(logSection, /font-size:var\(--studio-font-body/, "Günlük metin boyutları görünüm tercihlerini izlemeli");
+assert.match(logSection, /data-studio-motion="reduced"/, "Günlük azaltılmış hareket tercihini izlemeli");
+assert.doesNotMatch(logSection, /#[0-9a-f]{3,8}|rgba\(/i, "Portal içinde sabit koyu tema rengi kalmamalı");
+
 
 assert.match(appearance, /theme:\s*"dark",\s*textSize:\s*"comfortable"/, "Studio varsayılanı uzun okumaya uygun rahat metin olmalı");
 assert.match(appearance, /channel-foundry:studio-appearance-v1/, "Görünüm tercihi cihazda kalıcı saklanmalı");
