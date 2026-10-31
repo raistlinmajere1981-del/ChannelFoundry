@@ -25,11 +25,15 @@ async function addChannel(db, input) {
 }
 
 function channelMediaOptions(db, input = {}) {
-  return store.channelMediaOptions(db, input?.channelId, ytDlp.mediaOptions());
+  return store.channelMediaOptions(db, input?.channelId, ytDlp.mediaOptions())
+    || { channelId: "", ...ytDlp.mediaOptions() };
 }
 
 function saveChannelMediaOptions(db, input = {}) {
-  return store.saveChannelMediaOptions(db, input, ytDlp.mediaOptions());
+  const channel = input?.channelId ? store.getChannel(db, input.channelId) : store.activeChannel(db);
+  if (input?.channelId && !channel) throw new Error("Seçilen YouTube kanalı yerel katalogda bulunamadı.");
+  if (channel) return store.saveChannelMediaOptions(db, { ...input, channelId: channel.id }, ytDlp.mediaOptions());
+  return { channelId: "", ...ytDlp.saveMediaOptions(input) };
 }
 
 async function syncChannel(db, userDataPath, input) {

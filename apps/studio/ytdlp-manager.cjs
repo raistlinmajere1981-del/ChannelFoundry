@@ -129,6 +129,22 @@ function writeSettings(settings) {
   return settings;
 }
 
+function saveMediaOptions(input = {}) {
+  const current = readSettings();
+  const next = {
+    ...current,
+    metadataLanguage: input?.metadataLanguage === undefined
+      ? current.metadataLanguage : normalizeMetadataLanguage(input.metadataLanguage),
+    subtitleLanguages: input?.subtitleLanguages === undefined
+      ? [...current.subtitleLanguages] : normalizeSubtitleLanguages(input.subtitleLanguages),
+    thumbnailSize: input?.thumbnailSize === undefined
+      ? current.thumbnailSize : normalizeThumbnailSize(input.thumbnailSize),
+  };
+  writeSettings(next);
+  emit();
+  return mediaOptions();
+}
+
 function versionParts(value) {
   return String(value || "").replace(/^v/i, "").split(/[^0-9]+/).filter(Boolean).map(Number);
 }
@@ -394,6 +410,7 @@ module.exports = {
   executablePath,
   installOrUpdate,
   mediaOptions,
+  saveMediaOptions,
   saveOptions,
   startAutomaticTasks,
   status,

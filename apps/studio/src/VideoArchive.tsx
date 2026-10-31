@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_PAGE_SIZE = 50;
+const INITIAL_MEDIA_OPTIONS: StudioYoutubeChannelMediaOptions = {
+  channelId: "",
+  metadataLanguage: "tr",
+  subtitleLanguages: ["tr", "en"],
+  thumbnailSize: "standard",
+};
 const channelLanguages = [
   ["tr", "Türkçe"], ["en", "İngilizce"], ["de", "Almanca"], ["fr", "Fransızca"],
   ["es", "İspanyolca"], ["ar", "Arapça"], ["ru", "Rusça"],
@@ -193,8 +199,9 @@ export default function VideoArchive() {
   const availableSubtitleCount = videos.filter((video) => video.subtitleStatus === "manual" || video.subtitleStatus === "automatic").length;
   const archivedTranscriptCount = videos.filter((video) => video.hasTranscript).length;
   const unarchivedTranscriptCount = Math.max(0, videos.length - archivedTranscriptCount);
-  const primarySubtitle = mediaOptions?.subtitleLanguages[0] || "tr";
-  const fallbackSubtitle = mediaOptions?.subtitleLanguages[1] || "";
+  const displayedMediaOptions = mediaOptions ?? INITIAL_MEDIA_OPTIONS;
+  const primarySubtitle = displayedMediaOptions.subtitleLanguages[0] || "tr";
+  const fallbackSubtitle = displayedMediaOptions.subtitleLanguages[1] || "";
 
   useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = selectedResultCount > 0 && !allResultsSelected;
@@ -350,24 +357,24 @@ export default function VideoArchive() {
             <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınları tarama</span></label>
             <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel videoları tarama</span></label>
           </div>
-          {mediaOptions && <div className="channel-media-options" aria-label="Kanal dil ve görsel tercihleri">
-            <label><span>Başlık dili</span><select aria-label="Kanal başlık ve metadata dili" value={mediaOptions.metadataLanguage} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
+          <div className="channel-media-options" aria-label="Kanal dil ve görsel tercihleri">
+            <label><span>Başlık dili</span><select aria-label="Kanal başlık ve metadata dili" value={displayedMediaOptions.metadataLanguage} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
               <option value="original">Özgün dil</option>
               {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select></label>
-            <label><span>Altyazı</span><select aria-label="Kanal öncelikli altyazı dili" value={primarySubtitle} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [event.target.value, fallbackSubtitle].filter(Boolean) })}>
+            <label><span>Altyazı</span><select aria-label="Kanal öncelikli altyazı dili" value={primarySubtitle} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [event.target.value, fallbackSubtitle].filter(Boolean) })}>
               {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select></label>
-            <label><span>Yedek altyazı</span><select aria-label="Kanal yedek altyazı dili" value={fallbackSubtitle} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [primarySubtitle, event.target.value].filter(Boolean) })}>
+            <label><span>Yedek altyazı</span><select aria-label="Kanal yedek altyazı dili" value={fallbackSubtitle} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ subtitleLanguages: [primarySubtitle, event.target.value].filter(Boolean) })}>
               <option value="">Kullanma</option>
               {channelLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select></label>
-            <label><span>Thumbnail</span><select aria-label="Kanal thumbnail boyutu" value={mediaOptions.thumbnailSize} disabled={Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ thumbnailSize: event.target.value as StudioYoutubeChannelMediaOptions["thumbnailSize"] })}>
+            <label><span>Thumbnail</span><select aria-label="Kanal thumbnail boyutu" value={displayedMediaOptions.thumbnailSize} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ thumbnailSize: event.target.value as StudioYoutubeChannelMediaOptions["thumbnailSize"] })}>
               <option value="small">Kompakt</option>
               <option value="standard">Standart</option>
               <option value="large">Büyük</option>
             </select></label>
-          </div>}
+          </div>
         </div>
         <div className={`channel-sync-progress${syncBusy || optionsBusy ? " active" : ""}${!syncBusy && !optionsBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite">{optionsBusy ? "Kanal tercihleri kaydediliyor…" : progressLabel(syncProgress) || syncNotice?.text || ""}</div>
         <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || optionsBusy || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
