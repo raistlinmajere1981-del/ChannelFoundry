@@ -99,7 +99,10 @@ const aiClient = require("./ai-client.cjs");
     const created = seen.find((item) => item.url === "/api/session" && item.method === "POST");
     assert.equal(created.body.model.providerID, "opencode");
     assert.equal(created.body.model.id, "deepseek-v4.1-flash-free");
-    assert.deepEqual(created.body.permissions, [{ action: "*", resource: "*", effect: "deny" }]);
+    assert.deepEqual(created.body.permissions, openCode.TEXT_ONLY_PERMISSIONS);
+    assert.deepEqual(created.body.permissions.map(({ action, effect }) => [action, effect]), [
+      ["*", "deny"], ["read", "allow"], ["external_directory", "deny"],
+    ]);
     assert.match(created.body.location.directory, /channel-foundry-ai-/);
     const sent = seen.find((item) => item.url === "/api/session/" + sessionId + "/prompt");
     assert.match(sent.body.text, /Reply OK/);

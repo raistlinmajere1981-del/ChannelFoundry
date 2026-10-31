@@ -5,6 +5,15 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+// Keep the free-model text pathway working: OpenCode V2 rejects sessions
+// that deny the read capability. Ordered permission rules make read the
+// only allowed tool; external-directory access is still denied.
+const TEXT_ONLY_PERMISSIONS = Object.freeze([
+  Object.freeze({ action: "*", resource: "*", effect: "deny" }),
+  Object.freeze({ action: "read", resource: "*", effect: "allow" }),
+  Object.freeze({ action: "external_directory", resource: "*", effect: "deny" }),
+]);
+
 const MODEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:@+/-]*$/;
 
 function sharedService() {
@@ -156,7 +165,7 @@ async function complete(config, messages, options = {}) {
       model,
       agent: "build",
       location: { directory },
-      permissions: [{ action: "*", resource: "*", effect: "deny" }],
+      permissions: TEXT_ONLY_PERMISSIONS,
     });
     sessionID = String(created?.data?.id || "");
     if (!/^ses_[A-Za-z0-9_-]+$/.test(sessionID)) throw new Error("OpenCode oturum kimliği geçersiz.");
@@ -189,4 +198,4 @@ async function complete(config, messages, options = {}) {
   }
 }
 
-module.exports = { listModels, complete, modelId, serverEndpoint, serverRequest, normalizeServerModels, readSessionOutput, sharedService };
+module.exports = { listModels, complete, modelId, serverEndpoint, serverRequest, normalizeServerModels, readSessionOutput, sharedService, TEXT_ONLY_PERMISSIONS };
