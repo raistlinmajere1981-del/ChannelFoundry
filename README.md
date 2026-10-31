@@ -46,3 +46,13 @@ Kanal kataloğu çoklu kanal destekler. Kanal özelinde ayrılmış Studio veri 
 ## Dokümantasyon
 
 `docs/00-Vizyon.md`, `docs/01-Manifesto.md`, `docs/02-Yol-Haritasi.md`, `docs/05-Veri-Mimarisi.md` ve diğer belgeler.
+
+## Paralel geliştirme portları
+
+- Yardımcı Asistan masaüstü geliştirme portu: `127.0.0.1:5174` (başka projeye ait; değiştirilmez)
+- ChannelFoundry Studio: `127.0.0.1:5194`, port sabit ve sunucu kimliği zorunludur.
+- BirDeSenGör web tasarımı: `127.0.0.1:5195`, port sabittir.
+
+Başlatmak için `npm run dev:studio:birdesengor` ve bağımsız web için `npm run dev:birdesengor` kullanılır. Port doluysa işlem başka porta sessizce taşınmaz; hata verir. Studio Electron yalnızca kendi kimlik doğrulama endpointini sunan Vite sunucusunu açar.
+
+Kontrol: `npm run verify:dev-isolation`.

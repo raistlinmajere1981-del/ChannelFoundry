@@ -1,7 +1,8 @@
-const { app, BrowserWindow, Menu, safeStorage, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, safeStorage, ipcMain, dialog } = require("electron");
 const path = require("node:path");
 const { configureElectronDataPaths } = require("./studio-data-paths.cjs");
 const channelProjects = require("./channel-projects.cjs");
+const { verifyStudioDevServer } = require("./dev-server-identity.cjs");
 
 configureElectronDataPaths(app);
 
@@ -26,13 +27,16 @@ function windowPreferences() {
   };
 }
 
-function loadRenderer(window) {
+async function loadRenderer(window) {
   const devServerUrl = process.env.CHANNEL_FOUNDRY_DEV_SERVER_URL;
   if (devServerUrl) {
-    window.loadURL(devServerUrl);
+    // Vite portu doluysa Electron baska projenin UI'ini asla yuklemez.
+    const verifiedUrl = await verifyStudioDevServer(devServerUrl);
+    if (window.isDestroyed()) return;
+    await window.loadURL(verifiedUrl);
     return;
   }
-  window.loadFile(path.join(__dirname, "dist", "index.html"));
+  await window.loadFile(path.join(__dirname, "dist", "index.html"));
 }
 
 function createWindow() {
@@ -52,7 +56,12 @@ function createWindow() {
   window.setMenuBarVisibility(false);
   window.maximize();
   window.on("closed", () => runtime.setMainWindow(null));
-  loadRenderer(window);
+  void loadRenderer(window).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[ChannelFoundry] Studio arayuzu yuklenemedi:", message);
+    dialog.showErrorBox("ChannelFoundry Studio", message);
+    if (!window.isDestroyed()) window.close();
+  });
   return window;
 }
 
