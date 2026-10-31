@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const http = require("node:http");
+const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const config = require("./ai-config.cjs");
 const registry = require("./ai-provider-registry.cjs");
@@ -10,6 +11,11 @@ const openCode = require("./ai-opencode.cjs");
 const aiClient = require("./ai-client.cjs");
 
 (async () => {
+  // Electron integration source syntax must be valid before release.
+  for (const name of ["ai-opencode.cjs", "studio-ipc.cjs", "preload.cjs"]) {
+    const check = spawnSync(process.execPath, ["--check", path.join(__dirname, name)], { encoding: "utf8" });
+    assert.equal(check.status, 0, name + ": " + check.stderr);
+  }
   assert.ok(registry.list("text").some((item) => item.id === "opencode-cli"));
   assert.ok(!registry.list("image").some((item) => item.id === "opencode-cli"));
   assert.ok(registry.list("image").some((item) => item.id === "codex-cli"));
