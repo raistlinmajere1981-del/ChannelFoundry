@@ -1,0 +1,539 @@
+/*
+ * Single viewport-height editorial work surface.
+ * Never scroll the shell or page canvas. Each list, editor, report or settings
+ * tab has its own bounded scroll container.
+ */
+html,body,#root{
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.studio-shell.pipeline-shell{
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+  align-items:stretch;
+  grid-template-rows:minmax(0,1fr);
+}
+.pipeline-sidebar{
+  position:relative;
+  top:auto;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.studio-main.pipeline-main{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+  padding:0 18px 16px!important;
+}
+.studio-topbar-global{
+  flex:0 0 auto;
+  position:relative;
+  top:auto;
+  margin:0 -18px 12px;
+  padding-inline:18px;
+  z-index:50;
+}
+.studio-content.pipeline-content{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  width:min(100%,var(--studio-workspace-width));
+  min-width:0;
+  min-height:0;
+  max-height:100%;
+  margin-inline:auto;
+  overflow:hidden;
+  padding:12px;
+  border:1px solid var(--border-soft);
+  border-radius:8px;
+  background:var(--surface-panel);
+  box-shadow:var(--shadow-panel);
+}
+.pipeline-content>.studio-workspace-error{
+  flex:0 0 auto;
+  max-height:100px;
+  overflow:auto;
+  margin-bottom:9px;
+}
+.pipeline-content> :where(
+  .ops-dashboard,.video-archive-page,.subtitle-research-page,
+  .ai-workbench-shell,.editorial-workspace,.community-admin-view,
+  .publish-center,.settings-page,
+  .community-admin-empty,.community-admin-unavailable,.pipeline-loading
+){
+  flex:1 1 auto;
+  width:100%;
+  height:100%;
+  min-height:0;
+  min-width:0;
+  max-height:100%;
+  margin:0;
+}
+.pipeline-content :where(
+  .ops-dashboard,.ops-lower-grid,.video-archive-page,
+  .catalog-workspace,.catalog-table-wrap,
+  .subtitle-research-page,.subtitle-results-region,
+  .ai-workbench-shell,.ai-stage-content,.ai-stage-content>*,
+  .editorial-workspace,.editorial-layout,.editorial-browser,.editorial-editor,
+  .settings-page,.studio-settings-surface,.community-admin-view,
+  .publish-center
+){min-height:0;min-width:0}
+.pipeline-content :where(
+  .archive-list,.catalog-rows,.ai-source-rows,.ai-review-body,
+  .subtitle-results-region,.studio-settings-surface,
+  .ops-task-list,.ops-recent-list
+){
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border-control) transparent;
+}
+/* Dashboard: fixed overview, individual activity panes own the scroll. */
+.pipeline-content>.ops-dashboard{
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.ops-dashboard .ops-flow-panel{min-height:0;overflow:hidden}
+.ops-dashboard .ops-lower-grid{
+  display:grid;
+  grid-template-rows:minmax(0,1fr);
+  overflow:hidden;
+}
+.ops-dashboard :where(.ops-tasks-panel,.ops-recent-panel){
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  overflow:hidden;
+}
+.ops-dashboard .ops-section-head{flex:0 0 auto}
+.ops-dashboard :where(.ops-task-list,.ops-recent-list){
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+}
+/* Video Archive: channel tools/summary remain visible, filter and catalog scroll. */
+.pipeline-content>.video-archive-page{
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.video-archive-page .catalog-workspace{
+  display:grid;
+  grid-template-rows:minmax(0,1fr);
+  height:100%;
+  overflow:hidden;
+}
+.video-archive-page .catalog-filters{
+  height:100%;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.video-archive-page .catalog-table-wrap{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+}
+.video-archive-page .catalog-table-wrap > :not(.catalog-rows){flex:0 0 auto}
+.video-archive-page .catalog-rows{
+  flex:1 1 auto;
+  height:auto;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+/* Research: filter composer stays bounded while results have their own region. */
+.pipeline-content>.subtitle-research-page{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.subtitle-research-page>.subtitle-search-panel{
+  min-height:0;
+  max-height:min(51vh,430px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.subtitle-research-page>.subtitle-results-region{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  gap:var(--studio-workspace-gap);
+}
+.subtitle-research-page .subtitle-report-results{
+  max-height:none;
+  overflow:visible;
+}
+.subtitle-results-empty{
+  display:grid;
+  place-items:center;
+  flex:1;
+  min-height:0;
+  border:1px dashed var(--border-soft);
+  border-radius:6px;
+  background:var(--surface-panel-soft);
+  color:var(--text-subtle);
+  font-size:var(--studio-font-body);
+}
+/* AI workbench: the six stages are one rail above a bounded active editor. */
+.pipeline-content>.ai-workbench-shell.ai-production-workbench{
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr);
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+  border:0;
+  box-shadow:none;
+}
+.ai-production-workbench>.ai-stage-content{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0!important;
+  height:100%;
+  max-height:100%;
+  overflow:hidden;
+  padding:10px;
+}
+.ai-stage-content>*{
+  flex:1 1 auto;
+  min-height:0;
+  max-height:100%;
+}
+.ai-stage-content>.ai-workshop-page{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  min-height:0;
+  gap:10px;
+  overflow:hidden;
+}
+.ai-stage-content .ai-workshop-metrics{min-height:0}
+.ai-stage-content .ai-workshop-layout{
+  display:grid;
+  grid-template-rows:minmax(0,1fr);
+  min-height:0!important;
+  height:100%;
+  overflow:hidden;
+}
+.ai-stage-content .ai-workshop-layout>.panel{min-height:0!important;overflow:hidden}
+.ai-stage-content .ai-source-list,
+.ai-stage-content .ai-review{
+  display:flex;
+  min-height:0;
+  flex-direction:column;
+}
+.ai-stage-content .ai-source-rows{
+  flex:1 1 auto;
+  min-height:0;
+  height:auto;
+  max-height:none;
+  overflow-y:auto;
+}
+.ai-stage-content .ai-review-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+}
+.ai-stage-content .ai-review-empty{min-height:0;flex:1}
+.ai-stage-content .editorial-review-workspace{
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr);
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.ai-stage-content .editorial-review-workspace>.ai-editorial-review{
+  min-height:0;
+  overflow:hidden;
+}
+.ai-stage-content .ai-editorial-review,
+.ai-stage-content .ai-review-layout{
+  height:100%;
+  min-height:0!important;
+  overflow:hidden;
+}
+.ai-stage-content .ai-review-list{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.ai-stage-content .ai-review-list>div:last-child{
+  flex:1;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+}
+.ai-stage-content .ai-review-detail{
+  min-height:0;
+  overflow-y:auto;
+}
+.ai-stage-content .revision-review-pane,
+.ai-stage-content .revision-review-layout{min-height:0;height:100%;overflow:hidden}
+.ai-stage-content .revision-review-list-rows{min-height:0;max-height:none;overflow-y:auto}
+.ai-stage-content .revision-review-detail{min-height:0;overflow-y:auto}
+.ai-stage-content :where(.narrative-workbench,.visual-completion-workbench,.universe-workbench){
+  height:100%;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.ai-stage-content .visual-completion-layout{min-height:0}
+.ai-stage-content .visual-completion-list{max-height:40vh;overflow-y:auto}
+.ai-stage-content .visual-completion-detail{min-height:0;overflow-y:auto}
+/* Records: master/detail list and editor each get independent scrolling. */
+.pipeline-content>.editorial-workspace{
+  display:flex;
+  flex-direction:column;
+  gap:var(--studio-workspace-gap)!important;
+  overflow:hidden;
+}
+.editorial-workspace>.record-tabs,
+.editorial-workspace>.editorial-summary-strip{flex:0 0 auto}
+.editorial-workspace>.editorial-layout{
+  flex:1 1 auto;
+  height:100%;
+  min-height:0!important;
+  overflow:hidden;
+}
+.editorial-workspace>.editorial-layout :where(.editorial-browser,.editorial-editor){
+  min-height:0!important;
+  max-height:100%;
+}
+.editorial-workspace .editorial-browser{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.editorial-workspace .editorial-list{
+  flex:1 1 auto;
+  min-height:0;
+  height:auto;
+  max-height:none;
+  overflow-y:auto;
+}
+.editorial-workspace .editorial-editor{
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.editorial-workspace>:last-child:not(.editorial-layout):not(.editorial-summary-strip):not(.record-tabs){
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+/* Settings: tabs are pinned; currently selected settings sheet scrolls on its own. */
+.pipeline-content>.settings-page{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.settings-page>.studio-settings-tabs{min-height:0;flex:0 0 auto}
+.settings-page>.studio-settings-surface{
+  height:100%;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding:0 3px 7px 0;
+}
+/* Community: compose and forum each scroll independently. */
+.pipeline-content>.community-admin-view{
+  display:grid;
+  grid-template-rows:auto auto minmax(160px,.9fr) minmax(190px,1.1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.community-admin-view>.community-admin-compose-panel{
+  min-height:0;
+  overflow-y:auto;
+}
+.community-admin-view>.community-forum-admin-panel{
+  display:flex;
+  min-height:0;
+  flex-direction:column;
+  overflow:hidden;
+}
+.community-admin-view .community-forum-admin-layout{
+  display:grid;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
+}
+.community-admin-view :where(.community-forum-thread-list,.community-forum-thread-detail){
+  min-height:0;
+  overflow-y:auto;
+}
+/* Publication: two independent production cards within the same fixed panel. */
+.pipeline-content>.publish-center{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);
+  grid-template-rows:minmax(0,1fr);
+  gap:var(--studio-workspace-gap);
+  overflow:hidden;
+}
+.publish-center>:where(.theme-publication-panel,.last-export-panel){
+  min-height:0;
+  height:100%;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+@media(max-width:1280px){
+  .studio-content.pipeline-content{padding:10px}
+  .pipeline-content>.community-admin-view{grid-template-rows:auto auto minmax(145px,.9fr) minmax(185px,1.1fr)}
+}
+@media(max-height:760px){
+  .studio-main.pipeline-main{padding-bottom:10px!important}
+  .studio-content.pipeline-content{padding:9px}
+  .ops-dashboard .ops-flow>button{min-height:65px}
+  .ai-production-workbench .ai-stage-rail>button{min-height:52px}
+  .video-archive-page .catalog-metrics{gap:6px}
+}
+/* Curation, revision and generated universe lists use their own two-pane scroll. */
+.ai-stage-content .analysis-curation-workbench{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.ai-stage-content .analysis-curation-layout{
+  display:grid;
+  grid-template-rows:minmax(0,1fr);
+  min-height:0!important;
+  overflow:hidden;
+}
+.ai-stage-content .analysis-curation-list{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+.ai-stage-content .analysis-curation-list>header{flex:0 0 auto}
+.ai-stage-content .analysis-curation-list>div:last-child{
+  flex:1 1 auto;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+}
+.ai-stage-content .analysis-curation-detail{
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.ai-stage-content .revision-review-list{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+.ai-stage-content .revision-review-list-rows{
+  flex:1 1 auto;
+  overflow-y:auto;
+}
+.ai-stage-content .universe-result-panel{
+  min-height:0;
+  max-height:100%;
+}
+.ai-stage-content .universe-result-layout{
+  min-height:0;
+  max-height:50vh;
+  overflow:hidden;
+}
+.ai-stage-content :where(.universe-result-list,.universe-result-detail){
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+/* Long section-specific controls never change the fixed height of the canvas. */
+.pipeline-content :where(
+  .analysis-curation-list>div:last-child,.analysis-curation-detail,
+  .ai-review-list>div:last-child,.ai-review-detail,
+  .revision-review-list-rows,.revision-review-detail,
+  .catalog-filters,.catalog-rows,.community-forum-thread-list,
+  .community-forum-thread-detail,.editorial-editor,
+  .theme-publication-panel,.last-export-panel
+){
+  scrollbar-width:thin;
+  scrollbar-color:var(--border-control) transparent;
+  overscroll-behavior:contain;
+}
+/* Keep report header, summary and result group dimensions intact inside its scroll pane. */
+.subtitle-results-region > :where(.subtitle-report-metrics,.subtitle-term-summary,.subtitle-matrix,.subtitle-report){
+  flex:0 0 auto;
+  min-width:0;
+}
+.subtitle-results-region .subtitle-report{
+  overflow:visible;
+}
+.subtitle-results-region .subtitle-report-head{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:var(--surface-panel);
+}
+/* Individual panel scroll must not also scroll the workspace when at an edge. */
+.studio-content.pipeline-content{
+  overscroll-behavior:none;
+  scrollbar-width:none;
+}
+.studio-content.pipeline-content::-webkit-scrollbar{display:none}
+/* Compact AI selection controls: two deliberate rows instead of overlapping flex items. */
+.ai-stage-content .ai-analysis-selection-toolbar{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:
+    "view pagination"
+    "selection submit";
+  gap:6px 10px;
+  align-items:center;
+  min-height:0;
+  padding:8px 12px;
+}
+.ai-stage-content .ai-analysis-selection-actions{
+  grid-area:selection;
+  min-width:0;
+  overflow:hidden;
+}
+.ai-stage-content .ai-analysis-display-controls{
+  grid-area:view;
+  justify-self:start;
+  min-width:0;
+}
+.ai-stage-content .ai-analysis-page-controls{
+  grid-area:pagination;
+  justify-self:end;
+  min-width:0;
+  gap:7px;
+}
+.ai-stage-content .ai-analysis-submit{
+  grid-area:submit;
+  justify-self:end;
+  margin:0;
+}
+.ai-stage-content .ai-analysis-selection-toolbar button{
+  min-height:30px;
+  padding:5px 8px;
+}
+.ops-dashboard .ops-task-list,
+.ops-dashboard .ops-recent-list{overflow-x:hidden}
+@media(max-width:1080px){
+  .ai-stage-content .ai-analysis-selection-toolbar{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"view" "pagination" "selection" "submit";
+  }
+  .ai-stage-content .ai-analysis-page-controls,
+  .ai-stage-content .ai-analysis-submit{justify-self:start}
+}

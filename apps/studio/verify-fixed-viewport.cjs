@@ -1,0 +1,45 @@
+"use strict";
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const path=require("node:path");
+const root=__dirname;
+const read=(file)=>fs.readFileSync(path.join(root,"src",file),"utf8");
+const frame=read("studio-fixed-viewport.css");
+const pipeline=read("StudioPipeline.tsx");
+const main=read("main.tsx");
+const research=read("SubtitleResearch.tsx");
+
+assert.match(main,/import "\.\/studio-fixed-viewport\.css";/);
+assert.ok(main.indexOf("studio-fixed-viewport.css") > main.indexOf("studio-workspace-system.css"),"fixed frame should load after shared design layer");
+assert.match(pipeline,/<section className="studio-content pipeline-content" aria-label="Çalışma alanı"/);
+assert.match(pipeline,/data-workspace-section=\{active\}/);
+assert.match(pipeline,/studio-workspace-error/);
+
+for(const rule of [
+  /\.studio-shell\.pipeline-shell\{[\s\S]*?height:100dvh;[\s\S]*?overflow:hidden;/,
+  /\.studio-content\.pipeline-content\{[\s\S]*?flex:1 1 auto;[\s\S]*?overflow:hidden;/,
+  /\.pipeline-content>\.ops-dashboard\{[\s\S]*?grid-template-rows:auto auto minmax\(0,1fr\);/,
+  /\.pipeline-content>\.video-archive-page\{[\s\S]*?grid-template-rows:auto auto minmax\(0,1fr\);/,
+  /\.pipeline-content>\.subtitle-research-page\{[\s\S]*?grid-template-rows:auto minmax\(0,1fr\);/,
+  /\.pipeline-content>\.ai-workbench-shell\.ai-production-workbench\{[\s\S]*?grid-template-rows:auto auto minmax\(0,1fr\);/,
+  /\.pipeline-content>\.settings-page\{[\s\S]*?grid-template-rows:auto minmax\(0,1fr\);/,
+  /\.pipeline-content>\.publish-center\{[\s\S]*?grid-template-rows:minmax\(0,1fr\);/,
+  /\.editorial-workspace\s*\.editorial-list\{[\s\S]*?overflow-y:auto;/,
+  /\.ai-stage-content \.ai-source-rows\{[\s\S]*?overflow-y:auto;/,
+  /\.ai-stage-content \.analysis-curation-detail\{[\s\S]*?overflow-y:auto;/,
+  /\.settings-page>\.studio-settings-surface\{[\s\S]*?overflow-y:auto;/,
+  /\.community-admin-view :where\(\.community-forum-thread-list,\.community-forum-thread-detail\)/,
+])assert.match(frame,rule);
+assert.ok(!/overflow-y\s*:\s*auto/.test(frame.match(/\.studio-content\.pipeline-content\{[^}]+\}/)[0]),"outer workspace must never own scrolling");
+assert.ok(frame.includes('grid-template-areas:') && frame.includes('"view pagination"') && frame.includes('"selection submit"'));
+assert.ok(frame.includes('.ops-dashboard .ops-task-list,') && frame.includes('overflow-x:hidden'));
+assert.match(research,/className="subtitle-results-region"/);
+assert.match(research,/className="subtitle-results-empty"/);
+assert.match(frame,/\.subtitle-research-page>\.subtitle-results-region\{[\s\S]*?overflow-y:auto;/);
+const pageTypes=[
+ "ops-dashboard","video-archive-page","subtitle-research-page",
+ "ai-workbench-shell","editorial-workspace","community-admin-view",
+ "publish-center","settings-page",
+];
+for(const page of pageTypes) assert.ok(frame.includes(page),"missing frame mapping: "+page);
+console.log("Fixed Studio viewport: single no-scroll page canvas, eight workspaces, independent scroll areas PASS");

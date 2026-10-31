@@ -167,8 +167,8 @@ export default function StudioPipeline() {
     </aside>
     <main className="studio-main pipeline-main">
       <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)}/>
-      {error && active !== "AI Atölyesi" && <div className="storage-warning">Studio uyarısı: {error}</div>}
-      <section className="studio-content pipeline-content">
+      <section className="studio-content pipeline-content" aria-label="Çalışma alanı" data-workspace-section={active}>
+        {error && active !== "AI Atölyesi" && <div className="storage-warning studio-workspace-error" role="alert">Studio uyarısı: {error}</div>}
         <Suspense fallback={<SectionLoading section={active}/> }>
           {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} onNavigate={activateSection}/>}
           {active === "Video Arşivi" && <VideoArchive/>}

@@ -300,7 +300,8 @@ export default function SubtitleResearch() {
       {!analysis && <div className="subtitle-search-error">Altyazı analiz köprüsü yüklenemedi. Studio'yu yeniden başlat.</div>}
     </section>
 
-    {report && <>
+    <div className="subtitle-results-region" aria-label="Araştırma sonuçları">
+    {report ? <>
       <ReportMetrics report={report}/>
       {report.searchType === "relationship" && <RelationSummary report={report}/>} 
       {report.searchType === "terms" && <TermSummary report={report}/>} 
@@ -308,7 +309,8 @@ export default function SubtitleResearch() {
         <header className="subtitle-report-head"><div><small>RAPOR</small><h3>{report.searchType === "relationship" ? report.groups.map((group) => group.label).join(" + ") : report.terms.map((term) => `“${term}”`).join(" · ")}</h3><span>{report.searchType === "relationship" ? `${report.videoCount} videoda ${report.relationCount} ilişki örneği` : `${report.videoCount} videoda ${report.totalOccurrences} toplam kullanım`}</span></div><div className="subtitle-report-actions"><button className="secondary-button" onClick={() => void copyReport()}>{copied ? "Kopyalandı" : "Raporu kopyala"}</button><button className="secondary-button" onClick={exportMarkdown}>{exported === "md" ? "Markdown indirildi" : "Markdown dışa aktar"}</button><button className="secondary-button" onClick={exportJson}>{exported === "json" ? "JSON indirildi" : "JSON dışa aktar"}</button></div></header>
         {report.searchType === "terms" ? <TermResults report={report} openVideo={openVideo}/> : <RelationResults report={report} openVideo={openVideo}/>} 
       </section>
-    </>}
+    </> : <div className="subtitle-results-empty" aria-live="polite">Arama sonuçları burada görüntülenir.</div>}
+    </div>
   </div>;
 }
 
