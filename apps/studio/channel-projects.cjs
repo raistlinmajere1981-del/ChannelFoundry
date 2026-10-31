@@ -59,6 +59,7 @@ function normalize(input, previous) {
     webDirectory,
     hostingProvider: String(input?.hostingProvider ?? previous?.hostingProvider ?? "").trim().slice(0, 48),
     webUrl: optionalHttps(input?.webUrl ?? previous?.webUrl ?? "", "Web sitesi"),
+    deploymentEnabled: Boolean(input?.deploymentEnabled ?? previous?.deploymentEnabled ?? false),
   };
 }
 function readProject(id, projectRoot = DEFAULT_ROOT) {

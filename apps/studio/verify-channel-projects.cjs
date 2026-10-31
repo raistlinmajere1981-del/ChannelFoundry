@@ -22,6 +22,7 @@ try {
   }, root);
   assert.equal(first.id, "birdesengor");
   assert.equal(first.hasWeb, false);
+  assert.equal(first.deploymentEnabled, false);
   assert.equal(projects.listProjects(root).length, 2);
   assert.throws(() => projects.createProject({ id: "../escape", displayName: "Bad" }, root), /Proje kodu/);
   assert.throws(() => projects.createProject({ id: "birdesengor", displayName: "Tekrar" }, root), /kullanılıyor/);
@@ -53,6 +54,7 @@ try {
   }, root);
   assert.equal(updated.webUrl, "https://ornek.com");
   assert.equal(updated.hostingProvider, "Natro");
+  assert.equal(updated.deploymentEnabled, false);
   assert.equal(projects.readProject(first.id, root).displayName, "BirDeSenGör Evreni");
   assert.throws(() => projects.setActiveProject("olmayan", root), /bulunamadı/);
   console.log("Channel projects: registry, URLs, selection and isolated Studio data PASS");

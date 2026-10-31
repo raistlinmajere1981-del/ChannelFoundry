@@ -338,6 +338,7 @@ type StudioChannelProject = {
   webDirectory: string;
   webUrl: string;
   hostingProvider: string;
+  deploymentEnabled: boolean;
   hasWeb: boolean;
 };
 type StudioChannelProjects = { activeId: string; projects: StudioChannelProject[] };

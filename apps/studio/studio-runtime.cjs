@@ -90,6 +90,10 @@ function createPublicExport() {
 }
 
 async function publishPublicExport() {
+  const project = require("./channel-projects.cjs").activeProject();
+  if (!project?.deploymentEnabled) {
+    throw new Error("Bu kanal yerel tasarım aşamasında. Natro yayını açıkça etkinleştirilmeden canlı yayın gönderilemez.");
+  }
   const local = createPublicExport();
   if (!local.readiness?.readyForTheme) {
     throw new Error("Publication v2 henüz canlı yayına hazır değil. Önce 05 · Hikâyeleştir ve 06 · Görsel Tamamlama kapılarını tamamla.");

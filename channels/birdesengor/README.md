@@ -5,7 +5,8 @@ Kanalın AI, araştırma ve YouTube üretim motoru `ChannelFoundry` reposundadı
 - Kanal bağlantısı ve repo: `channel.json`
 - Site kaynakları: `web/` (ayrı Git reposu; ana repo yalnızca submodule commit işaretçisini tutar)
 - Studio'nun yerel verileri: `.local-data/` (Git dışında)
-- Tasarım durumu: offline, canlı yayın yok.
+- Tasarım durumu: offline, canlı yayın kilitli.
+- Yeni alan adı: `https://birdesengorgizlievren.com` (Natro, henüz deploy yok).
 
 Ana dizinden komutlar:
 
