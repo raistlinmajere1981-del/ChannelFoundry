@@ -56,3 +56,21 @@ Kanal kataloğu çoklu kanal destekler. Kanal özelinde ayrılmış Studio veri 
 Başlatmak için `npm run dev:studio:birdesengor` ve bağımsız web için `npm run dev:birdesengor` kullanılır. Port doluysa işlem başka porta sessizce taşınmaz; hata verir. Studio Electron yalnızca kendi kimlik doğrulama endpointini sunan Vite sunucusunu açar.
 
 Kontrol: `npm run verify:dev-isolation`.
+
+
+## Studio üst çubuk ve kanal yönetimi
+
+Tüm ekranlarda üst çubuktan aktif **kanal projesi** değiştirilebilir.
+Sağdaki simgeler **yt-dlp** yönetimini (kurulum, sürüm, otomatik kontrol) ve
+**Studio görünümünü** (tema, metin boyutu) küçük panellerde açar.
+
+**Ayarlar → Kanal ve yayın** tek kaynak kaydıdır: YouTube kanal adresi,
+tüm kanal veya playlist arşiv kapsamı ve web yayın hedefi burada belirlenir.
+**Kaydet** yalnız yerel proje kaydını değiştirir; video indirmez ve web yayını
+yapmaz. **Kataloğu bağla** seçilen YouTube kaynağını doğrular ve boş katalog
+olarak kaydeder; video/altyazı alımı Video Arşivi'ndeki manuel senkronizasyondur.
+Ayarlar'ın diğer bölümleri AI, Topluluk, Yerel veri şeklinde ayrıdır.
+
+Projenin `deploymentEnabled` bayrağı kapalıyken Studio canlı web yayınını
+engeller; Birdesengör Natro kurulumu için bu durum değiştirilmedi. Temiz
+başlangıç öncesi mevcut indirilen arşiv verilerine dokunulmadı.

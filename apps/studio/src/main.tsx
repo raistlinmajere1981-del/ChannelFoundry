@@ -27,6 +27,7 @@ import "./studio-workspace-layout.css";
 import "./studio-accessibility.css";
 import "./studio-theme-bindings.css";
 import "./channel-projects.css";
+import "./studio-topbar.css";
 
 applyStudioAppearance(readStudioAppearance());
 

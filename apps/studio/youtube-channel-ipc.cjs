@@ -1,4 +1,5 @@
 const youtubeCatalog = require("./youtube-catalog.cjs");
+const channelProjects = require("./channel-projects.cjs");
 
 let channelAddRunning = false;
 
@@ -8,6 +9,22 @@ function registerYoutubeChannelIpc(ipcMain, runtime) {
     const channel = youtubeCatalog.setActiveChannel(runtime.database(), input?.channelId);
     runtime.refreshMainWindow();
     return channel;
+  });
+  ipcMain.handle("studio:channel-project-connect-source", async () => {
+    if (channelAddRunning) throw new Error("Kanal bağlantısı zaten hazırlanıyor.");
+    const project = channelProjects.activeProject();
+    if (!project?.youtubeChannelUrl) throw new Error("Önce proje YouTube kanal adresini kaydet.");
+    channelAddRunning = true;
+    try {
+      const result = await youtubeCatalog.addChannel(runtime.database(), {
+        url: project.youtubeChannelUrl,
+        playlistUrl: project.youtubePlaylistUrl || "",
+      });
+      runtime.refreshMainWindow();
+      return result;
+    } finally {
+      channelAddRunning = false;
+    }
   });
   ipcMain.handle("studio:youtube-channel-media-options", (_event, input) => (
     youtubeCatalog.channelMediaOptions(runtime.database(), input)

@@ -1,145 +1,146 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type ProjectInput = {
-  id: string;
-  displayName: string;
-  youtubeChannelUrl: string;
-  webRepository: string;
-  webUrl: string;
-  hostingProvider: string;
+  id: string; displayName: string; youtubeChannelUrl: string; youtubePlaylistUrl: string;
+  webRepository: string; webUrl: string; hostingProvider: string;
 };
-type Bridge = NonNullable<typeof window.channelFoundryStudio>;
-
-const blank = (): ProjectInput => ({
-  id: "", displayName: "", youtubeChannelUrl: "",
+const empty = (): ProjectInput => ({
+  id: "", displayName: "", youtubeChannelUrl: "", youtubePlaylistUrl: "",
   webRepository: "", webUrl: "", hostingProvider: "",
 });
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+const normalized = (value: string) => value.trim().replace(/^https?:\/\/(?:www\.)?/, "").replace(/\/$/, "").toLowerCase();
+function isLinked(project: StudioChannelProject | undefined, catalog: StudioYoutubeChannel | null) {
+  return Boolean(project?.youtubeChannelUrl && catalog
+    && normalized(project.youtubeChannelUrl) === normalized(catalog.url)
+    && (project.youtubePlaylistUrl || "") === (catalog.playlistUrl || ""));
 }
+
 export default function ChannelProjectsSettings() {
-  const bridge = window.channelFoundryStudio as Bridge | undefined;
+  const bridge = window.channelFoundryStudio;
   const [projects, setProjects] = useState<StudioChannelProject[]>([]);
   const [activeId, setActiveId] = useState("");
-  const [editingId, setEditingId] = useState("");
+  const [editing, setEditing] = useState("");
+  const [form, setForm] = useState<ProjectInput>(empty);
+  const [scope, setScope] = useState<"channel" | "playlist">("channel");
   const [newProject, setNewProject] = useState(false);
-  const [fields, setFields] = useState<ProjectInput>(blank());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [catalog, setCatalog] = useState<StudioYoutubeChannel | null>(null);
+  const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
-
+  const [error, setError] = useState("");
   const load = async () => {
     if (!bridge) return;
-    const result = await bridge.channelProjects();
-    setProjects(result.projects);
-    setActiveId(result.activeId);
+    const [result, channel] = await Promise.all([bridge.channelProjects(), bridge.youtubeCatalogActive()]);
+    setProjects(result.projects); setActiveId(result.activeId); setCatalog(channel);
     return result;
+  };
+  const choose = (id: string, list: StudioChannelProject[] = projects) => {
+    const project = list.find((entry) => entry.id === id);
+    if (!project) return;
+    setEditing(id); setNewProject(false);
+    setScope(project.youtubePlaylistUrl ? "playlist" : "channel");
+    setForm({
+      id: project.id, displayName: project.displayName, youtubeChannelUrl: project.youtubeChannelUrl,
+      youtubePlaylistUrl: project.youtubePlaylistUrl || "", webRepository: project.webRepository,
+      webUrl: project.webUrl, hostingProvider: project.hostingProvider,
+    });
+    setError(""); setNotice("");
   };
   useEffect(() => {
     void load().then((result) => {
-      if (result?.activeId) selectEditor(result.activeId, result.projects);
-    }).catch((reason) => setError(errorText(reason)));
-    return bridge?.onDataChanged?.(() => {
-      void load().catch((reason) => setError(errorText(reason)));
-    });
+      if (result?.activeId) choose(result.activeId, result.projects);
+    }).catch((reason) => setError(message(reason)));
+    return bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
   }, []);
-
-  const selectEditor = (id: string, source: StudioChannelProject[] = projects) => {
-    const project = source.find((entry) => entry.id === id);
-    if (!project) return;
-    setEditingId(id);
-    setNewProject(false);
-    setFields({
-      id: project.id,
-      displayName: project.displayName,
-      youtubeChannelUrl: project.youtubeChannelUrl,
-      webRepository: project.webRepository,
-      webUrl: project.webUrl,
-      hostingProvider: project.hostingProvider,
-    });
-    setError("");
-    setNotice("");
-  };
-  const changeField = (field: keyof ProjectInput, value: string) => {
-    setFields((current) => ({ ...current, [field]: value }));
-    setNotice("");
+  const update = (name: keyof ProjectInput, value: string) => {
+    setForm((previous) => ({ ...previous, [name]: value }));
+    setNotice(""); setError("");
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!bridge || busy) return;
-    setBusy(true);
-    setError("");
+    if (scope === "playlist" && !form.youtubePlaylistUrl.trim()) { setError("Playlist bağlantısı gerekli."); return; }
+    setBusy("save"); setError(""); setNotice("");
     try {
-      const project = newProject
-        ? await bridge.channelProjectCreate(fields)
-        : await bridge.channelProjectUpdate(fields);
+      const next = newProject ? await bridge.channelProjectCreate(form) : await bridge.channelProjectUpdate(form);
       const result = await load();
-      selectEditor(project.id, result?.projects);
-      setNotice(newProject ? "Kanal projesi oluşturuldu. Kullanmak için etkinleştir." : "Proje ayarları kaydedildi.");
-    } catch (reason) {
-      setError(errorText(reason));
-    } finally {
-      setBusy(false);
-    }
+      choose(next.id, result?.projects);
+      setNotice("Kaydedildi");
+    } catch (reason) { setError(message(reason)); }
+    finally { setBusy(""); }
   };
   const activate = async (id: string) => {
-    if (!bridge || busy || !id || id === activeId) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await bridge.channelProjectSelect({ id });
-      if (!result.changed) {
-        setBusy(false);
-        return;
-      }
-      setNotice("Proje değiştiriliyor. Studio seçilen kanalın çalışma alanıyla yeniden açılacak.");
-      // Backend uygulamayı yeniden açar; burada ikinci bir veri yükleme yapılmaz.
-    } catch (reason) {
-      setError(errorText(reason));
-      setBusy(false);
+    if (!bridge || busy || id === activeId) return;
+    setBusy("switch"); setError("");
+    try { await bridge.channelProjectSelect({ id }); setNotice("Proje açılıyor…"); }
+    catch (reason) { setError(message(reason)); setBusy(""); }
+  };
+  const linkCatalog = async () => {
+    if (!bridge || busy || editing !== activeId || !form.youtubeChannelUrl) return;
+    // Kaydedilmemiş ayarlarla yanlış kanalın arşivi oluşturulmasın.
+    const saved = projects.find((project) => project.id === activeId);
+    if (saved?.youtubeChannelUrl !== form.youtubeChannelUrl || saved?.youtubePlaylistUrl !== form.youtubePlaylistUrl) {
+      setError("Önce kaynağı kaydet.");
+      return;
     }
+    setBusy("connect"); setError(""); setNotice("");
+    try {
+      const result = await bridge.channelProjectConnectSource();
+      await load();
+      setNotice(result.created ? "YouTube kataloğu hazır" : "YouTube kataloğu bağlandı");
+    } catch (reason) { setError(message(reason)); }
+    finally { setBusy(""); }
+  };
+  const testWeb = async () => {
+    if (!bridge || busy || !form.webUrl) return;
+    setBusy("test"); setError(""); setNotice("");
+    try { await bridge.webConnectionTest({ url: form.webUrl }); setNotice("Web bağlantısı hazır"); }
+    catch (reason) { setError(message(reason)); }
+    finally { setBusy(""); }
   };
   if (!bridge) return null;
-
+  const current = projects.find((project) => project.id === editing);
+  const savedSource = current?.youtubeChannelUrl === form.youtubeChannelUrl && current?.youtubePlaylistUrl === form.youtubePlaylistUrl;
+  const currentLinked = isLinked(current, catalog);
   return <section className="panel channel-projects-panel">
-    <header>
-      <div><small>ÇALIŞMA ALANI</small><h2>Kanal projeleri</h2></div>
-      <button type="button" className="secondary-button" disabled={busy} onClick={() => {
-        setNewProject(true); setEditingId(""); setFields(blank()); setError(""); setNotice("");
-      }}>Yeni proje</button>
+    <header className="project-compact-header">
+      <h2>Kanal ve yayın</h2>
+      <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => { setEditing(""); setNewProject(true); setForm(empty()); setScope("channel"); setError(""); setNotice(""); }}>+ Yeni proje</button>
     </header>
-    <p className="channel-projects-intro">Her kanalın araştırma, AI, altyazı ve yayın çalışma verisi birbirinden ayrıdır. Web siteleri kendi Git reposunda yönetilir.</p>
     <div className="channel-projects-grid">
       <div className="channel-projects-list">
-        {projects.map((project) => <div className={`channel-project-entry${editingId === project.id ? " selected" : ""}`} key={project.id}>
-          <button type="button" onClick={() => selectEditor(project.id)} disabled={busy}>
-            <strong>{project.displayName}</strong>
-            <small>{project.id}{activeId === project.id ? " · Etkin" : ""}</small>
+        {projects.map((project) => <div key={project.id} className={`channel-project-entry ${editing === project.id ? "selected" : ""}`}>
+          <button type="button" disabled={Boolean(busy)} onClick={() => choose(project.id)}>
+            <strong>{project.displayName}</strong><small>{project.id}{activeId === project.id ? " · Etkin" : ""}</small>
           </button>
-          {activeId !== project.id && <button className="channel-project-activate" type="button" disabled={busy} onClick={() => void activate(project.id)}>Aç</button>}
+          {activeId !== project.id && <button className="channel-project-activate" type="button" disabled={Boolean(busy)} onClick={() => void activate(project.id)}>Aç</button>}
         </div>)}
-        {!projects.length && <span className="channel-projects-empty">Henüz proje tanımlanmadı.</span>}
       </div>
-      {(editingId || newProject) && <form className="channel-projects-editor" onSubmit={(event) => void save(event)}>
-        <div className="channel-projects-editor-title">
-          <strong>{newProject ? "Yeni kanal" : fields.displayName}</strong>
-          {!newProject && editingId === activeId && <span>Etkin proje</span>}
+      {(newProject || editing) && <form className="channel-projects-editor" onSubmit={(event) => void save(event)}>
+        <div className="project-fields-compact">
+          <label><span>Proje adı</span><input required disabled={Boolean(busy)} value={form.displayName} onChange={(event) => update("displayName", event.target.value)}/></label>
+          <label><span>Kod</span><input required disabled={!newProject || Boolean(busy)} value={form.id} onChange={(event) => update("id", event.target.value.toLowerCase())}/></label>
         </div>
-        <div className="channel-projects-fields">
-          <label><span>Proje kodu</span><input value={fields.id} disabled={!newProject || busy} onChange={(event) => changeField("id", event.target.value.toLowerCase())} placeholder="ornek-kanal" required /></label>
-          <label><span>Görünen ad</span><input value={fields.displayName} disabled={busy} onChange={(event) => changeField("displayName", event.target.value)} placeholder="Kanal adı" required /></label>
-          <label><span>YouTube kanalı</span><input type="url" value={fields.youtubeChannelUrl} disabled={busy} onChange={(event) => changeField("youtubeChannelUrl", event.target.value)} placeholder="https://www.youtube.com/@kanal" /></label>
-          <label><span>Web repo adresi</span><input type="url" value={fields.webRepository} disabled={busy} onChange={(event) => changeField("webRepository", event.target.value)} placeholder="https://github.com/hesap/site" /></label>
-          <label><span>Web alan adı (yayın hedefi)</span><input type="url" value={fields.webUrl} disabled={busy} onChange={(event) => changeField("webUrl", event.target.value)} placeholder="https://yenialanadi.com" /></label>
-          <label><span>Hosting</span><input value={fields.hostingProvider} disabled={busy} onChange={(event) => changeField("hostingProvider", event.target.value)} placeholder="Natro" /></label>
+        <div className="project-field-group">
+          <div className="project-group-heading"><h3>YouTube arşivi</h3>{editing === activeId && <span className={currentLinked ? "linked" : ""}>{currentLinked ? "Bağlı" : "Bekliyor"}</span>}</div>
+          <label><span>Kanal URL</span><input type="url" disabled={Boolean(busy)} value={form.youtubeChannelUrl} onChange={(event) => { update("youtubeChannelUrl", event.target.value); setScope("channel"); setForm((previous) => ({...previous, youtubeChannelUrl: event.target.value, youtubePlaylistUrl: ""})); }} placeholder="https://www.youtube.com/@kanal"/></label>
+          <label><span>Arşiv kapsamı</span><select value={scope} disabled={Boolean(busy)} onChange={(event) => { const next = event.target.value as "channel" | "playlist"; setScope(next); if (next === "channel") update("youtubePlaylistUrl", ""); }}><option value="channel">Tüm kanal</option><option value="playlist">Playlist</option></select></label>
+          {scope === "playlist" && <label><span>Playlist URL</span><input type="url" disabled={Boolean(busy)} value={form.youtubePlaylistUrl} onChange={(event) => update("youtubePlaylistUrl", event.target.value)} placeholder="https://www.youtube.com/playlist?list=..."/></label>}
+          {editing === activeId && <div className="project-inline-actions"><button type="button" className="secondary-button" disabled={Boolean(busy) || !form.youtubeChannelUrl || !savedSource} onClick={() => void linkCatalog()}>{busy === "connect" ? "Bağlanıyor…" : currentLinked ? "Kataloğu yenile" : "Kataloğu bağla"}</button></div>}
+        </div>
+        <div className="project-field-group">
+          <div className="project-group-heading"><h3>Web yayını</h3><span>{current?.deploymentEnabled ? "Etkin" : "Kapalı"}</span></div>
+          <label><span>Alan adı</span><div className="project-input-action"><input type="url" disabled={Boolean(busy)} value={form.webUrl} onChange={(event) => update("webUrl", event.target.value)} placeholder="https://alanadi.com"/><button type="button" className="secondary-button" disabled={Boolean(busy) || !form.webUrl} onClick={() => void testWeb()}>Test</button></div></label>
+          <div className="project-fields-compact">
+            <label><span>Hosting</span><input disabled={Boolean(busy)} value={form.hostingProvider} onChange={(event) => update("hostingProvider", event.target.value)} placeholder="Natro"/></label>
+            <label><span>Web Git deposu</span><input type="url" disabled={Boolean(busy)} value={form.webRepository} onChange={(event) => update("webRepository", event.target.value)} placeholder="https://github.com/..."/></label>
+          </div>
         </div>
         <div className="channel-projects-actions">
-          <small>Alan adı boş bırakılabilir. Proje oluşturmak hiçbir dosyayı sunucuya yüklemez.</small>
-          <button type="submit" className="primary-button" disabled={busy || !fields.displayName.trim() || !fields.id.trim()}>{busy ? "İşleniyor…" : newProject ? "Projeyi oluştur" : "Kaydet"}</button>
+          <span>{error ? <b className="project-inline-error" role="alert">{error}</b> : notice}</span>
+          <button type="submit" className="primary-button" disabled={Boolean(busy) || !form.id.trim() || !form.displayName.trim()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
         </div>
       </form>}
     </div>
-    {error && <p className="channel-projects-error">{error}</p>}
-    {notice && <p className="channel-projects-notice">{notice}</p>}
   </section>;
 }

@@ -1,13 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import Dashboard from "./Dashboard";
 import AiProviderSettings from "./AiProviderSettings";
-import AppearanceSettings from "./AppearanceSettings";
 import CommunityAdminSettings from "./CommunityAdminSettings";
 import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
-import YtDlpSettings from "./YtDlpSettings";
-import YtDlpSidebarStatus from "./YtDlpSidebarStatus";
-import WebConnectionSettings from "./WebConnectionSettings";
 import ChannelProjectsSettings from "./ChannelProjectsSettings";
+import StudioTopbar from "./StudioTopbar";
 import { studioLogoUrl } from "./studio-assets";
 
 const VideoArchive = lazy(() => import("./VideoArchive"));
@@ -84,7 +81,6 @@ export default function StudioPipeline() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [channelBusy, setChannelBusy] = useState(false);
 
   const load = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
@@ -135,20 +131,6 @@ export default function StudioPipeline() {
     }
     setActive(section);
   };
-  const setActiveChannel = async (channelId: string) => {
-    if (!bridge || !channelId || channelBusy || channelId === activeChannelId) return;
-    setChannelBusy(true);
-    try {
-      const next = await bridge.youtubeCatalogSetActive({ channelId });
-      setActiveChannelId(next.id);
-      await load();
-      setError(null);
-    } catch (reason) {
-      setError(`Aktif kanal değiştirilemedi: ${errorText(reason)}`);
-    } finally {
-      setChannelBusy(false);
-    }
-  };
   const selectProject = async (id: string) => {
     if (!bridge || projectBusy || !id || id === activeProjectId) return;
     setProjectBusy(true);
@@ -177,16 +159,14 @@ export default function StudioPipeline() {
   return <div className="studio-shell pipeline-shell">
     <aside className="studio-sidebar pipeline-sidebar">
       <Brand/>
-      <ProjectSelector projects={projects} activeId={activeProjectId} busy={projectBusy} onChange={(id) => void selectProject(id)} onManage={() => setActive("Ayarlar")}/>
-      <ActiveChannelSelector channels={channels} activeChannelId={activeChannelId} busy={channelBusy} onChange={(channelId) => void setActiveChannel(channelId)}/>
       <div className="nav-caption">ÜRETİM</div>
       <nav className="studio-nav">{productionSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => activateSection(section)}><span>{section}</span></button>)}</nav>
       <div className="nav-caption system-caption">SİSTEM</div>
       <nav className="studio-nav">{systemSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => setActive(section)}><span>{section}</span></button>)}</nav>
-      <YtDlpSidebarStatus/>
       <div className="local-badge"><span className="local-dot"/> SQLite çalışma alanı</div>
     </aside>
     <main className="studio-main pipeline-main">
+      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)} onManage={() => setActive("Ayarlar")}/>
       {error && active !== "AI Atölyesi" && <div className="storage-warning">Studio uyarısı: {error}</div>}
       <section className="studio-content pipeline-content">
         <Suspense fallback={<SectionLoading section={active}/> }>
@@ -213,72 +193,41 @@ function Brand() {
   </div>;
 }
 
-function ProjectSelector({ projects, activeId, busy, onChange, onManage }: {
-  projects: StudioChannelProject[];
-  activeId: string;
-  busy: boolean;
-  onChange: (id: string) => void;
-  onManage: () => void;
-}) {
-  return <div className="channel-project-selector">
-    <div className="channel-project-selector-head">
-      <span>KANAL PROJESİ</span>
-      <button type="button" onClick={onManage} title="Kanal projelerini yönet">Yönet</button>
-    </div>
-    <select aria-label="Aktif kanal projesi" disabled={busy || !projects.length} value={activeId} onChange={(event) => onChange(event.target.value)}>
-      {!projects.length && <option value="">Henüz proje yok</option>}
-      {projects.map((project) => <option value={project.id} key={project.id}>{project.displayName}</option>)}
-    </select>
-    <small>{busy ? "Yeni çalışma alanı açılıyor…" : "AI, arşiv ve yayın verisi projeye özeldir"}</small>
-  </div>;
-}
-
-function ActiveChannelSelector({ channels, activeChannelId, busy, onChange }: { channels: StudioYoutubeChannel[]; activeChannelId: string; busy: boolean; onChange: (channelId: string) => void }) {
-  const selectedId = activeChannelId || channels[0]?.id || "";
-  const selectedChannel = channels.find((channel) => channel.id === selectedId);
-  return <div className="active-channel-selector">
-    <span>YOUTUBE KATALOĞU</span>
-    <select aria-label="Aktif YouTube kanalı" value={selectedId} disabled={busy || !channels.length} onChange={(event) => onChange(event.target.value)}>
-      {!channels.length && <option value="">Henüz kanal yok</option>}
-      {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}{channel.sourceType === "playlist" ? " · Playlist" : ""}</option>)}
-    </select>
-    <small title={selectedChannel?.playlistUrl || undefined}>{channels.length
-      ? selectedChannel?.sourceType === "playlist"
-        ? `Playlist · ${selectedChannel.playlistTitle || "seçili liste"} · ${channels.length} kanal`
-        : `${channels.length} kanal · seçim katalog ve senkronizasyonu değiştirir`
-      : "Ayarlar bölümünden ilk kanalı ekle"}</small>
-  </div>;
-}
-
 function SectionLoading({ section }: { section: Section }) {
   return <div className="pipeline-loading"><span>{section}</span><strong>Çalışma alanı hazırlanıyor…</strong></div>;
 }
 
+type SettingsTab = "project" | "ai" | "community" | "data";
+const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
+  { id: "project", label: "Kanal ve yayın" },
+  { id: "ai", label: "AI servisleri" },
+  { id: "community", label: "Topluluk" },
+  { id: "data", label: "Yerel veri" },
+];
 function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
+  const [tab, setTab] = useState<SettingsTab>("project");
   const manualItemCount = Math.max(0, (databaseInfo?.itemCount ?? 0) - catalog.imported);
-  return <div className="settings-page">
-    <ChannelProjectsSettings/>
-    <AppearanceSettings/>
-    <WebConnectionSettings/>
-    <div className="settings-pipeline">
-      <div className="settings-side-column">
-      <section className="panel settings-card settings-data-card">
-        <small>YEREL VERİ</small>
-        <h2>SQLite çalışma alanı</h2>
-        <dl>
-          <div><dt>Motor</dt><dd>{databaseInfo?.engine || "node:sqlite"}</dd></div>
-          <div><dt>Dosya</dt><dd>{databaseInfo?.file || "—"}</dd></div>
-          <div><dt>Manuel içerik</dt><dd>{manualItemCount}</dd></div>
-          <div><dt>Seçili kaynak video</dt><dd>{catalog.imported}</dd></div>
-          <div><dt>Editoryal evren</dt><dd>{workspaceStatus?.counts.total ?? 0}</dd></div>
-          <div><dt>Kanal kataloğu</dt><dd>{catalog.total}</dd></div>
-        </dl>
-      </section>
-      <UniverseMaintenanceSettings/>
-      <CommunityAdminSettings/>
-      <YtDlpSettings/>
-      </div>
-      <AiProviderSettings/>
+  return <div className="settings-page settings-compact">
+    <nav className="studio-settings-tabs" aria-label="Ayarlar bölümleri">
+      {settingsTabs.map((item) => <button key={item.id} type="button" className={tab === item.id ? "active" : ""} aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
+    </nav>
+    <div className="studio-settings-surface">
+      {tab === "project" && <ChannelProjectsSettings/>}
+      {tab === "ai" && <AiProviderSettings/>}
+      {tab === "community" && <CommunityAdminSettings/>}
+      {tab === "data" && <div className="studio-settings-data">
+        <section className="panel settings-card settings-data-card">
+          <h2>Yerel veri</h2>
+          <dl>
+            <div><dt>Konum</dt><dd title={databaseInfo?.file || ""}>{databaseInfo?.file ? "Proje verisi" : "—"}</dd></div>
+            <div><dt>Manuel içerik</dt><dd>{manualItemCount}</dd></div>
+            <div><dt>Seçili kaynak video</dt><dd>{catalog.imported}</dd></div>
+            <div><dt>Editoryal evren</dt><dd>{workspaceStatus?.counts.total ?? 0}</dd></div>
+            <div><dt>Kanal kataloğu</dt><dd>{catalog.total}</dd></div>
+          </dl>
+        </section>
+        <UniverseMaintenanceSettings/>
+      </div>}
     </div>
   </div>;
 }

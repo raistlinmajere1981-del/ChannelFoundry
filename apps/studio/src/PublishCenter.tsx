@@ -60,18 +60,21 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
   const [preview, setPreview] = useState<PublicationPreview | null>(null);
   const [livePublication, setLivePublication] = useState<LivePublicationInfo | null>(null);
   const [communityConnected, setCommunityConnected] = useState(false);
+  const [project, setProject] = useState<StudioChannelProject | null>(null);
   const [localBuilding, setLocalBuilding] = useState(false);
   const [livePublishing, setLivePublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = async (bridge: PublicationBridge) => {
-    const [info, session, nextPreview] = await Promise.all([
+    const [info, session, nextPreview, projectInfo] = await Promise.all([
       bridge.getPublicationInfo(),
       bridge.communitySession(),
       bridge.publicationPreview(),
+      bridge.channelProjects(),
     ]);
     setPublicationInfo(info);
     setCommunityConnected(Boolean(session?.connected));
+    setProject(projectInfo.projects.find((entry) => entry.id === projectInfo.activeId) || null);
     setPreview(nextPreview ?? null);
   };
 
@@ -125,6 +128,10 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       setError("Canlı yayın yalnızca Electron Studio içinde yapılabilir.");
       return;
     }
+    if (!project?.deploymentEnabled) {
+      setError("Bu kanal henüz yerel tasarım aşamasında. Yayın Ayarlar'dan etkinleştirilmedi.");
+      return;
+    }
     const latestPreview = await bridge.publicationPreview();
     setPreview(latestPreview);
     if (!latestPreview.readiness.readyForTheme) {
@@ -165,7 +172,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
   };
 
   const lastLiveAt = livePublication?.generatedAt ?? preview?.baseline?.generatedAt ?? null;
-  const publishStatus = error
+  const publishStatus = !project?.deploymentEnabled ? "Yerel tasarım · canlı yayın kapalı" : error
     || (localBuilding ? "Publication v2 yerel paketi oluşturuluyor…" : "")
     || (livePublishing ? "Asset'ler yükleniyor, publication.json etkinleştiriliyor ve doğrulanıyor…" : "")
     || (livePublication
@@ -178,9 +185,9 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <div>
           <small>KİTAP WEB · PUBLICATION V2</small>
           <h3>Studio’dan yeni Web temasına tek yayın hattı</h3>
-          <p>Onaylı yaşayan anlatı, arşiv ilişkileri ve semantik görseller `content/publication.json` + `content/assets/` paketi olarak hazırlanır. Yayınlama artık yalnız bu sözleşmeyi kullanır.</p>
+          <p>{project?.webUrl || "Web hedefi tanımlanmadı"} · Publication v2</p>
         </div>
-        <span>{ready ? "CANLI YAYINA HAZIR" : "HAZIRLIK BEKLİYOR"}</span>
+        <span>{!project?.deploymentEnabled ? "YAYIN KAPALI" : ready ? "CANLI YAYINA HAZIR" : "HAZIRLIK BEKLİYOR"}</span>
       </div>
 
       <div className="theme-publication-metrics">
@@ -203,14 +210,14 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <button className="secondary-button" disabled={livePublishing || localBuilding} onClick={() => void buildLocal()}>
           {localBuilding ? "Oluşturuluyor…" : "Yerel paketi oluştur"}
         </button>
-        <button className="primary-button" disabled={!ready || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
+        <button className="primary-button" disabled={!project?.deploymentEnabled || !ready || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
           {livePublishing ? "Yayınlanıyor…" : "Kitap Web'i canlıya yayınla"}
         </button>
       </div>
 
       <div className={communityConnected ? "live-readiness ready" : "live-readiness"}>
         <span className="local-dot"/>
-        {communityConnected ? "Studio yönetici bağlantısı hazır · publication v2 canlı yayını kullanılabilir" : "Canlı yayın için Topluluk ekranından yönetici bağlantısı gerekir"}
+        {!project?.deploymentEnabled ? "Yerel tasarım · canlı yayın işlemi devre dışı" : communityConnected ? "Studio yönetici bağlantısı hazır" : "Yayın için Topluluk yönetici bağlantısı gerekli"}
       </div>
     </section>
 

@@ -23,6 +23,7 @@ assert.match(center, /Kitap Web'i canlıya yayınla/, "Canlı yayın publication
 assert.match(center, /readiness\.readyForTheme/, "Canlı yayın 05/06 readiness kapısını zorunlu tutmalı");
 assert.match(center, /exportPublicSnapshot\(\)/, "Yerel paket publication export köprüsünü kullanmalı");
 assert.match(center, /publishPublicSnapshot\(\)/, "Canlı yayın mevcut IPC köprüsünden publication v2 hattını çağırmalı");
+assert.match(center, /!project\?\.deploymentEnabled/, "Yerel tasarımda canlı yayın düğmesi pasif olmalı");
 assert.doesNotMatch(center, /SCHEMA V1|universe\.json|PublicationChanges|V2 canlı yayın henüz bağlı değil/, "Yayınlama UI'sinde legacy v1 izi kalmamalı");
 
 assert.match(model, /contentFingerprint/, "Yayın modeli publication fingerprint bilgisini taşımalı");

@@ -81,9 +81,6 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("studio:channel-project-update", (_event, input) => {
     const project = channelProjects.updateProject(input);
-    if (project.id === channelProjects.activeProjectId() && project.webUrl) {
-      webConnection.saveConfig({ url: project.webUrl });
-    }
     runtime.refreshMainWindow();
     return project;
   });

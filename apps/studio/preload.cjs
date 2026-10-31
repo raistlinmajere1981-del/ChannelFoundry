@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   channelProjectCreate: (input) => ipcRenderer.invoke("studio:channel-project-create", input),
   channelProjectUpdate: (input) => ipcRenderer.invoke("studio:channel-project-update", input),
   channelProjectSelect: (input) => ipcRenderer.invoke("studio:channel-project-select", input),
+  channelProjectConnectSource: () => ipcRenderer.invoke("studio:channel-project-connect-source"),
   bootstrap: (payload) => ipcRenderer.invoke("studio:bootstrap", payload),
   loadState: () => ipcRenderer.invoke("studio:load-state"),
   saveItem: (item) => ipcRenderer.invoke("studio:save-item", item),

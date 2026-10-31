@@ -23,6 +23,13 @@ try {
   assert.equal(first.id, "birdesengor");
   assert.equal(first.hasWeb, false);
   assert.equal(first.deploymentEnabled, false);
+  assert.equal(first.youtubePlaylistUrl, "");
+  const playlist = "https://www.youtube.com/playlist?list=PL0123456789ABCDEF";
+  const assigned = projects.updateProject({ id: first.id, youtubePlaylistUrl: playlist }, root);
+  assert.equal(assigned.youtubePlaylistUrl, playlist);
+  assert.throws(() => projects.updateProject({ id: first.id, youtubePlaylistUrl: "https://example.com/list?list=abc" }, root), /Playlist/);
+  assert.throws(() => projects.updateProject({ id: first.id, youtubePlaylistUrl: "https://www.youtube.com/playlist?list=bad" }, root), /playlist kimliği/);
+  projects.updateProject({ id: first.id, youtubePlaylistUrl: "" }, root);
   assert.equal(projects.listProjects(root).length, 2);
   assert.throws(() => projects.createProject({ id: "../escape", displayName: "Bad" }, root), /Proje kodu/);
   assert.throws(() => projects.createProject({ id: "birdesengor", displayName: "Tekrar" }, root), /kullanılıyor/);

@@ -41,6 +41,17 @@ function youtubeUrl(value) {
   }
   return result;
 }
+function playlistUrl(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const url = new URL(optionalHttps(raw, "Playlist adresi"));
+  if (!["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(url.hostname.toLowerCase())) {
+    throw new Error("Playlist YouTube adresi olmalı.");
+  }
+  const id = String(url.searchParams.get("list") ?? "");
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) throw new Error("Geçerli bir playlist kimliği gerekli.");
+  return `https://www.youtube.com/playlist?list=${encodeURIComponent(id)}`;
+}
 function normalize(input, previous) {
   const id = validateId(previous?.id ?? input?.id);
   const displayName = String(input?.displayName ?? previous?.displayName ?? "").trim();
@@ -55,6 +66,7 @@ function normalize(input, previous) {
     id,
     displayName,
     youtubeChannelUrl: youtubeUrl(input?.youtubeChannelUrl ?? previous?.youtubeChannelUrl ?? ""),
+    youtubePlaylistUrl: playlistUrl(input?.youtubePlaylistUrl ?? previous?.youtubePlaylistUrl ?? ""),
     webRepository,
     webDirectory,
     hostingProvider: String(input?.hostingProvider ?? previous?.hostingProvider ?? "").trim().slice(0, 48),

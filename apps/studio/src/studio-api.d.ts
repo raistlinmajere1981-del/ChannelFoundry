@@ -334,6 +334,7 @@ type StudioChannelProject = {
   id: string;
   displayName: string;
   youtubeChannelUrl: string;
+  youtubePlaylistUrl: string;
   webRepository: string;
   webDirectory: string;
   webUrl: string;
@@ -342,7 +343,7 @@ type StudioChannelProject = {
   hasWeb: boolean;
 };
 type StudioChannelProjects = { activeId: string; projects: StudioChannelProject[] };
-type StudioChannelProjectInput = Pick<StudioChannelProject, "id" | "displayName" | "youtubeChannelUrl" | "webRepository" | "webUrl" | "hostingProvider">;
+type StudioChannelProjectInput = Pick<StudioChannelProject, "id" | "displayName" | "youtubeChannelUrl" | "youtubePlaylistUrl" | "webRepository" | "webUrl" | "hostingProvider">;
 
 type StudioWebConnectionConfig = {
   url: string;
@@ -375,6 +376,7 @@ interface Window {
     channelProjectCreate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
     channelProjectUpdate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
     channelProjectSelect(input: { id: string }): Promise<{ changed: boolean; project: StudioChannelProject }>;
+    channelProjectConnectSource(): Promise<StudioYoutubeChannelAddResult>;
     bootstrap(payload?: Partial<StudioDatabaseState>): Promise<{ seeded: boolean }>;
     loadState(): Promise<StudioDatabaseState>;
     saveItem(item: StudioPersistedItem): Promise<StudioPersistedItem>;

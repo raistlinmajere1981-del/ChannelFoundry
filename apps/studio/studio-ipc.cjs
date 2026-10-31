@@ -88,6 +88,17 @@ function registerSourceHandlers() {
       const db = runtime.database();
       const channel = youtubeCatalog.activeChannel(db);
       if (!channel) throw new Error("Senkronizasyon için aktif YouTube kanalı bulunamadı.");
+      const project = channelProjects.activeProject();
+      if (!project?.youtubeChannelUrl) throw new Error("Önce kanal projesinin YouTube kaynağını tanımla.");
+      {
+        const expectedUrl = youtubeCatalog.normalizeChannelUrl(project.youtubeChannelUrl);
+        const expectedPlaylist = project.youtubePlaylistUrl
+          ? youtubeCatalog.normalizePlaylistUrl(project.youtubePlaylistUrl) : "";
+        if (channel.url !== expectedUrl || (channel.playlistUrl || "") !== expectedPlaylist) {
+          throw new Error("Aktif katalog proje kaynağından farklı. Önce Ayarlar > Kanal projeleri üzerinden kaynağı bağla.");
+        }
+      }
+
       const result = await youtubeCatalog.syncChannel(db, app.getPath("userData"), {
         channelId: channel.id,
         mode: input?.mode,

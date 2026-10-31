@@ -74,11 +74,11 @@ function readStoredConfig() {
 }
 
 function webUrl() {
-  return normalizeWebUrl(process.env.CHANNEL_FOUNDRY_WEB_URL || readStoredConfig().url || channelProjects.activeProject()?.webUrl || DEFAULT_WEB_URL);
+  return normalizeWebUrl(process.env.CHANNEL_FOUNDRY_WEB_URL || channelProjects.activeProject()?.webUrl || DEFAULT_WEB_URL);
 }
 
 function youtubeChannelUrl() {
-  const configured = readStoredConfig().youtubeChannelUrl || DEFAULT_YOUTUBE_CHANNEL_URL;
+  const configured = channelProjects.activeProject()?.youtubeChannelUrl || DEFAULT_YOUTUBE_CHANNEL_URL;
   if (!configured) return "";
   return normalizeYoutubeChannelUrl(configured);
 }
