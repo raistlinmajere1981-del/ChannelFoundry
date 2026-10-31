@@ -80,3 +80,6 @@
  .studio-project-picker select{min-width:120px;max-width:160px}
  .studio-topbar-title strong{font-size:15px}
 }
+
+/* Ayarlar yalnız sol alt köşede; durum etiketi kaldırıldı. */
+.pipeline-sidebar .studio-settings-nav{margin-top:auto;padding-top:12px;border-top:1px solid var(--border-soft)}

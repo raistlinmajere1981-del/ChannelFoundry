@@ -162,11 +162,11 @@ export default function StudioPipeline() {
       <div className="nav-caption">ÜRETİM</div>
       <nav className="studio-nav">{productionSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => activateSection(section)}><span>{section}</span></button>)}</nav>
       <div className="nav-caption system-caption">SİSTEM</div>
-      <nav className="studio-nav">{systemSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => setActive(section)}><span>{section}</span></button>)}</nav>
-      <div className="local-badge"><span className="local-dot"/> SQLite çalışma alanı</div>
+      <nav className="studio-nav">{systemSections.filter((section) => section !== "Ayarlar").map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => setActive(section)}><span>{section}</span></button>)}</nav>
+      <nav className="studio-nav studio-settings-nav" aria-label="Uygulama ayarları"><button className={active === "Ayarlar" ? "active" : ""} onClick={() => setActive("Ayarlar")}>Ayarlar</button></nav>
     </aside>
     <main className="studio-main pipeline-main">
-      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)} onManage={() => setActive("Ayarlar")}/>
+      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)}/>
       {error && active !== "AI Atölyesi" && <div className="storage-warning">Studio uyarısı: {error}</div>}
       <section className="studio-content pipeline-content">
         <Suspense fallback={<SectionLoading section={active}/> }>

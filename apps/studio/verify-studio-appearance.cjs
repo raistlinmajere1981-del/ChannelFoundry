@@ -39,6 +39,12 @@ assert.match(topbar, /Escape/, "Açılır paneller Escape ile kapanmalı");
 assert.match(pipeline, /<StudioTopbar/, "Topbar ortak Studio kabuğunda bulunmalı");
 assert.doesNotMatch(pipeline, /<AppearanceSettings\/>|<YtDlpSettings\/>|<WebConnectionSettings\/>/, "Büyük ayar panelleri ayrı sayfada tekrarlanmamalı");
 assert.match(topbarStyles, /position:sticky/, "Topbar bütün sayfalarda sabit kalmalı");
+
+assert.doesNotMatch(topbar, /Kanal ve yayın ayarları/, "Topbarda tekrar eden ayarlar düğmesi bulunmamalı");
+assert.doesNotMatch(pipeline, /SQLite çalışma alanı|local-badge/, "SQLite göstergesi kaldırılmış olmalı");
+assert.match(pipeline, /studio-settings-nav/, "Ayarlar bağlantısı ayrı alt menüde olmalı");
+assert.match(topbarStyles, /studio-settings-nav/, "Ayarlar sidebar altında sabitlenmeli");
+
 assert.match(pipeline, /studio-settings-tabs/, "Ayarlar bir seferde tek bölüm göstermeli");
 assert.match(pipeline, /tab === "project"/, "Kanal ve yayın varsayılan ayar alanı olmalı");
 assert.match(pipeline, /tab === "ai"/, "AI ayarları ayrı bölümde olmalı");
