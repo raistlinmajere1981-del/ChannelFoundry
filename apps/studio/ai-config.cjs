@@ -25,13 +25,13 @@ function configPath(userDataPath) {
 }
 
 function normalizeEndpoint(value, provider) {
-  const fallback = provider === "ollama" ? DEFAULT_CONFIG.endpoint : "";
-  const raw = String(value ?? fallback).trim().replace(/\/+$/, "");
+  const fallback = provider === "ollama" ? DEFAULT_CONFIG.endpoint : provider === "opencode-cli" ? "http://127.0.0.1:4096" : "";
+  const raw = String(value || fallback).trim().replace(/\/+$/, "");
   if (!raw) throw new Error("AI endpoint adresi gerekli.");
   let url;
   try { url = new URL(raw); } catch { throw new Error("AI endpoint adresi geçersiz."); }
   if (!["http:", "https:"].includes(url.protocol)) throw new Error("AI endpoint HTTP veya HTTPS olmalıdır.");
-  if (provider === "ollama" && !["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
+  if (["ollama","opencode-cli"].includes(provider) && !["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
     throw new Error("Ollama sağlayıcısı yalnız bu bilgisayardaki localhost endpoint'ine bağlanabilir.");
   }
   if (url.protocol === "http:" && !["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
@@ -64,14 +64,14 @@ function isCliProvider(provider) {
 
 function sanitizeConfig(input, existing = DEFAULT_CONFIG) {
   const provider = normalizeProvider(input?.provider ?? existing.provider);
-  const cliProvider = isCliProvider(provider) || provider === "opencode-cli";
+  const cliProvider = isCliProvider(provider);
   const model = String(input?.model ?? existing.model ?? "").trim();
   const reasoningEffort = normalizeReasoningEffort(input?.reasoningEffort ?? existing.reasoningEffort, true);
   if (!model && provider !== "codex-cli") throw new Error("AI model adı gerekli.");
   const requestedFallbackModel = String(input?.fallbackModel ?? existing.fallbackModel ?? "").trim();
   const fallbackModel = !cliProvider && requestedFallbackModel && requestedFallbackModel !== model ? requestedFallbackModel : "";
-  const endpoint = cliProvider ? "" : normalizeEndpoint(input?.endpoint ?? existing.endpoint, provider);
-  let apiKey = existing.apiKey ?? "";
+  const endpoint = cliProvider ? "" : normalizeEndpoint(input?.endpoint ?? (provider === existing.provider ? existing.endpoint : ""), provider);
+  let apiKey = provider === existing.provider && endpoint === existing.endpoint ? existing.apiKey ?? "" : "";
   if (typeof input?.apiKey === "string" && input.apiKey.trim()) apiKey = input.apiKey.trim();
   if (input?.clearApiKey === true) apiKey = "";
   if (cliProvider) apiKey = "";
@@ -102,11 +102,11 @@ function readConfig(userDataPath) {
     const provider = normalizeProvider(raw?.provider);
     return {
       provider,
-      endpoint: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.endpoint ?? DEFAULT_CONFIG.endpoint),
+      endpoint: isCliProvider(provider) ? "" : provider === "opencode-cli" ? normalizeEndpoint(raw?.endpoint || "", provider) : String(raw?.endpoint ?? DEFAULT_CONFIG.endpoint),
       model: String(raw?.model ?? ""),
       reasoningEffort: normalizeReasoningEffort(raw?.reasoningEffort),
       fallbackModel: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.fallbackModel ?? ""),
-      apiKey: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.apiKey ?? ""),
+      apiKey: isCliProvider(provider) ? "" : String(raw?.apiKey ?? ""),
       timeoutSeconds: normalizeTimeoutSeconds(raw?.timeoutSeconds),
       imageMode: ["auto", "enabled", "disabled"].includes(requestedImageMode) ? requestedImageMode : "auto",
       imageProvider: IMAGE_PROVIDERS.has(raw?.imageProvider) ? raw.imageProvider : "openai-compatible",
@@ -120,7 +120,7 @@ function readConfig(userDataPath) {
 }
 
 function publicConfig(config) {
-  const cliProvider = isCliProvider(config.provider) || config.provider === "opencode-cli";
+  const cliProvider = isCliProvider(config.provider);
   return {
     provider: config.provider,
     endpoint: config.endpoint,
@@ -128,7 +128,7 @@ function publicConfig(config) {
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
     fallbackModel: config.fallbackModel,
     timeoutSeconds: normalizeTimeoutSeconds(config.timeoutSeconds),
-    configured: config.provider === "codex-cli" || (config.provider === "opencode-cli" ? Boolean(config.model) : Boolean(config.model && config.endpoint)),
+    configured: config.provider === "codex-cli" || Boolean(config.model && config.endpoint),
     apiKeyConfigured: Boolean(config.apiKey),
     image: {
       mode: config.imageMode,

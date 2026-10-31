@@ -4,7 +4,7 @@ import "./ai-minimal.css";
 type Provider = { id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean };
 type Role = "text" | "image";
 type CatalogEntry = { id: string; label?: string; supportedReasoningEfforts?: Array<{ reasoningEffort: string }> };
-const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method [^:]+: (?:Error: )?/, "").replace(/^Error: /, "");
 const isCompatible = (id: string) => id === "google-ai-studio" || id === "openai-compatible" || id === "ollama";
 const backendId = (id: string): StudioAiProvider => id === "google-ai-studio" ? "openai-compatible" : id as StudioAiProvider;
 function inferText(config: StudioAiConfig) {
@@ -69,7 +69,7 @@ export default function AiProviderSettings() {
     if (!definition) return;
     setFeedback();
     if (role === "text") {
-      setTextProvider(id); setTextEndpoint(definition.endpoint);
+      setTextProvider(id); setTextEndpoint(id === "opencode-cli" ? "http://127.0.0.1:4096" : definition.endpoint);
       setTextModel(""); setFallbackModel(""); setReasoning(""); setTextModels([]); setTextKey(""); setTextVerified(false);
     } else {
       setImageProvider(id); setImageEndpoint(definition.endpoint);
@@ -176,7 +176,7 @@ export default function AiProviderSettings() {
       </select></label>
       {current?.transport === "api" || current?.transport === "local" ? <>
         <label><span>Endpoint</span><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => { if (role === "text") { setTextEndpoint(event.target.value); setTextVerified(false); } else { setImageEndpoint(event.target.value); setImageVerified(false); } setFeedback(); }}/></label>
-        {current.secret && <label><span>API anahtarı</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "••••••••••••" : "API anahtarı"} onChange={(event) => { if (role === "text") setTextKey(event.target.value); else setImageKey(event.target.value); setFeedback(); }}/></label>}
+        {current.secret && <label><span>{currentProvider === "opencode-cli" ? "Sunucu parolası" : "API anahtarı"}</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "••••••••••••" : currentProvider === "opencode-cli" ? "OpenCode sunucu parolası" : "API anahtarı"} onChange={(event) => { if (role === "text") setTextKey(event.target.value); else setImageKey(event.target.value); setFeedback(); }}/></label>}
       </> : null}
       {currentProvider !== "disabled" && <>
         <div className="ai-minimal-model-heading">

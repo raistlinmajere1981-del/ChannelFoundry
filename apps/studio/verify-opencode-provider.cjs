@@ -2,6 +2,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
+const http = require("node:http");
 const path = require("node:path");
 const config = require("./ai-config.cjs");
 const registry = require("./ai-provider-registry.cjs");
@@ -18,14 +19,11 @@ const aiClient = require("./ai-client.cjs");
   assert.match(settingsUi, /Bağlantıyı dene/, "Connection check must be separate");
   assert.match(settingsUi, /Modeli dene/, "Selected model test must be separate");
   assert.doesNotMatch(settingsUi, /Model kimliğini elle gir|function ModelPicker/, "Manual model IDs removed");
-  assert.match(openCode.SAFE_CONFIG, /"effect":"deny"/);
   assert.equal(openCode.modelId("opencode/deepseek-v4.1-flash-free"), "opencode/deepseek-v4.1-flash-free");
+  assert.equal(openCode.serverEndpoint({endpoint: "http://127.0.0.1:4096"}), "http://127.0.0.1:4096");
+  assert.throws(() => openCode.serverEndpoint({endpoint: "http://example.com:4096"}), /localhost/);
   assert.throws(() => openCode.modelId("bad; rm -rf /"), /modeli katalogdan/);
-  assert.deepEqual(openCode.parseModels("opencode/model-a\nopencode/model-a\nollama/qwen2.5:7b\n"), [
-    { id: "opencode/model-a", label: "opencode/model-a", text: true, image: false },
-    { id: "ollama/qwen2.5:7b", label: "ollama/qwen2.5:7b", text: true, image: false },
-  ]);
-  assert.equal(openCode.extractText('{"type":"text","part":{"text":"OK"}}\n'), "OK");
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "ai-opencode.cjs"), "utf8"), /--standalone/, "Studio must never start isolated OpenCode sessions");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cf-open-code-contract-"));
   try {
     const saved = config.saveConfig(root, {
@@ -33,7 +31,7 @@ const aiClient = require("./ai-client.cjs");
       imageProvider: "codex-cli", imageMode: "enabled", imageModel: "gpt-controller",
     });
     assert.equal(saved.configured, true);
-    assert.equal(saved.endpoint, "");
+    assert.equal(saved.endpoint, "http://127.0.0.1:4096");
     assert.equal(saved.image.provider, "codex-cli");
     assert.equal(saved.image.model, "gpt-controller");
     assert.equal(config.readConfig(root).apiKey, "");
@@ -44,5 +42,38 @@ const aiClient = require("./ai-client.cjs");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
-  console.log("OpenCode text-only catalog, isolated model test, config and injection guards PASS");
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    const expected = "Basic " + Buffer.from("opencode:test-local-secret").toString("base64");
+    if (req.headers.authorization !== expected) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ message: "Authentication required" }));
+      return;
+    }
+    let body = "";
+    req.on("data", (data) => { body += data; });
+    req.on("end", () => {
+      seen.push({ url: req.url, method: req.method, body: body ? JSON.parse(body) : {} });
+      res.writeHead(200, { "content-type": "application/json" });
+      if (req.url === "/api/model") res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash" }] }));
+      else if (req.url === "/api/experimental/generate/text") res.end(JSON.stringify({ data: { text: "OK" } }));
+      else res.end(JSON.stringify({ data: {} }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const endpoint = "http://127.0.0.1:" + server.address().port;
+    await assert.rejects(openCode.listModels({ endpoint, apiKey: "wrong" }), /401/);
+    const models = await openCode.listModels({ endpoint, apiKey: "test-local-secret" });
+    assert.equal(models.models[0].id, "opencode/deepseek-v4.1-flash-free");
+    const response = await openCode.complete({
+      endpoint, apiKey: "test-local-secret", model: models.models[0].id,
+    }, [{ role: "user", content: "Reply OK" }]);
+    assert.equal(response.content, "OK");
+    assert.equal(seen[1].body.model.providerID, "opencode");
+    assert.equal(seen[1].body.model.modelID, "deepseek-v4.1-flash-free");
+    assert.equal(seen[1].url, "/api/experimental/generate/text");
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+  console.log("OpenCode authenticated server, model discovery, stateless test and no standalone CLI PASS");
+
 })().catch((error) => { console.error(error); process.exitCode = 1; });

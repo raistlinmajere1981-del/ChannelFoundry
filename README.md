@@ -77,4 +77,4 @@ başlangıç öncesi mevcut indirilen arşiv verilerine dokunulmadı.
 
 ## AI servisleri ve OpenCode
 
-Ayarlar > AI servisleri iki bağımsız Metin / Görsel sekmesi kullanır. OpenCode CLI yalnız Metin için desteklenir. Modeller sistemdeki OpenCode kataloğundan alınır; metin üretimi ayrı geçici dizinde, standalone oturumda, araç izinleri kapalı yürütülür. Görsel Codex CLI, Cloudflare ve OpenAI uyumlu servislerle bağımsız çalışır. Testler ayarları kaydetmez ve AI kuyruğunu başlatmaz.
+Ayarlar > AI servisleri iki bağımsız Metin / Görsel sekmesi kullanır. OpenCode yalnız metin için desteklenir. OpenCode sunucusu (varsayılan http://127.0.0.1:4096) ve sunucu parolası yerel uygulama ayarlarından girilir; HTTP API ile aynı sunucunun model listesi ve oturumsuz metin üretimi kullanılır. Ayrı standalone CLI oturumu açılmaz. Parola yalnız yerel ai-config.json içinde dosya izni 0600 olarak tutulur, GitHub'a gönderilmez. Görsel tarafında Codex CLI, Cloudflare ve OpenAI uyumlu servisler bağımsız çalışır. Testler ayarları kaydetmez ve AI kuyruğunu başlatmaz. Modelin gerçek kotası sunucu tarafından belirlenir.

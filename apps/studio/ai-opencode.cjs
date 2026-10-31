@@ -1,24 +1,7 @@
 "use strict";
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const { spawn } = require("node:child_process");
 
-const MAX_OUTPUT = 1024 * 1024 * 3;
 const MODEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:@+/-]*$/;
-// Denies access to filesystem, shells, network tools and agent delegation.
-// Only text responses are allowed from a fresh, private OpenCode session.
-const SAFE_CONFIG = JSON.stringify({
-  $schema: "https://opencode.ai/config.json",
-  snapshot: false,
-  permissions: [{ action: "*", resource: "*", effect: "deny" }],
-  plugin: [],
-  plugins: [],
-});
 
-function cliBinary() {
-  return String(process.env.CHANNEL_FOUNDRY_OPENCODE_BIN || "opencode").trim();
-}
 function modelId(value) {
   const id = String(value || "").trim();
   if (!MODEL_PATTERN.test(id) || id.length > 200 || id.includes("..")) {
@@ -26,74 +9,73 @@ function modelId(value) {
   }
   return id;
 }
-function run(args, options = {}) {
-  const timeoutMs = Math.max(3000, Math.min(1800000, Number(options.timeoutMs || 60000)));
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-opencode-"));
-  const env = { ...process.env, OPENCODE_CONFIG_CONTENT: SAFE_CONFIG };
-  // Never attach to an existing user session or to the shared service.
-  delete env.OPENCODE_SERVER_PASSWORD;
-  delete env.OPENCODE_SERVER_USERNAME;
-  const command = cliBinary();
-  return new Promise((resolve, reject) => {
-    let child;
-    let stdout = "";
-    let stderr = "";
-    let completed = false;
-    const finish = (error) => {
-      if (completed) return;
-      completed = true;
-      clearTimeout(timer);
-      options.signal?.removeEventListener("abort", cancel);
-      fs.rmSync(dir, { recursive: true, force: true });
-      if (error) reject(error);
-      else resolve({ stdout, stderr });
-    };
-    const terminate = () => { try { child?.kill("SIGTERM"); } catch {} };
-    const cancel = () => { terminate(); finish(new Error("OpenCode isteği durduruldu.")); };
-    const timer = setTimeout(() => { terminate(); finish(new Error("OpenCode isteği zaman aşımına uğradı.")); }, timeoutMs);
-    try {
-      child = spawn(command, ["--standalone", ...args], {
-        cwd: dir, env, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (error) { finish(error); return; }
-    const append = (current, value) => {
-      const next = current + String(value);
-      if (Buffer.byteLength(next) > MAX_OUTPUT) {
-        terminate(); finish(new Error("OpenCode yanıtı boyut sınırını aştı."));
-        return current;
-      }
-      return next;
-    };
-    child.stdout.on("data", (data) => { stdout = append(stdout, data); });
-    child.stderr.on("data", (data) => { stderr = append(stderr, data); });
-    child.on("error", (error) => finish(new Error("OpenCode çalıştırılamadı: " + error.message)));
-    child.on("close", (code) => {
-      if (code !== 0) {
-        let detail = "";
-        for (const line of stdout.split(/\r?\n/)) {
-          try {
-            const event = JSON.parse(line);
-            if (event.type === "error") detail = String(event.error?.message || event.error?.data?.message || "");
-          } catch {}
-        }
-        return finish(new Error("OpenCode: " + (detail || stderr || "Kod " + code).slice(0, 500)));
-      }
-      finish(null);
-    });
-    if (options.signal?.aborted) cancel();
-    else options.signal?.addEventListener("abort", cancel, { once: true });
-  });
+function serverEndpoint(options) {
+  const raw = String(options?.endpoint || "http://127.0.0.1:4096").trim();
+  const url = new URL(raw);
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "::1"].includes(url.hostname)
+    || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error("OpenCode sunucusu localhost HTTP adresi olmalı.");
+  }
+  return url.origin;
 }
-function parseModels(output) {
+
+function serverHeaders(options) {
+  const password = String(options?.apiKey || "").trim();
+  if (!password) throw new Error("OpenCode sunucu parolası gerekli.");
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Authorization: "Basic " + Buffer.from("opencode:" + password).toString("base64"),
+  };
+}
+
+async function serverRequest(pathname, options = {}, body) {
+  const endpoint = serverEndpoint(options);
+  const headers = serverHeaders(options);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(3000, Math.min(120000, Number(options?.timeoutMs || 30000))));
+  const abort = () => controller.abort();
+  options?.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    const response = await fetch(endpoint + pathname, {
+      method: body == null ? "GET" : "POST",
+      headers, signal: controller.signal,
+      ...(body == null ? {} : { body: JSON.stringify(body) }),
+    });
+    let result;
+    try { result = await response.json(); } catch { throw new Error("OpenCode sunucusu JSON yanıtı vermedi."); }
+    if (!response.ok) {
+      const raw = String(result?.message || result?.error?.message || result?.data?.message || "").trim();
+      if (response.status === 401) throw new Error("OpenCode sunucu parolası hatalı veya bağlantı yetkisiz (401).");
+      const reason = result?.reason === "rate_limit" ? "Model kotası" : "Sunucu";
+      throw new Error("OpenCode " + reason + " (" + response.status + "): " + (raw || "İstek başarısız").slice(0, 450));
+    }
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(options?.signal?.aborted ? "OpenCode isteği durduruldu." : "OpenCode sunucusu zaman aşımı.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    options?.signal?.removeEventListener("abort", abort);
+  }
+}
+function normalizeServerModels(data) {
+  if (!Array.isArray(data)) throw new Error("OpenCode model kataloğu geçersiz.");
   const seen = new Set();
-  return String(output).split(/\r?\n/).map((line) => line.trim())
-    .filter((line) => MODEL_PATTERN.test(line) && !line.includes("..") && !seen.has(line) && seen.add(line))
-    .map((id) => ({ id, label: id, text: true, image: false }));
+  const models = [];
+  for (const entry of data) {
+    const rawId = String(entry?.id || entry?.modelID || "");
+    const id = rawId.includes("/") ? rawId : String(entry?.providerID || entry?.provider?.id || "") + "/" + rawId;
+    if (!MODEL_PATTERN.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    models.push({ id, label: String(entry?.name || entry?.label || id), text: true, image: false });
+  }
+  return models;
 }
 async function listModels(options = {}) {
-  const result = await run(["models"], { timeoutMs: options.timeoutMs || 30000 });
-  const models = parseModels(result.stdout);
-  if (!models.length) throw new Error("OpenCode erişilebilir model döndürmedi.");
+  const response = await serverRequest("/api/model", options);
+  const models = normalizeServerModels(response?.data);
+  if (!models.length) throw new Error("OpenCode sunucusu erişilebilir metin modeli döndürmedi.");
   return { models, textModels: models.map((entry) => entry.id), imageModels: [] };
 }
 function extractText(output) {
@@ -113,12 +95,16 @@ async function complete(config, messages, options = {}) {
     return (entry.role === "system" ? "Sistem: " : entry.role === "assistant" ? "Asistan: " : "Kullanıcı: ") + content;
   }).join("\n\n");
   if (!prompt.trim()) throw new Error("OpenCode için mesaj gerekli.");
-  const result = await run(["run", "--format", "json", "--model", id, prompt], {
+  const slash = id.indexOf("/");
+  const response = await serverRequest("/api/experimental/generate/text", {
+    endpoint: config.endpoint,
+    apiKey: config.apiKey,
     timeoutMs: options.timeoutMs || Math.max(60000, Number(config.timeoutSeconds || 420) * 1000),
     signal: options.signal,
-  });
-  const content = extractText(result.stdout);
-  if (!content) throw new Error("OpenCode modeli metin yanıtı üretmedi.");
+  }, { prompt, model: { providerID: id.slice(0, slash), modelID: id.slice(slash + 1) } });
+  const content = String(response?.data?.text ?? response?.data?.content ?? response?.text ?? response?.content ?? "").trim();
+  if (!content) throw new Error("OpenCode sunucusu metin üretmedi.");
   return { content, model: id, finishReason: "stop" };
 }
-module.exports = { listModels, complete, modelId, parseModels, extractText, run, SAFE_CONFIG };
+
+module.exports = { listModels, complete, modelId, serverEndpoint, serverRequest, normalizeServerModels };

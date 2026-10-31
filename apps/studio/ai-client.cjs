@@ -444,7 +444,7 @@ function modelListConfig(userDataPath, input) {
 async function listModels(userDataPath, input = null) {
   const config = modelListConfig(userDataPath, input);
   if (config.provider === "opencode-cli") {
-    const catalog = await openCode.listModels({ timeoutMs: 30000 });
+    const catalog = await openCode.listModels({ endpoint: config.endpoint, apiKey: config.apiKey, timeoutMs: 30000 });
     return { ...catalog, config: publicConfig(config) };
   }
   if (aiCli.isCliProvider(config.provider)) {
@@ -526,7 +526,7 @@ async function testConnection(userDataPath, options = {}) {
         config: publicConfig(config),
       };
     } catch (error) {
-      const failure = new Error(`Codex CLI bağlantı testi başarısız: ${String(error?.message ?? error).slice(0, 600)}`);
+      const failure = new Error(`AI modeli bağlantı testi başarısız: ${String(error?.message ?? error).slice(0, 600)}`);
       failure.code = error?.code;
       failure.cause = error;
       throw failure;
