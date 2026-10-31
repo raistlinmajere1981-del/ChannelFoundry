@@ -3,15 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/*",
+    "apps/studio",
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "npm run dev --workspace=@channel-foundry/web",
-    "build:web": "npm run build --workspace=@channel-foundry/web",
-    "deploy:web": "bash scripts/deploy-web.sh",
-    "verify:web-dist": "node scripts/verify-web-dist.mjs",
-    "verify:book-theme": "node scripts/verify-book-theme-integration.mjs",
+    "dev:web": "npm --prefix channels/birdesengor/web run dev",
+    "dev:birdesengor": "node scripts/run-channel-project.mjs web birdesengor",
+    "build:web": "npm --prefix channels/birdesengor/web run build",
+    "build:birdesengor": "node scripts/run-channel-project.mjs build-web birdesengor",
+    "verify:web-dist": "npm --prefix channels/birdesengor/web run verify:dist",
+    "verify:book-theme": "npm --prefix channels/birdesengor/web run verify:book-theme",
     "dev:studio": "npm run dev --workspace=@channel-foundry/studio",
     "build:studio": "npm run build --workspace=@channel-foundry/studio",
     "start:studio": "npm run start --workspace=@channel-foundry/studio",
@@ -34,7 +35,10 @@
     "verify:visual-completion": "node apps/studio/verify-visual-completion.cjs",
     "verify:publication-v2": "node apps/studio/verify-publication-v2.cjs",
     "verify:publication-v2-ui": "node apps/studio/verify-publication-v2-ui.cjs",
-    "verify:community-credits": "node apps/web/verify-community-credits.mjs"
+    "verify:community-credits": "npm --prefix channels/birdesengor/web run verify:credits",
+    "start:birdesengor": "node scripts/run-channel-project.mjs studio birdesengor",
+    "dev:studio:birdesengor": "node scripts/run-channel-project.mjs dev-studio birdesengor",
+    "project": "node scripts/run-channel-project.mjs"
   },
   "allowScripts": {
     "electron@37.10.3": true,

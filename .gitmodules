@@ -1,0 +1,3 @@
+[submodule "channels/birdesengor/web"]
+    path = channels/birdesengor/web
+    url = https://github.com/raistlinmajere1981-del/birdesengor-web.git

@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "apps/studio/**"
-      - "apps/web/**"
       - "packages/domain/**"
       - "packages/subtitle-analysis/**"
       - "package.json"
@@ -13,7 +12,6 @@ on:
   pull_request:
     paths:
       - "apps/studio/**"
-      - "apps/web/**"
       - "packages/domain/**"
       - "packages/subtitle-analysis/**"
       - "package.json"
@@ -64,8 +62,6 @@ jobs:
       - name: Verify visual profile assets
         run: node apps/studio/verify-visual-profiles.cjs
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Build Studio renderer
         run: npm run build:studio
-      - name: Build public web renderer
-        run: npm run build:web

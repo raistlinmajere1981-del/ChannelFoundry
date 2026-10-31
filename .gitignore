@@ -14,3 +14,6 @@ apps/studio/local-data/
 
 # Studio çalışma verisi public kaynak ağacının parçası değildir.
 /local-data/
+
+# Kanal projelerinin yerel Studio verileri
+/channels/*/.local-data/
