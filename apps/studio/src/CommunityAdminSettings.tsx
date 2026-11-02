@@ -4,9 +4,12 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+type SetupStatus = { setupRequired: boolean; deploymentReady: boolean };
+
 export default function CommunityAdminSettings() {
   const bridge = window.channelFoundryStudio;
   const [session, setSession] = useState<StudioCommunitySession | null>(null);
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,6 +22,12 @@ export default function CommunityAdminSettings() {
     const next = await bridge.communitySession();
     setSession(next);
     setUsername((current) => current || next.username || "");
+    try {
+      setSetup(await bridge.communityAdminSetupStatus());
+    } catch (reason) {
+      setSetup(null);
+      setError(errorText(reason));
+    }
   };
 
   useEffect(() => {
@@ -26,6 +35,7 @@ export default function CommunityAdminSettings() {
     return bridge?.onDataChanged?.(() => { void refresh().catch(() => undefined); });
   }, []);
 
+  const isFirstSetup = setup?.setupRequired === true;
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!bridge) return;
@@ -34,19 +44,24 @@ export default function CommunityAdminSettings() {
     setNotice(null);
     try {
       if (!password) {
-        if (!session?.configured) throw new Error("Yönetici parolası gerekli.");
+        if (isFirstSetup || !session?.configured) throw new Error("Yönetici parolası gerekli.");
         const next = await bridge.communityAdminConnect();
         setSession(next);
         if (!next.connected) throw new Error(next.lastError || "Kayıtlı yönetici bağlantısı kurulamadı.");
-        setNotice("Kayıtlı bilgilerle forum yönetici bağlantısı doğrulandı.");
+        setNotice("Kayıtlı bilgilerle yönetici bağlantısı doğrulandı.");
         return;
       }
-      const result = await bridge.communityAdminSave({ username, password });
+      const result = isFirstSetup
+        ? await bridge.communityAdminCreateFirst({ username, password })
+        : await bridge.communityAdminSave({ username, password });
       setSession(result.session);
       setUsername(result.session.username || username);
       setPassword("");
       setShowPassword(false);
-      setNotice("Yönetici bilgileri güvenli olarak kaydedildi. Bundan sonra bağlantı uygulama açılışında otomatik kurulacak.");
+      if (isFirstSetup) setSetup({setupRequired:false, deploymentReady:true});
+      setNotice(isFirstSetup
+        ? "İlk yönetici oluşturuldu ve bağlantı kaydedildi. Sonraki açılışlarda otomatik bağlanacak."
+        : "Mevcut yönetici doğrulandı. Bilgiler güvenli saklandı ve açılışta otomatik bağlanacak.");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -55,7 +70,7 @@ export default function CommunityAdminSettings() {
   };
 
   const clear = async () => {
-    if (!bridge || !window.confirm("Kayıtlı forum yönetici bağlantısı silinsin mi?")) return;
+    if (!bridge || !window.confirm("Kayıtlı yönetici bağlantısı silinsin mi?")) return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -65,7 +80,7 @@ export default function CommunityAdminSettings() {
       setUsername("");
       setPassword("");
       setShowPassword(false);
-      setNotice("Kayıtlı yönetici bağlantısı silindi.");
+      setNotice("Kayıtlı yönetici bağlantısı silindi. Sunucudaki hesap korunuyor.");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -77,12 +92,14 @@ export default function CommunityAdminSettings() {
 
   return <section className="panel community-connection-settings">
     <header>
-      <div><small>FORUM YÖNETİMİ</small><h2>Yönetici bağlantısı</h2></div>
+      <div><small>TOPLULUK YÖNETİMİ</small><h2>{isFirstSetup ? "İlk yöneticiyi oluştur" : "Yönetici bağlantısı"}</h2></div>
       <span className={session?.connected ? "community-connection-state connected" : session?.configured ? "community-connection-state warning" : "community-connection-state"}>
-        <span className="local-dot"/>{session?.connected ? "Bağlı" : session?.configured ? "Bağlantı bekliyor" : "Yapılandırılmadı"}
+        <span className="local-dot"/>{session?.connected ? "Bağlı" : isFirstSetup ? "İlk kurulum" : session?.configured ? "Bağlantı bekliyor" : "Yapılandırılmadı"}
       </span>
     </header>
-    <p>Bu bağlantı üye girişi değildir. Studio, web forumunun yönetim işlemleri için kayıtlı yönetici hesabını arka planda kullanır.</p>
+    <p>{isFirstSetup
+      ? "Sitede henüz yönetici hesabı yok. Bu ekrandan bir kez oluşturabilirsin; Studio, kayıtlı FTPS deploy bağlantısıyla yetkiyi doğrular."
+      : "Sitede yönetici hesabı varsa kullanıcı adı ve parolasıyla bağlan. Bilgiler cihazda güvenli saklanır; sonraki yayınlarda yeniden girilmez."}</p>
     <div className="community-connection-facts">
       <div><span>Sunucu</span><strong title={session?.endpoint}>{session?.endpoint || "—"}</strong></div>
       <div><span>Otomatik bağlantı</span><strong>{session?.configured ? "Etkin" : "Kapalı"}</strong></div>
@@ -90,13 +107,24 @@ export default function CommunityAdminSettings() {
       <div><span>Parola saklama</span><strong>{session?.secureStorageAvailable ? "Sistem korumalı" : "Kullanılamıyor"}</strong></div>
     </div>
     <form onSubmit={(event) => void save(event)}>
-      <label><span>Yönetici kullanıcı adı</span><input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="off" required/></label>
-      <label><span>Yönetici parolası</span><div className="community-password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" placeholder={session?.configured ? "Kayıtlı parola korunur" : "Yönetici parolası"}/><button type="button" className="secondary-button" disabled={!password} onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Gizle" : "Göster"}</button></div></label>
+      <label><span>Yönetici kullanıcı adı</span><input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" minLength={3} maxLength={32} required/></label>
+      <label><span>{isFirstSetup ? "Yeni yönetici parolası" : "Yönetici parolası"}</span><div className="community-password-field">
+        <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)}
+          autoComplete={isFirstSetup ? "new-password" : "current-password"} minLength={isFirstSetup ? 8 : undefined}
+          placeholder={isFirstSetup ? "En az 8 karakter" : session?.configured ? "Kayıtlı parola korunur" : "Mevcut yönetici parolası"}/>
+        <button type="button" className="secondary-button" disabled={!password} onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Gizle" : "Göster"}</button>
+      </div></label>
+      {isFirstSetup && !setup?.deploymentReady && <div className="community-admin-notice error">
+        Kayıtlı FTPS deploy bağlantısı bulunamadı. Önce bu proje için deploy bağlantısını kurmak gerekiyor.
+      </div>}
       {(error || notice || session?.lastError) && <div className={error || session?.lastError && !session.connected ? "community-admin-notice error" : "community-admin-notice"}>{error || notice || session?.lastError}</div>}
-      {!session?.secureStorageAvailable && <div className="community-admin-notice error">Güvenli parola saklama servisi kullanılamadığı için kalıcı yönetici bağlantısı kaydedilemez.</div>}
+      {!session?.secureStorageAvailable && <div className="community-admin-notice error">Sistem korumalı parola saklama kullanılamıyor; kalıcı yönetici bağlantısı kaydedilemez.</div>}
       <div className="community-connection-actions">
         {session?.configured && <button type="button" className="text-button" disabled={busy} onClick={() => void clear()}>Kayıtlı bilgileri sil</button>}
-        <button className="primary-button" type="submit" disabled={busy || !username || !session?.secureStorageAvailable}>{busy ? "Doğrulanıyor…" : password ? "Kaydet ve bağlantıyı dene" : "Bağlantıyı yenile"}</button>
+        <button className="primary-button" type="submit"
+          disabled={busy || !username || !session?.secureStorageAvailable || (isFirstSetup && (!setup?.deploymentReady || password.length < 8))}>
+          {busy ? (isFirstSetup ? "Yönetici oluşturuluyor…" : "Doğrulanıyor…") : isFirstSetup ? "Yönetici oluştur ve bağlan" : password ? "Bağlan ve kaydet" : "Bağlantıyı yenile"}
+        </button>
       </div>
     </form>
   </section>;

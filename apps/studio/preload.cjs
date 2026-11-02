@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   communitySession: () => ipcRenderer.invoke("studio:community-session"),
   communityAdminConnect: () => ipcRenderer.invoke("studio:community-admin-connect"),
   communityAdminSave: (input) => ipcRenderer.invoke("studio:community-admin-save", input),
+  communityAdminSetupStatus: () => ipcRenderer.invoke("studio:community-admin-setup-status"),
+  communityAdminCreateFirst: (input) => ipcRenderer.invoke("studio:community-admin-create-first", input),
   communityAdminClear: () => ipcRenderer.invoke("studio:community-admin-clear"),
   communityUsers: () => ipcRenderer.invoke("studio:community-users"),
   communitySetResearch: (input) => ipcRenderer.invoke("studio:community-set-research", input),

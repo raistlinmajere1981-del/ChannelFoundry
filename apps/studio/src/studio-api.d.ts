@@ -465,6 +465,8 @@ interface Window {
     communitySession(): Promise<StudioCommunitySession>;
     communityAdminConnect(): Promise<StudioCommunitySession>;
     communityAdminSave(input: { username: string; password: string }): Promise<{ ok: true; admin: StudioCommunityAdmin; session: StudioCommunitySession }>;
+    communityAdminSetupStatus(): Promise<{ setupRequired: boolean; deploymentReady: boolean }>;
+    communityAdminCreateFirst(input: { username: string; password: string }): Promise<{ ok: true; created: true; admin: StudioCommunityAdmin; session: StudioCommunitySession }>;
     communityAdminClear(): Promise<{ ok: true; session: StudioCommunitySession }>;
     communityUsers(): Promise<{ ok: true; users: StudioCommunityUser[] }>;
     communitySetResearch(input: { userId: number; enabled: boolean }): Promise<{ ok: true; userId: number; researchAccess: boolean }>;

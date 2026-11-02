@@ -1,5 +1,6 @@
 const { app, ipcMain, shell } = require("electron");
 const communityAdmin = require("./community-admin.cjs");
+const initialAdminSetup = require("./initial-admin-setup.cjs");
 const { applyBulkOperation } = require("./bulk-operations.cjs");
 const youtubeImporter = require("./youtube-import.cjs");
 const youtubeCatalog = require("./youtube-catalog.cjs");
@@ -245,6 +246,8 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:community-session", () => communityAdmin.connectStored());
   ipcMain.handle("studio:community-admin-connect", () => communityAdmin.connectStored({ force: true }));
   ipcMain.handle("studio:community-admin-save", (_event, input) => communityAdmin.saveCredentials(input));
+  ipcMain.handle("studio:community-admin-setup-status", () => initialAdminSetup.status());
+  ipcMain.handle("studio:community-admin-create-first", (_event, input) => initialAdminSetup.create(input, communityAdmin.saveCredentials));
   ipcMain.handle("studio:community-admin-clear", () => communityAdmin.clearCredentials());
   ipcMain.handle("studio:community-users", () => communityAdmin.users());
   ipcMain.handle("studio:community-set-research", (_event, input) => communityAdmin.setResearchAccess(input));
