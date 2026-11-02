@@ -2,10 +2,10 @@
   "id": "birdesengor",
   "displayName": "BirDeSenGör",
   "youtubeChannelUrl": "https://www.youtube.com/@BirDeSenGor",
+  "youtubePlaylistUrl": "",
   "webRepository": "https://github.com/raistlinmajere1981-del/birdesengor-web",
   "webDirectory": "web",
   "hostingProvider": "Natro",
   "webUrl": "https://birdesengorgizlievren.com",
-  "deploymentEnabled": true,
-  "youtubePlaylistUrl": ""
+  "deploymentEnabled": true
 }
