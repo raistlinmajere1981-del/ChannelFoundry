@@ -6,6 +6,6 @@
   "webDirectory": "web",
   "hostingProvider": "Natro",
   "webUrl": "https://birdesengorgizlievren.com",
-  "deploymentEnabled": false,
+  "deploymentEnabled": true,
   "youtubePlaylistUrl": ""
 }

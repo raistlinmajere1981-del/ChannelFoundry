@@ -17,6 +17,11 @@
 .project-group-heading>span.linked{color:var(--state-success)}
 .project-input-action{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
 .project-input-action button{padding:0 10px}
+.channel-projects-editor .project-web-enable{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:11px;color:var(--text-primary)}
+.channel-projects-editor .project-web-enable input[type="checkbox"]{width:16px;height:16px;min-height:16px;flex:0 0 16px;padding:0;accent-color:var(--state-success)}
+.channel-projects-editor .project-web-enable input:disabled{cursor:not-allowed}
+.channel-projects-editor .project-web-enable>span{font-size:11px;color:var(--text-primary)}
+.channel-projects-editor .project-web-help{margin:0;color:var(--text-muted);font-size:10px;line-height:1.5}
 .project-inline-actions{display:flex;justify-content:flex-end}
 .project-inline-actions button{font-size:11px;padding:7px 11px}
 .channel-projects-actions{border-top:1px solid var(--border-soft);padding-top:10px;min-height:39px}

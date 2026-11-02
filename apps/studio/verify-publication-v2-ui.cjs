@@ -7,6 +7,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
 const center = read("apps/studio/src/PublishCenter.tsx");
+const projectSettings = read("apps/studio/src/ChannelProjectsSettings.tsx");
 const model = read("apps/studio/src/publish-model.ts");
 const runtime = read("apps/studio/studio-runtime.cjs");
 const admin = read("apps/studio/community-admin.cjs");
@@ -24,6 +25,10 @@ assert.match(center, /readiness\.readyForTheme/, "Canlı yayın 05/06 readiness 
 assert.match(center, /exportPublicSnapshot\(\)/, "Yerel paket publication export köprüsünü kullanmalı");
 assert.match(center, /publishPublicSnapshot\(\)/, "Canlı yayın mevcut IPC köprüsünden publication v2 hattını çağırmalı");
 assert.match(center, /!project\?\.deploymentEnabled/, "Yerel tasarımda canlı yayın düğmesi pasif olmalı");
+assert.match(center, /publish-deployment-help/, "Kapalı canlı yayın düğmesinin gerekçesi kullanıcıya gösterilmeli");
+assert.match(projectSettings, /Canlı yayını etkinleştir/, "Proje ayarlarında canlı yayın açma kontrolü bulunmalı");
+assert.match(projectSettings, /webConnectionTest/, "Etkinleştirmeden önce canlı site bağlantı testi yapılmalı");
+assert.match(projectSettings, /webValidatedUrl !== form\.webUrl\.trim\(\)/, "Kontrol başarılı URL testine bağlı olmalı");
 assert.doesNotMatch(center, /SCHEMA V1|universe\.json|PublicationChanges|V2 canlı yayın henüz bağlı değil/, "Yayınlama UI'sinde legacy v1 izi kalmamalı");
 
 assert.match(model, /contentFingerprint/, "Yayın modeli publication fingerprint bilgisini taşımalı");

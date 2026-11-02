@@ -129,7 +129,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       return;
     }
     if (!project?.deploymentEnabled) {
-      setError("Bu kanal henüz yerel tasarım aşamasında. Yayın Ayarlar'dan etkinleştirilmedi.");
+      setError("Canlı yayın kapalı. Önce web sitesini kur; ardından Ayarlar → Kanal ve yayın → Web yayını bölümünden bağlantıyı test edip etkinleştir.");
       return;
     }
     const latestPreview = await bridge.publicationPreview();
@@ -172,7 +172,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
   };
 
   const lastLiveAt = livePublication?.generatedAt ?? preview?.baseline?.generatedAt ?? null;
-  const publishStatus = !project?.deploymentEnabled ? "Yerel tasarım · canlı yayın kapalı" : error
+  const publishStatus = error || (!project?.deploymentEnabled ? "Canlı yayın kapalı · Ayarlar → Kanal ve yayın → Web yayını: bağlantıyı Test et ve etkinleştir." : "")
     || (localBuilding ? "Publication v2 yerel paketi oluşturuluyor…" : "")
     || (livePublishing ? "Asset'ler yükleniyor, publication.json etkinleştiriliyor ve doğrulanıyor…" : "")
     || (livePublication
@@ -215,6 +215,9 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         </button>
       </div>
 
+      {!project?.deploymentEnabled && <p className="publish-deployment-help">
+        Önce web uygulaması hosting üzerinde kurulmalı. Ardından <strong>Ayarlar → Kanal ve yayın → Web yayını</strong> bölümündeki <strong>Test</strong> kontrolü başarılı olunca canlı yayını etkinleştirip kaydet. Yayınlanacak içerik hazır, yalnız sunucu bağlantısı bekleniyor.
+      </p>}
       <div className={communityConnected ? "live-readiness ready" : "live-readiness"}>
         <span className="local-dot"/>
         {!project?.deploymentEnabled ? "Yerel tasarım · canlı yayın işlemi devre dışı" : communityConnected ? "Studio yönetici bağlantısı hazır" : "Yayın için Topluluk yönetici bağlantısı gerekli"}

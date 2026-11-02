@@ -2,11 +2,11 @@ import { useEffect, useState, type FormEvent } from "react";
 
 type ProjectInput = {
   id: string; displayName: string; youtubeChannelUrl: string; youtubePlaylistUrl: string;
-  webRepository: string; webUrl: string; hostingProvider: string;
+  webRepository: string; webUrl: string; hostingProvider: string; deploymentEnabled: boolean;
 };
 const empty = (): ProjectInput => ({
   id: "", displayName: "", youtubeChannelUrl: "", youtubePlaylistUrl: "",
-  webRepository: "", webUrl: "", hostingProvider: "",
+  webRepository: "", webUrl: "", hostingProvider: "", deploymentEnabled: false,
 });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const normalized = (value: string) => value.trim().replace(/^https?:\/\/(?:www\.)?/, "").replace(/\/$/, "").toLowerCase();
@@ -26,6 +26,7 @@ export default function ChannelProjectsSettings() {
   const [newProject, setNewProject] = useState(false);
   const [catalog, setCatalog] = useState<StudioYoutubeChannel | null>(null);
   const [busy, setBusy] = useState("");
+  const [webValidatedUrl, setWebValidatedUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const load = async () => {
@@ -43,8 +44,9 @@ export default function ChannelProjectsSettings() {
       id: project.id, displayName: project.displayName, youtubeChannelUrl: project.youtubeChannelUrl,
       youtubePlaylistUrl: project.youtubePlaylistUrl || "", webRepository: project.webRepository,
       webUrl: project.webUrl, hostingProvider: project.hostingProvider,
+      deploymentEnabled: Boolean(project.deploymentEnabled),
     });
-    setError(""); setNotice("");
+    setWebValidatedUrl(""); setError(""); setNotice("");
   };
   useEffect(() => {
     void load().then((result) => {
@@ -53,13 +55,19 @@ export default function ChannelProjectsSettings() {
     return bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
   }, []);
   const update = (name: keyof ProjectInput, value: string) => {
-    setForm((previous) => ({ ...previous, [name]: value }));
+    if (name === "webUrl") setWebValidatedUrl("");
+    setForm((previous) => ({ ...previous, [name]: value,
+      ...(name === "webUrl" && previous.webUrl !== value ? { deploymentEnabled: false } : {}),
+    }));
     setNotice(""); setError("");
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!bridge || busy) return;
     if (scope === "playlist" && !form.youtubePlaylistUrl.trim()) { setError("Playlist bağlantısı gerekli."); return; }
+    if (form.deploymentEnabled && webValidatedUrl !== form.webUrl.trim() && !projects.find((project) => project.id === form.id)?.deploymentEnabled) {
+      setError("Canlı yayını açmadan önce kurulu web sitesinin bağlantısını Test ile doğrula."); return;
+    }
     setBusy("save"); setError(""); setNotice("");
     try {
       const next = newProject ? await bridge.channelProjectCreate(form) : await bridge.channelProjectUpdate(form);
@@ -94,8 +102,8 @@ export default function ChannelProjectsSettings() {
   const testWeb = async () => {
     if (!bridge || busy || !form.webUrl) return;
     setBusy("test"); setError(""); setNotice("");
-    try { await bridge.webConnectionTest({ url: form.webUrl }); setNotice("Web bağlantısı hazır"); }
-    catch (reason) { setError(message(reason)); }
+    try { await bridge.webConnectionTest({ url: form.webUrl }); setWebValidatedUrl(form.webUrl.trim()); setNotice("Web bağlantısı hazır · canlı yayın etkinleştirilebilir"); }
+    catch (reason) { setWebValidatedUrl(""); setError(message(reason)); }
     finally { setBusy(""); }
   };
   if (!bridge) return null;
@@ -131,6 +139,10 @@ export default function ChannelProjectsSettings() {
         <div className="project-field-group">
           <div className="project-group-heading"><h3>Web yayını</h3><span>{current?.deploymentEnabled ? "Etkin" : "Kapalı"}</span></div>
           <label><span>Alan adı</span><div className="project-input-action"><input type="url" disabled={Boolean(busy)} value={form.webUrl} onChange={(event) => update("webUrl", event.target.value)} placeholder="https://alanadi.com"/><button type="button" className="secondary-button" disabled={Boolean(busy) || !form.webUrl} onClick={() => void testWeb()}>Test</button></div></label>
+          <label className="project-web-enable"><input type="checkbox" disabled={Boolean(busy) || (!form.deploymentEnabled && webValidatedUrl !== form.webUrl.trim())}
+            checked={form.deploymentEnabled} onChange={(event) => { setForm((previous) => ({ ...previous, deploymentEnabled: event.target.checked })); setNotice(""); setError(""); }}/>
+            <span>Canlı yayını etkinleştir</span></label>
+          <p className="project-web-help">Önce siteyi sunucuya kurup bağlantıyı <strong>Test</strong> et. Bağlantı başarılıysa seçeneği açıp <strong>Kaydet</strong>. İçerik ancak Yayınlama ekranında onaylandığında gönderilir.</p>
           <div className="project-fields-compact">
             <label><span>Hosting</span><input disabled={Boolean(busy)} value={form.hostingProvider} onChange={(event) => update("hostingProvider", event.target.value)} placeholder="Natro"/></label>
             <label><span>Web Git deposu</span><input type="url" disabled={Boolean(busy)} value={form.webRepository} onChange={(event) => update("webRepository", event.target.value)} placeholder="https://github.com/..."/></label>
