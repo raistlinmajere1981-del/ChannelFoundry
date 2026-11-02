@@ -40,14 +40,14 @@ async function loadRenderer(window) {
 }
 
 function createWindow() {
-  const studioIcon = path.join(__dirname, "..", "..", "logo.png");
+  const studioIcon = path.join(__dirname, "src", "assets", "brand", "yayin-atolyesi-mark.png");
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: "#0b0d11",
-    title: "Channel Foundry Studio",
+    title: "Yayın Atölyesi",
     icon: studioIcon,
     autoHideMenuBar: true,
     webPreferences: windowPreferences(),
@@ -59,7 +59,7 @@ function createWindow() {
   void loadRenderer(window).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[ChannelFoundry] Studio arayuzu yuklenemedi:", message);
-    dialog.showErrorBox("ChannelFoundry Studio", message);
+    dialog.showErrorBox("Yayın Atölyesi", message);
     if (!window.isDestroyed()) window.close();
   });
   return window;

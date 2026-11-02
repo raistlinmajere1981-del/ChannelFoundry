@@ -73,7 +73,8 @@ for (const field of ["studioTheme", "studioTextSize", "studioAccent", "studioDen
 assert.match(tokens, /data-studio-theme="soft-dark"/);
 assert.match(tokens, /data-studio-accent="blue"/);
 assert.match(tokens, /data-studio-contrast="high"/);
-assert.match(workspace, /--studio-workspace-width:1440px/);
+assert.match(workspace, /--studio-workspace-width:100%/);
+assert.ok(!workspace.includes("--studio-workspace-width:1440px"), "retired workspace cap must not return");
 assert.match(workspace, /--studio-reading-measure:74ch/);
 assert.match(workspace, /data-studio-density="compact"/);
 assert.match(workspace, /data-studio-motion="reduced"/);

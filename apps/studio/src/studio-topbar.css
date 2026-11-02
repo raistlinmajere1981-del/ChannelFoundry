@@ -1,40 +1,70 @@
 /* Global Studio command bar, visible on every workspace. */
 .pipeline-main{
   min-width:0;
-  padding:0 24px 36px!important;
+  padding:var(--studio-shell-gap)!important;
 }
 .studio-topbar-global{
-  position:sticky;
-  top:0;
-  z-index:40;
-  display:flex;
+  position:relative;
+  top:auto;
+  z-index:50;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
   align-items:center;
-  justify-content:space-between;
-  gap:20px;
-  min-height:64px;
-  margin:0 -24px 20px;
-  padding:10px 24px;
+  gap:clamp(8px,1vw,16px);
+  min-height:56px;
+  margin:0 0 var(--studio-shell-gap);
+  padding:8px clamp(10px,1vw,16px);
   background:var(--surface-panel-strong);
-  border-bottom:1px solid var(--border-soft);
-  box-shadow:0 6px 24px rgba(0,0,0,.06);
+  border:1px solid var(--border-soft);
+  border-radius:10px;
+  box-shadow:var(--shadow-panel);
 }
-.studio-topbar-title{display:grid;gap:3px;min-width:135px}
+.studio-sidebar-toggle{
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  width:36px;
+  height:36px;
+  padding:0;
+  border:1px solid var(--border-control);
+  border-radius:9px;
+  background:var(--surface-input);
+  color:var(--text-muted);
+  cursor:pointer;
+}
+.studio-sidebar-toggle:hover{
+  border-color:var(--accent);
+  background:var(--surface-hover);
+  color:var(--accent);
+}
+.studio-sidebar-toggle:focus-visible{
+  outline:2px solid var(--focus-ring);
+  outline-offset:2px;
+}
+.studio-sidebar-toggle svg{
+  width:19px;
+  height:19px;
+  transition:transform 160ms ease;
+}
+.studio-sidebar-toggle.collapsed svg{transform:rotate(180deg)}
+.studio-topbar-title{display:grid;gap:3px;min-width:0;padding-left:2px}
 .studio-topbar-title small{font-size:9px;letter-spacing:.12em;color:var(--accent-muted)}
 .studio-topbar-title strong{font-size:17px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.studio-topbar-controls{display:flex;align-items:center;gap:9px;min-width:0}
-.studio-project-picker{display:flex;align-items:center;gap:9px;white-space:nowrap}
+.studio-topbar-controls{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0;max-width:100%}
+.studio-project-picker{display:flex;align-items:center;gap:9px;min-width:0;white-space:nowrap;flex:0 1 auto}
 .studio-project-picker span{font-size:11px;color:var(--text-muted)}
-.studio-project-picker select{min-width:145px;max-width:250px;height:36px;padding:0 10px;border:1px solid var(--border-control);border-radius:7px;background:var(--surface-input);color:var(--text-primary)}
-.studio-source-chip{display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--text-muted);font-size:11px;padding:0 9px;min-height:35px}
+.studio-project-picker select{width:clamp(132px,14vw,250px);min-width:0;max-width:250px;height:36px;padding:0 10px;border:1px solid var(--border-control);border-radius:7px;background:var(--surface-input);color:var(--text-primary)}
+.studio-source-chip{display:flex;align-items:center;gap:6px;flex:0 0 auto;white-space:nowrap;color:var(--text-muted);font-size:11px;padding:0 9px;min-height:35px}
 .studio-source-dot{width:7px;height:7px;border-radius:50%;background:var(--state-warning)}
 .studio-source-chip.linked .studio-source-dot{background:var(--state-success)}
-.studio-toolbar-button{position:relative;display:grid;place-items:center;width:37px;height:37px;border:1px solid var(--border-control);border-radius:9px;background:var(--surface-input);color:var(--text-secondary);cursor:pointer}
+.studio-toolbar-button{position:relative;display:grid;place-items:center;flex:0 0 auto;width:37px;height:37px;border:1px solid var(--border-control);border-radius:9px;background:var(--surface-input);color:var(--text-secondary);cursor:pointer}
 .studio-toolbar-button:hover,.studio-toolbar-button.selected{background:var(--surface-hover);border-color:var(--accent);color:var(--accent)}
+.studio-toolbar-button svg{width:19px;height:19px}
 .studio-toolbar-indicator{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--text-subtle)}
 .studio-toolbar-indicator.ready{background:var(--state-success)}
 .studio-toolbar-indicator.warning{background:var(--state-warning)}
 .studio-toolbar-indicator.error{background:var(--state-danger)}
-.studio-toolbar-anchor{position:relative}
+.studio-toolbar-anchor{position:relative;flex:0 0 auto}
 .studio-toolbar-popover{
   position:absolute;
   top:calc(100% + 12px);
@@ -74,11 +104,26 @@
 .studio-popover-actions .primary-button{background:var(--accent-strong);color:var(--text-inverse)}
 .studio-popover-actions button:disabled{opacity:.55;cursor:default}
 .studio-compact-settings p{margin:0;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:1180px){
+  .studio-source-chip{display:none}
+  .studio-project-picker select{width:clamp(120px,18vw,180px)}
+  .studio-topbar-title strong{font-size:15px}
+}
 @media(max-width:1080px){
- .studio-source-chip{display:none}
- .studio-project-picker span{display:none}
- .studio-project-picker select{min-width:120px;max-width:160px}
- .studio-topbar-title strong{font-size:15px}
+  .studio-project-picker span{display:none}
+  .studio-project-picker select{width:clamp(112px,20vw,160px)}
+}
+@media(max-width:1024px){
+  .studio-topbar-global{gap:8px;padding-inline:10px}
+  .studio-topbar-controls{gap:6px}
+  .studio-project-picker select{width:clamp(108px,19vw,150px);height:34px}
+  .studio-toolbar-button{width:34px;height:34px}
+  .studio-topbar-title strong{font-size:14px}
+}
+@media(max-height:760px){
+  .studio-topbar-global{min-height:52px;padding-block:6px}
+  .studio-project-picker select{height:34px}
+  .studio-toolbar-button{width:34px;height:34px}
 }
 
 /* Ayarlar yalnız sol alt köşede; durum etiketi kaldırıldı. */

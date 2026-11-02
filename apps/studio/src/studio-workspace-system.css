@@ -3,8 +3,13 @@
  * Palette values are semantic tokens; page CSS owns only its local layout.
  */
 :root{
-  --studio-workspace-width:1440px;
+  --studio-workspace-width:100%;
   --studio-workspace-gap:14px;
+  --studio-workspace-inset:clamp(8px,.75vw,14px);
+  --studio-shell-gap:clamp(10px,1vw,18px);
+  --studio-sidebar-expanded:232px;
+  --studio-sidebar-collapsed:60px;
+  --studio-sidebar-width:var(--studio-sidebar-expanded);
   --studio-card-pad:16px;
   --studio-control-height:38px;
   --studio-reading-measure:74ch;
@@ -32,9 +37,9 @@ html[data-studio-motion="reduced"] .studio-shell *::after{
 }
 /* Shared frame and control rhythm. */
 .pipeline-content{
-  width:min(100%,var(--studio-workspace-width));
-  max-width:var(--studio-workspace-width);
-  margin-inline:auto;
+  width:100%;
+  max-width:none;
+  margin-inline:0;
 }
 .pipeline-content > *{min-width:0}
 .pipeline-content :where(.ops-dashboard,.subtitle-research-page,.ai-production-workbench){
@@ -205,5 +210,5 @@ html[data-studio-motion="reduced"] .studio-shell *::after{
 }
 
 /* Quiet global title bar: page name is sufficient, branding stays in sidebar. */
-.studio-topbar-global{min-height:56px;padding-block:7px}
+.studio-topbar-global{min-height:56px}
 .studio-topbar-title{gap:0}

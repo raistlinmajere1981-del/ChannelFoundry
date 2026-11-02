@@ -29,10 +29,13 @@ body{
   color:var(--text-primary)!important;
 }
 .studio-nav button.active{
-  border-color:var(--border-soft)!important;
-  background:var(--surface-selected)!important;
-  color:var(--text-primary)!important;
+  border-color:var(--accent)!important;
+  background:var(--accent-soft)!important;
+  color:var(--accent-strong)!important;
+  box-shadow:inset 3px 0 var(--accent);
 }
+.studio-nav button.active .studio-nav-icon{color:var(--accent-strong)!important}
+.studio-nav button:hover .studio-nav-icon{color:currentColor}
 .nav-caption,.local-badge,.local-status{color:var(--text-muted)!important}
 .local-badge{
   border-color:var(--border-soft)!important;

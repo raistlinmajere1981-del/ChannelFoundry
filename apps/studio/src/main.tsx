@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { studioLogoUrl } from "./studio-assets";
+import { studioLogoMarkUrl } from "./studio-assets";
 import { applyStudioAppearance, readStudioAppearance } from "./studio-appearance";
 import "./studio-theme-tokens.css";
 import "./styles.css";
@@ -36,7 +36,7 @@ applyStudioAppearance(readStudioAppearance());
 const favicon = document.createElement("link");
 favicon.rel = "icon";
 favicon.type = "image/png";
-favicon.href = studioLogoUrl;
+favicon.href = studioLogoMarkUrl;
 document.head.append(favicon);
 
 createRoot(document.getElementById("root")!).render(

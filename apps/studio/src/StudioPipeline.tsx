@@ -5,7 +5,9 @@ import CommunityAdminSettings from "./CommunityAdminSettings";
 import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
 import ChannelProjectsSettings from "./ChannelProjectsSettings";
 import StudioTopbar from "./StudioTopbar";
-import { studioLogoUrl } from "./studio-assets";
+import StudioIcon, { type StudioIconName } from "./StudioIcon";
+import { initialSidebarMode, saveSidebarMode, type StudioSidebarMode } from "./studio-shell";
+import { studioLogoMarkUrl } from "./studio-assets";
 
 const VideoArchive = lazy(() => import("./VideoArchive"));
 const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
@@ -29,6 +31,17 @@ const systemSections = [
 ] as const;
 
 const sections = [...productionSections, ...systemSections] as const;
+
+const navIcons: Record<(typeof sections)[number], StudioIconName> = {
+  "Gösterge Paneli": "dashboard",
+  "Video Arşivi": "video",
+  "Altyazı Araştırma": "subtitles",
+  "AI Atölyesi": "sparkles",
+  "Kayıt Dosyaları": "records",
+  "Topluluk": "community",
+  "Yayınlama": "publish",
+  "Ayarlar": "settings",
+};
 
 type Section = (typeof sections)[number];
 type NavigableSection = Section | "Muhataplar";
@@ -81,6 +94,7 @@ export default function StudioPipeline() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [sidebarMode, setSidebarMode] = useState<StudioSidebarMode>(() => initialSidebarMode());
 
   const load = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
@@ -142,6 +156,9 @@ export default function StudioPipeline() {
       setProjectBusy(false);
     }
   };
+  const toggleSidebar = () => {
+    setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
+  };
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
     const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni muhatap", event: "Yeni olay", file: "Yeni dosya" };
@@ -155,18 +172,26 @@ export default function StudioPipeline() {
     } catch (reason) { setError(errorText(reason)); }
   };
 
-  if (!ready) return <div className="pipeline-loading"><span>Channel Foundry Studio</span><strong>Yerel üretim alanı hazırlanıyor…</strong></div>;
-  return <div className="studio-shell pipeline-shell">
-    <aside className="studio-sidebar pipeline-sidebar">
-      <Brand/>
-      <div className="nav-caption">ÜRETİM</div>
-      <nav className="studio-nav">{productionSections.map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => activateSection(section)}><span>{section}</span></button>)}</nav>
-      <div className="nav-caption system-caption">SİSTEM</div>
-      <nav className="studio-nav">{systemSections.filter((section) => section !== "Ayarlar").map((section) => <button key={section} className={active === section ? "active" : ""} onClick={() => setActive(section)}><span>{section}</span></button>)}</nav>
-      <nav className="studio-nav studio-settings-nav" aria-label="Uygulama ayarları"><button className={active === "Ayarlar" ? "active" : ""} onClick={() => setActive("Ayarlar")}>Ayarlar</button></nav>
+  if (!ready) return <div className="pipeline-loading"><span>Yayın Atölyesi</span><strong>Yerel üretim alanı hazırlanıyor…</strong></div>;
+  return <div className={`studio-shell pipeline-shell studio-sidebar-${sidebarMode}`}>
+    <aside className="studio-sidebar pipeline-sidebar" id="studio-primary-sidebar" aria-label="Ana menü">
+      <Brand collapsed={sidebarMode === "collapsed"}/>
+      <div className="studio-sidebar-scroll">
+        <div className="nav-caption">ÜRETİM</div>
+        <nav className="studio-nav" aria-label="Üretim">
+          {productionSections.map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
+        </nav>
+        <div className="nav-caption system-caption">SİSTEM</div>
+        <nav className="studio-nav" aria-label="Sistem">
+          {systemSections.filter((section) => section !== "Ayarlar").map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => setActive(section)}/>)}
+        </nav>
+      </div>
+      <nav className="studio-nav studio-settings-nav" aria-label="Uygulama ayarları">
+        <SidebarNavItem section="Ayarlar" icon={navIcons.Ayarlar} active={active === "Ayarlar"} collapsed={sidebarMode === "collapsed"} onSelect={() => setActive("Ayarlar")}/>
+      </nav>
     </aside>
     <main className="studio-main pipeline-main">
-      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)}/>
+      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)} sidebarCollapsed={sidebarMode === "collapsed"} onToggleSidebar={toggleSidebar}/>
       <section className="studio-content pipeline-content" aria-label="Çalışma alanı" data-workspace-section={active}>
         {error && active !== "AI Atölyesi" && <div className="storage-warning studio-workspace-error" role="alert">Studio uyarısı: {error}</div>}
         <Suspense fallback={<SectionLoading section={active}/> }>
@@ -185,11 +210,37 @@ export default function StudioPipeline() {
   </div>;
 }
 
-function Brand() {
-  return <div className="studio-brand">
-    <div className="studio-brand-logo-frame">
-      <img className="studio-brand-logo" src={studioLogoUrl} alt="Channel Foundry Studio"/>
-    </div>
+type SidebarNavItemProps = {
+  section: Section;
+  icon: StudioIconName;
+  active: boolean;
+  collapsed: boolean;
+  onSelect: () => void;
+};
+
+function SidebarNavItem({ section, icon, active, collapsed, onSelect }: SidebarNavItemProps) {
+  return <button
+    type="button"
+    className={active ? "active" : ""}
+    data-section={section}
+    data-tooltip={section}
+    title={collapsed ? section : undefined}
+    aria-label={collapsed ? section : undefined}
+    aria-current={active ? "page" : undefined}
+    onClick={onSelect}
+  >
+    <StudioIcon name={icon} className="studio-nav-icon"/>
+    <span className="studio-nav-label">{section}</span>
+  </button>;
+}
+
+function Brand({ collapsed }: { collapsed: boolean }) {
+  return <div className={`studio-brand${collapsed ? " is-collapsed" : ""}`} role="img" aria-label="Yayın Atölyesi">
+    <img className="studio-brand-mark" src={studioLogoMarkUrl} alt="" aria-hidden="true"/>
+    <span className="studio-brand-copy" aria-hidden="true">
+      <strong className="studio-brand-name">Yayın Atölyesi</strong>
+      <small className="studio-brand-subtitle">STÜDYO</small>
+    </span>
   </div>;
 }
 

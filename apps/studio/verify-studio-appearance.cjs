@@ -50,7 +50,8 @@ assert.match(topbar, /onPointer|pointerdown/, "Açılır paneller dışarı tık
 assert.match(topbar, /Escape/, "Açılır paneller Escape ile kapanmalı");
 assert.match(pipeline, /<StudioTopbar/, "Topbar ortak Studio kabuğunda bulunmalı");
 assert.doesNotMatch(pipeline, /<AppearanceSettings\/>|<YtDlpSettings\/>|<WebConnectionSettings\/>/, "Büyük ayar panelleri ayrı sayfada tekrarlanmamalı");
-assert.match(topbarStyles, /position:sticky/, "Topbar bütün sayfalarda sabit kalmalı");
+assert.match(topbarStyles, /\.studio-topbar-global\{[\s\S]*?position:relative/, "Topbar bütün sayfalarda kaymadan sabit kalmalı");
+assert.match(read("src/studio-fixed-viewport.css"), /\.studio-topbar-global\{[\s\S]*?flex:0 0 auto/, "Topbar sabit kabuk içinde içerikten ayrı kalmalı");
 
 assert.doesNotMatch(topbar, /Kanal ve yayın ayarları/, "Topbarda tekrar eden ayarlar düğmesi bulunmamalı");
 assert.doesNotMatch(pipeline, /SQLite çalışma alanı|local-badge/, "SQLite göstergesi kaldırılmış olmalı");

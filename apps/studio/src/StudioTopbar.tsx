@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import AppearanceSettings from "./AppearanceSettings";
+import StudioIcon from "./StudioIcon";
 import YtDlpSettings from "./YtDlpSettings";
 
 type Panel = "appearance" | "download" | null;
@@ -10,14 +11,9 @@ type Props = {
   busy: boolean;
   activeChannel: StudioYoutubeChannel | null;
   onProjectChange: (id: string) => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 };
-
-function Icon({ name }: { name: "appearance" | "download" }) {
-  const common = { width: 19, height: 19, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  if (name === "appearance") return <svg {...common} aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18c2 0 3-2 2-3.5-.7-1.3.4-2.5 2-2.5h2a3 3 0 0 0 3-3"/><circle cx="8" cy="9" r=".8" fill="currentColor"/><circle cx="13" cy="7" r=".8" fill="currentColor"/><circle cx="7" cy="14" r=".8" fill="currentColor"/></svg>;
-  if (name === "download") return <svg {...common} aria-hidden="true"><path d="M12 3v11m-4-4 4 4 4-4"/><path d="M4 16v4h16v-4"/><path d="M4 6h4m8 0h4"/></svg>;
-  return null;
-}
 
 function sameSource(project: StudioChannelProject | undefined, channel: StudioYoutubeChannel | null) {
   if (!project?.youtubeChannelUrl || !channel) return false;
@@ -26,7 +22,7 @@ function sameSource(project: StudioChannelProject | undefined, channel: StudioYo
     && (project.youtubePlaylistUrl || "") === (channel.playlistUrl || "");
 }
 
-export default function StudioTopbar({ section, projects, activeProjectId, busy, activeChannel, onProjectChange }: Props) {
+export default function StudioTopbar({ section, projects, activeProjectId, busy, activeChannel, onProjectChange, sidebarCollapsed, onToggleSidebar }: Props) {
   const [open, setOpen] = useState<Panel>(null);
   const anchor = useRef<HTMLDivElement>(null);
   const activeProject = projects.find((project) => project.id === activeProjectId);
@@ -57,6 +53,15 @@ export default function StudioTopbar({ section, projects, activeProjectId, busy,
     : toolStatus?.updateAvailable ? "warning" : toolStatus?.available ? "ready" : "";
 
   return <header className="studio-topbar-global">
+    <button
+      className={`studio-sidebar-toggle${sidebarCollapsed ? " collapsed" : ""}`}
+      type="button"
+      aria-label={sidebarCollapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+      aria-expanded={!sidebarCollapsed}
+      aria-controls="studio-primary-sidebar"
+      title={sidebarCollapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+      onClick={onToggleSidebar}
+    ><StudioIcon name="panel-left"/></button>
     <div className="studio-topbar-title">
       <strong>{section}</strong>
     </div>
@@ -72,11 +77,11 @@ export default function StudioTopbar({ section, projects, activeProjectId, busy,
         <span>{linked ? (activeProject?.youtubePlaylistUrl ? "Playlist bağlı" : "Kanal bağlı") : "Katalog bekliyor"}</span>
       </div>
       <div className="studio-toolbar-anchor">
-        <button className={`studio-toolbar-button ${open === "download" ? "selected" : ""}`} type="button" aria-label="yt-dlp yönetimi" aria-expanded={open === "download"} title="yt-dlp yönetimi" onClick={() => setOpen(open === "download" ? null : "download")}><Icon name="download"/><i className={`studio-toolbar-indicator ${toolTone}`}/></button>
+        <button className={`studio-toolbar-button ${open === "download" ? "selected" : ""}`} type="button" aria-label="yt-dlp yönetimi" aria-expanded={open === "download"} title="yt-dlp yönetimi" onClick={() => setOpen(open === "download" ? null : "download")}><StudioIcon name="download"/><i className={`studio-toolbar-indicator ${toolTone}`}/></button>
         {open === "download" && <div className="studio-toolbar-popover studio-toolbar-download" role="dialog" aria-label="yt-dlp yönetimi"><YtDlpSettings/></div>}
       </div>
       <div className="studio-toolbar-anchor">
-        <button className={`studio-toolbar-button ${open === "appearance" ? "selected" : ""}`} type="button" aria-label="Studio görünümü" aria-expanded={open === "appearance"} title="Studio görünümü" onClick={() => setOpen(open === "appearance" ? null : "appearance")}><Icon name="appearance"/></button>
+        <button className={`studio-toolbar-button ${open === "appearance" ? "selected" : ""}`} type="button" aria-label="Studio görünümü" aria-expanded={open === "appearance"} title="Studio görünümü" onClick={() => setOpen(open === "appearance" ? null : "appearance")}><StudioIcon name="appearance"/></button>
         {open === "appearance" && <div className="studio-toolbar-popover studio-toolbar-appearance" role="dialog" aria-label="Studio görünümü"><AppearanceSettings/></div>}
       </div>
     </div>

@@ -53,6 +53,8 @@
   --selection-bg:rgba(196,165,96,.36);
   --shadow-panel:0 10px 30px rgba(0,0,0,.18);
   --shadow-overlay:0 28px 90px rgba(0,0,0,.68);
+  --shadow-workspace:inset 0 1px 0 rgba(255,255,255,.035),0 18px 46px -34px rgba(0,0,0,.62);
+  --studio-brand-shadow:drop-shadow(0 4px 14px rgba(0,0,0,.36));
 
   /* Shared Kayıt Dosyaları geometry keeps every tab on the same grid. */
   --layout-records-stack-gap:14px;
@@ -118,6 +120,8 @@ html[data-studio-theme="light"]{
   --selection-bg:rgba(154,116,64,.24);
   --shadow-panel:0 8px 24px rgba(61,43,24,.055);
   --shadow-overlay:0 26px 72px rgba(74,54,32,.24);
+  --shadow-workspace:inset 0 1px 0 rgba(255,255,255,.72),0 16px 38px -32px rgba(61,43,24,.24);
+  --studio-brand-shadow:drop-shadow(0 3px 9px rgba(61,43,24,.16));
 }
 
 /* Shared palette variants and high-contrast overrides for Studio appearance. */

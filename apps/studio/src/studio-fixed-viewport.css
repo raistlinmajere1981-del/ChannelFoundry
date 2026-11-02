@@ -14,13 +14,75 @@ html,body,#root{
   overflow:hidden;
   align-items:stretch;
   grid-template-rows:minmax(0,1fr);
+  grid-template-columns:var(--studio-sidebar-width) minmax(0,1fr);
+  transition:grid-template-columns 160ms ease;
 }
+.studio-shell.pipeline-shell.studio-sidebar-expanded{--studio-sidebar-width:var(--studio-sidebar-expanded)}
+.studio-shell.pipeline-shell.studio-sidebar-collapsed{--studio-sidebar-width:var(--studio-sidebar-collapsed)}
 .pipeline-sidebar{
   position:relative;
   top:auto;
+  z-index:2;
+  width:100%;
   height:100%;
   min-height:0;
-  overflow:hidden;
+  overflow:visible;
+}
+.studio-sidebar-expanded .pipeline-sidebar{padding:18px 14px 14px}
+.studio-sidebar-collapsed .pipeline-sidebar{padding:18px 9px 14px}
+.studio-sidebar-scroll{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  min-height:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.studio-sidebar-collapsed .studio-sidebar-scroll{overflow:visible}
+.studio-sidebar-collapsed .studio-brand{min-height:0;padding:2px 0 12px}
+.studio-sidebar-collapsed .studio-brand-copy{display:none}
+.studio-sidebar-collapsed .studio-brand-mark{width:32px;height:32px}
+.studio-sidebar-collapsed .nav-caption{display:none}
+.studio-sidebar-collapsed .studio-nav{gap:5px}
+.studio-sidebar-collapsed .studio-nav button{
+  position:relative;
+  justify-content:center;
+  min-height:42px;
+  padding:10px 0;
+  gap:0;
+}
+.studio-sidebar-collapsed .studio-nav-label{display:none}
+.studio-sidebar-collapsed .studio-nav-icon{width:20px;height:20px}
+.studio-sidebar-collapsed .studio-settings-nav{margin-top:auto;padding-top:0;border-top:0}
+.studio-sidebar-collapsed .studio-nav button::after{
+  content:attr(data-tooltip);
+  position:absolute;
+  left:calc(100% + 12px);
+  top:50%;
+  z-index:90;
+  padding:6px 9px;
+  border:1px solid var(--border-control);
+  border-radius:6px;
+  background:var(--surface-overlay);
+  color:var(--text-primary);
+  box-shadow:var(--shadow-overlay);
+  font-size:11px;
+  font-weight:500;
+  line-height:1.2;
+  white-space:nowrap;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transform:translate(3px,-50%);
+  transition:opacity 120ms ease,transform 120ms ease,visibility 120ms;
+}
+.studio-sidebar-collapsed .studio-nav button:hover::after,
+.studio-sidebar-collapsed .studio-nav button:focus-visible::after{
+  opacity:1;
+  visibility:visible;
+  transform:translate(0,-50%);
 }
 .studio-main.pipeline-main{
   display:flex;
@@ -28,31 +90,30 @@ html,body,#root{
   height:100%;
   min-height:0;
   overflow:hidden;
-  padding:0 18px 16px!important;
+  padding:var(--studio-shell-gap)!important;
 }
 .studio-topbar-global{
   flex:0 0 auto;
   position:relative;
   top:auto;
-  margin:0 -18px 12px;
-  padding-inline:18px;
+  margin:0 0 var(--studio-shell-gap);
   z-index:50;
 }
 .studio-content.pipeline-content{
   display:flex;
   flex:1 1 auto;
   flex-direction:column;
-  width:min(100%,var(--studio-workspace-width));
+  width:100%;
   min-width:0;
   min-height:0;
   max-height:100%;
-  margin-inline:auto;
+  margin-inline:0;
   overflow:hidden;
-  padding:12px;
+  padding:var(--studio-workspace-inset);
   border:1px solid var(--border-soft);
   border-radius:8px;
   background:var(--surface-panel);
-  box-shadow:var(--shadow-panel);
+  box-shadow:var(--shadow-workspace);
 }
 .pipeline-content>.studio-workspace-error{
   flex:0 0 auto;
@@ -391,12 +452,13 @@ html,body,#root{
   overscroll-behavior:contain;
 }
 @media(max-width:1280px){
-  .studio-content.pipeline-content{padding:10px}
   .pipeline-content>.community-admin-view{grid-template-rows:auto auto minmax(145px,.9fr) minmax(185px,1.1fr)}
 }
 @media(max-height:760px){
-  .studio-main.pipeline-main{padding-bottom:10px!important}
-  .studio-content.pipeline-content{padding:9px}
+  .studio-brand{min-height:48px;padding-bottom:10px}
+  .pipeline-sidebar{padding-top:12px}
+  .pipeline-sidebar .studio-nav button{min-height:36px;padding-block:7px}
+  .system-caption{margin-top:14px}
   .ops-dashboard .ops-flow>button{min-height:65px}
   .ai-production-workbench .ai-stage-rail>button{min-height:52px}
   .video-archive-page .catalog-metrics{gap:6px}
