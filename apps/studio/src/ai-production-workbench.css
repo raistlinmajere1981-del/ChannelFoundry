@@ -194,7 +194,7 @@
 
 .ai-source-table-head {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 88px 72px;
+  grid-template-columns: 20px minmax(0, 1fr) 88px 100px;
   align-items: center;
   min-height: 38px;
   gap: 10px;
@@ -236,7 +236,10 @@
 }
 
 .ai-source-rows:not(.grid-view) article {
-  grid-template-columns: 20px minmax(0, 1fr) 88px 72px;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  grid-template-columns: 20px minmax(0, 1fr) 88px 100px;
 }
 
 .ai-source-video-main {
@@ -281,14 +284,19 @@
 }
 
 .ai-analysis-row-action {
-  justify-self: start;
-  min-width: 72px;
-  padding: 6px 8px;
+  box-sizing: border-box;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 5px;
   border: 1px solid #6e5d3c;
   background: transparent;
   color: #cdb37b;
   font-size: 8px;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: break-word;
   cursor: pointer;
 }
 

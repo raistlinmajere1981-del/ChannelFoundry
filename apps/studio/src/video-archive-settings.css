@@ -594,7 +594,7 @@
 .video-archive-page .archive-date-trigger b { color:var(--accent); font-size:15px; font-weight:400; line-height:1; }
 .video-archive-page .archive-date-clear { position:absolute; z-index:1; right:28px; top:9px; width:20px; height:22px; border:0; background:transparent; color:var(--text-muted); font-size:16px; cursor:pointer; }
 .video-archive-page .archive-date-clear:hover { color:var(--accent-strong); }
-.video-archive-page .archive-calendar { position:absolute; z-index:10; top:calc(100% + 6px); left:0; width:250px; padding:10px; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border-soft)); border-radius:6px; background:var(--surface-panel-strong); box-shadow:0 16px 36px rgba(0,0,0,.42); }
+.video-archive-page .archive-calendar { position:absolute; z-index:10; top:calc(100% + 6px); left:0; width:250px; padding:10px; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border-soft)); border-radius:6px; background:var(--surface-panel-strong); box-shadow:var(--shadow-overlay); }
 .video-archive-page .archive-date-field:last-child .archive-calendar { right:0; left:auto; }
 .video-archive-page .archive-calendar header { display:grid; grid-template-columns:28px 1fr 28px; align-items:center; margin-bottom:8px; }
 .video-archive-page .archive-calendar header strong { color:var(--text-primary); font-size:11px; font-weight:600; text-align:center; text-transform:capitalize; }
@@ -605,7 +605,7 @@
 .video-archive-page .archive-calendar-weekdays { margin-bottom:4px; color:var(--text-subtle); font-size:8px; text-align:center; }
 .video-archive-page .archive-calendar-days button { height:28px; border:1px solid transparent; border-radius:3px; background:transparent; color:var(--text-secondary); font-size:10px; cursor:pointer; }
 .video-archive-page .archive-calendar-days button:hover { border-color:var(--border-control); background:var(--accent-soft); color:var(--accent-strong); }
-.video-archive-page .archive-calendar-days button.selected { border-color:var(--accent); background:var(--accent); color:#111319; font-weight:700; }
+.video-archive-page .archive-calendar-days button.selected { border-color:var(--accent); background:var(--accent); color:var(--text-inverse); font-weight:700; }
 .video-archive-page .archive-calendar footer { display:flex; justify-content:space-between; margin-top:9px; padding-top:8px; border-top:1px solid var(--border-soft); }
 .video-archive-page .archive-calendar footer button { padding:2px 4px; color:var(--accent); font-size:9px; }
 .video-archive-page .catalog-selection-toolbar { grid-template-columns:auto minmax(260px,1fr) auto auto auto; gap:10px; padding:8px 16px; }

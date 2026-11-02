@@ -173,18 +173,18 @@ export default function VideoAnalysisWorkbench() {
 
     <div className="ai-workshop-layout">
       <section className="ai-source-list panel">
-        <div className="ai-source-toolbar"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Transkriptli videolarda ara…"/><select value={filter} onChange={(event) => setFilter(event.target.value as AnalysisFilter)}><option value="pending">Çözümleme bekleyen</option><option value="ready">Çözümleme hazır</option><option value="queued">Kuyrukta</option><option value="error">Hata</option><option value="all">Tümü</option></select></div>
+        <div className="ai-source-toolbar"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Transkriptli videolarda ara…"/><select value={filter} onChange={(event) => setFilter(event.target.value as AnalysisFilter)}><option value="pending">Bekleyen</option><option value="ready">Hazır</option><option value="queued">Kuyrukta</option><option value="error">Hata</option><option value="all">Tümü</option></select></div>
         <div className="ai-analysis-selection-toolbar">
           <div className="ai-analysis-selection-actions">
             <button className="text-button" disabled={!selected.size || busy} onClick={() => setSelected(new Set())}>Seçimi temizle</button>
             {selected.size > 0 && <span>{selected.size} video seçili</span>}
           </div>
-          <div className="ai-analysis-display-controls" aria-label="Çözümleme listesi görünümü">
-            <button type="button" className={listView === "list" ? "active" : ""} aria-pressed={listView === "list"} onClick={() => setListView("list")}>Liste</button>
-            <button type="button" className={listView === "grid" ? "active" : ""} aria-pressed={listView === "grid"} onClick={() => setListView("grid")}>Kartlar</button>
+          <div className="ai-analysis-display-controls" role="group" aria-label="Çözümleme listesi görünümü">
+            <button type="button" className={listView === "list" ? "active" : ""} aria-label="Liste görünümü" title="Liste" aria-pressed={listView === "list"} onClick={() => setListView("list")}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M7 5h10M7 10h10M7 15h10"/><path d="M3 5h1M3 10h1M3 15h1"/></svg></button>
+            <button type="button" className={listView === "grid" ? "active" : ""} aria-label="Kart görünümü" title="Kartlar" aria-pressed={listView === "grid"} onClick={() => setListView("grid")}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="6" rx="1"/><rect x="11.5" y="2.5" width="6" height="6" rx="1"/><rect x="2.5" y="11.5" width="6" height="6" rx="1"/><rect x="11.5" y="11.5" width="6" height="6" rx="1"/></svg></button>
           </div>
           <div className="ai-analysis-page-controls">
-            <label><span>Sayfada</span><select aria-label="Sayfada gösterilecek video adedi" value={pageSize} disabled={busy} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25 kayıt</option><option value={50}>50 kayıt</option><option value={100}>100 kayıt</option><option value={200}>200 kayıt</option></select></label>
+            <label><select aria-label="Sayfada gösterilecek video adedi" value={pageSize} disabled={busy} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25 kayıt</option><option value={50}>50 kayıt</option><option value={100}>100 kayıt</option><option value={200}>200 kayıt</option></select></label>
             <div className="ai-analysis-pagination"><button aria-label="Önceki sayfa" disabled={page <= 1 || busy} onClick={() => setPage((value) => Math.max(1, value - 1))}>←</button><span>{page} / {pageCount}</span><button aria-label="Sonraki sayfa" disabled={page >= pageCount || busy} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>→</button></div>
           </div>
           <button className={`primary-button ai-analysis-submit${queueActive ? " stop" : ""}`} disabled={queueActive ? stopping : !selected.size || !config?.configured || busy} onClick={() => queueActive ? void stopAnalysis() : void enqueue(filter === "error")}>{queueActive ? stopping ? "Durduruluyor…" : "Çözümlemeyi durdur" : filter === "error" ? "Seçilenleri tekrar çözümle" : "Seçilenleri çözümle"}</button>

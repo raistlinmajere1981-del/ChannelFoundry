@@ -256,7 +256,7 @@ body{
   background:var(--surface-panel)!important;
   color:var(--text-primary)!important;
 }
-.analysis-curation-list>header,.analysis-curation-detail>header,.analysis-curation-detail>section{border-color:var(--border-soft)!important}
+.analysis-curation-list>header,.analysis-curation-scroll>header,.analysis-curation-scroll>section{border-color:var(--border-soft)!important}
 .analysis-curation-list>div>button{
   border-color:var(--border-soft)!important;
   background:var(--surface-panel)!important;
@@ -270,7 +270,7 @@ body{
 .analysis-curation-decision-summary span b{color:var(--text-primary)!important}
 .analysis-curation-items{border-color:var(--border-soft)!important;background:var(--border-soft)!important}
 .analysis-curation-items article{background:var(--surface-panel-soft)!important}
-.analysis-curation-detail>footer{background:var(--surface-panel-soft)!important;border-color:var(--border-soft)!important}
+.analysis-curation-actions{background:var(--surface-panel-soft)!important;border-color:var(--border-soft)!important}
 
 /* 04 Review mode: segmented control was one of the final hard-coded dark islands. */
 .review-mode-header{border-color:var(--border-soft)!important;background:var(--surface-panel)!important}

@@ -200,7 +200,7 @@ export default function AnalysisCurationWorkbench(){
         <header>
           <input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Çözümlenmiş videolarda ara…"/>
           <select value={filter} onChange={(event)=>setFilter(event.target.value as typeof filter)}>
-            <option value="pending">İnceleme bekleyen</option>
+            <option value="pending">Bekleyen</option>
             <option value="curated">Ayıklananlar</option>
             <option value="excluded">Evren dışı</option>
             <option value="all">Tümü</option>
@@ -223,6 +223,17 @@ export default function AnalysisCurationWorkbench(){
 
       <section className="panel analysis-curation-detail">
         {selected && review ? <>
+          <div className="analysis-curation-actions" role="group" aria-label="Ayıklama işlemleri">
+            {universeLocked ? <>
+              <span>Evren malzemesi kilitli · yalnız destek kayıtları düzenlenebilir.</span>
+              <button className="primary-button" disabled={busy} onClick={()=>void save("curated")}>Destek kayıtlarını kaydet</button>
+            </> : <>
+              <button className="text-button" disabled={busy} onClick={()=>void save("pending")}>Kararları kaydet</button>
+              <button className="secondary-button" disabled={busy} onClick={()=>void save("excluded")}>Videoyu evren dışı bırak</button>
+              <button className="primary-button" disabled={busy} onClick={()=>void save("curated")}>Ayıklamayı tamamla</button>
+            </>}
+          </div>
+          <div className="analysis-curation-scroll">
           <header>
             <div>
               <small>EDİTORYAL AYIKLAMA</small>
@@ -311,16 +322,7 @@ export default function AnalysisCurationWorkbench(){
             </div>
           </section>
 
-          <footer>
-            {universeLocked ? <>
-              <span>Evren malzemesi kilitli · yalnız destek kayıtları düzenlenebilir.</span>
-              <button className="primary-button" disabled={busy} onClick={()=>void save("curated")}>Destek kayıtlarını kaydet</button>
-            </> : <>
-              <button className="text-button" disabled={busy} onClick={()=>void save("pending")}>Kararları kaydet</button>
-              <button className="secondary-button" disabled={busy} onClick={()=>void save("excluded")}>Videoyu evren dışı bırak</button>
-              <button className="primary-button" disabled={busy} onClick={()=>void save("curated")}>Ayıklamayı tamamla</button>
-            </>}
-          </footer>
+          </div>
         </> : <div className="analysis-curation-empty"><h3>İncelemek için çözümlenmiş bir video seç.</h3></div>}
       </section>
     </div>

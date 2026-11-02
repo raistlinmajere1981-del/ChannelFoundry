@@ -8,6 +8,10 @@ const frame=read("studio-fixed-viewport.css");
 const pipeline=read("StudioPipeline.tsx");
 const main=read("main.tsx");
 const research=read("SubtitleResearch.tsx");
+const analysisStyles=read("ai-production-workbench.css");
+const analysisLabels=read("video-analysis-utils.ts");
+const curation=read("AnalysisCurationWorkbench.tsx");
+const curationStyles=read("analysis-curation.css");
 
 assert.match(main,/import "\.\/studio-fixed-viewport\.css";/);
 assert.ok(main.indexOf("studio-fixed-viewport.css") > main.indexOf("studio-workspace-system.css"),"fixed frame should load after shared design layer");
@@ -31,7 +35,19 @@ for(const rule of [
   /\.community-admin-view :where\(\.community-forum-thread-list,\.community-forum-thread-detail\)/,
 ])assert.match(frame,rule);
 assert.ok(!/overflow-y\s*:\s*auto/.test(frame.match(/\.studio-content\.pipeline-content\{[^}]+\}/)[0]),"outer workspace must never own scrolling");
-assert.ok(frame.includes('grid-template-areas:') && frame.includes('"view pagination"') && frame.includes('"selection submit"'));
+assert.ok(frame.includes('grid-template-areas:"selection pagination view submit"'),"AI toolbar actions must fit one row");
+assert.match(frame,/\.ai-stage-content \.ai-analysis-selection-toolbar\{[\s\S]*?overflow-x:auto;/,"AI toolbar must avoid overlaps on compact panes");
+assert.match(frame,/\.ai-stage-content \.ai-source-list>\.ai-source-toolbar,[\s\S]*?flex:0 0 auto;/,"AI list headers must not shrink into each other");
+assert.match(frame,/@container \(max-width:540px\)/,"AI toolbar must adapt to the list pane width");
+assert.match(frame,/\.ai-stage-content \.ai-source-rows\{[^}]*overflow-x:hidden;/,"AI video list must not horizontally scroll");
+assert.match(analysisStyles,/\.ai-source-table-head\s*\{[^}]*grid-template-columns:\s*20px minmax\(0, 1fr\) 88px 100px/,"List header must reserve width for retry action");
+assert.match(analysisStyles,/\.ai-source-rows:not\(\.grid-view\) article\s*\{[^}]*grid-template-columns:\s*20px minmax\(0, 1fr\) 88px 100px/,"List rows must align with header");
+assert.match(analysisStyles,/\.ai-analysis-row-action\s*\{[^}]*white-space:\s*normal;/,"Retry action must wrap instead of widening the row");
+assert.match(analysisLabels,/if \(video\.hasAnalysis\) return "Hazır";/,"Ready label must be concise");
+assert.ok(curation.indexOf('className="analysis-curation-actions"') < curation.indexOf('className="analysis-curation-scroll"'),"Curation controls must precede scroll content");
+assert.match(curationStyles,/\.analysis-curation-actions\{[\s\S]*?flex:0 0 auto;/,"Curation action bar must never shrink into scroll content");
+assert.match(frame,/\.ai-stage-content \.analysis-curation-detail\{[\s\S]*?overflow:hidden;/,"Curation detail must own fixed and scrolling regions");
+assert.match(frame,/\.ai-stage-content \.analysis-curation-scroll\{[\s\S]*?overflow-y:auto;/,"Only the curation detail content should scroll");
 assert.ok(frame.includes('.ops-dashboard .ops-task-list,') && frame.includes('overflow-x:hidden'));
 assert.match(research,/className="subtitle-results-region"/);
 assert.match(research,/className="subtitle-results-empty"/);

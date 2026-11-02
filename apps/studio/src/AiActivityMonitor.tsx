@@ -44,11 +44,6 @@ function number(value: number) {
   return new Intl.NumberFormat("tr-TR").format(Math.max(0, value));
 }
 
-function short(value: string, max = 82) {
-  const text = String(value || "").trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
 function noticeTitle(tone: AiWorkbenchNoticeTone) {
   if (tone === "success") return "İşlem tamamlandı";
   if (tone === "error") return "İşlem tamamlanamadı";
@@ -100,7 +95,7 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
           setSnapshot({
             mode: "visual",
             title: "Görsel üretimi çalışıyor",
-            detail: `${short(activeSession?.subject || "Görsel", 48)} · ${activeSession?.stage || "Görsel hazırlanıyor"}`,
+            detail: `${activeSession?.subject || "Görsel"} · ${activeSession?.stage || "Görsel hazırlanıyor"}`,
             model: activeSessionModel || activeModel(config),
             progress: 35,
             active: true,
@@ -139,7 +134,7 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
           setSnapshot({
             mode: "video",
             title: running ? "Video çözümleme çalışıyor" : "Video çözümleme sırada",
-            detail: running ? `${short(running.title)} · ${stats.waiting} bekliyor` : `${stats.waiting} video bekliyor`,
+            detail: running ? `${running.title} · ${stats.waiting} bekliyor` : `${stats.waiting} video bekliyor`,
             model: activeSessionKind === "analysis" ? activeSessionModel : activeModel(config),
             progress: Math.max(2, Math.min(98, Math.round((completed / total) * 100))),
             active: true,

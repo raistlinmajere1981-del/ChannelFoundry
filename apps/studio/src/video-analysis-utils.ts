@@ -25,6 +25,6 @@ export function analysisStateLabel(video: StudioAiAnalysisVideo) {
   if (video.jobState === "running") return "Analiz ediliyor";
   if (video.jobState === "waiting") return "Bekliyor";
   if (video.jobState === "error") return "Hata";
-  if (video.hasAnalysis) return "Analiz hazır";
+  if (video.hasAnalysis) return "Hazır";
   return "Hazır";
 }

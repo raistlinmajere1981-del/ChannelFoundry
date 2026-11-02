@@ -138,21 +138,46 @@ html[data-studio-motion="reduced"] .studio-shell *::after{
   line-height:var(--studio-reading-line)!important;
 }
 /* AI workbench: status + stages + active editor share a continuous surface. */
-.ai-production-workbench .ai-activity{min-height:60px}
-.ai-production-workbench .ai-activity-main{padding:10px 14px}
+/* Idle status is compact; running progress and longer notices expand naturally. */
+.ai-production-workbench>.ai-activity{min-height:0;overflow:visible;align-items:center}
+.ai-production-workbench .ai-activity-main{padding:8px 14px}
 .ai-production-workbench .ai-activity-copy{gap:3px}
+.ai-production-workbench .ai-activity-copy>span{
+  overflow:visible;
+  white-space:normal;
+  text-overflow:clip;
+  overflow-wrap:anywhere;
+  max-width:100%;
+}
 .ai-production-workbench .ai-activity-summary{min-width:0}
 .ai-production-workbench .ai-stage-rail{grid-template-columns:repeat(6,minmax(0,1fr));background:var(--border-soft)!important}
+/* Six clear steps: distinct idle, hover and selected states. */
 .ai-production-workbench .ai-stage-rail>button{
   min-height:68px;
   padding:9px 10px;
   grid-template-columns:21px minmax(0,1fr);
   gap:5px;
+  border-top:2px solid transparent;
   background:var(--surface-panel-soft)!important;
+  transition:background-color 140ms ease,border-color 140ms ease;
 }
-.ai-production-workbench .ai-stage-rail>button:hover,
-.ai-production-workbench .ai-stage-rail>button.active{background:var(--surface-hover)!important}
-.ai-production-workbench .ai-stage-rail>button.active{box-shadow:inset 0 2px var(--accent)}
+.ai-production-workbench .ai-stage-rail>button:hover:not(.active){
+  background:var(--surface-hover)!important;
+  border-top-color:var(--border-control);
+}
+.ai-production-workbench .ai-stage-rail>button.active{
+  border-top-color:var(--accent);
+  background:var(--surface-selected)!important;
+  box-shadow:inset 0 2px var(--accent),inset 0 -3px var(--accent);
+}
+.ai-production-workbench .ai-stage-rail>button.active strong,
+.ai-production-workbench .ai-stage-rail>button.active>span{color:var(--accent-strong)}
+.ai-production-workbench .ai-stage-rail>button.active strong{font-weight:750}
+.ai-production-workbench .ai-stage-rail>button:focus-visible{
+  z-index:1;
+  outline:2px solid var(--accent);
+  outline-offset:-3px;
+}
 .ai-production-workbench .ai-stage-rail strong{font:600 13px/1.2 var(--font-ui)}
 .ai-production-workbench .ai-stage-rail small{font-size:var(--studio-font-xs)}
 .ai-production-workbench .ai-stage-rail p{margin-top:4px;font-size:var(--studio-font-xs)}
@@ -202,7 +227,7 @@ html[data-studio-motion="reduced"] .studio-shell *::after{
 .subtitle-advanced-filters[open]{padding-bottom:9px}
 .ai-production-workbench .ai-activity-copy strong{font-size:14px}
 .ai-production-workbench .ai-activity-model{width:min(205px,29vw);min-width:150px}
-.ai-production-workbench .ai-activity-progress:not(.active):not(:has(i[style*="100%"])){height:0!important;overflow:hidden}
+.ai-production-workbench .ai-activity-progress:not(.active):not(:has(i[style*="100%"])){height:0!important;margin-top:0;overflow:hidden}
 @media(max-width:850px){
   .studio-appearance-control-grid{grid-template-columns:1fr}
   .studio-appearance-controls fieldset{grid-column:1/-1}
