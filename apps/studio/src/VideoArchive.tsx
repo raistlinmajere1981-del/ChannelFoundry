@@ -39,6 +39,48 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("tr-TR").format(date);
 }
 
+function dateParts(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match) return { year: Number(match[1]), month: Number(match[2]) - 1, day: Number(match[3]) };
+  const today = new Date();
+  return { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() };
+}
+
+function CalendarField({ placeholder, value, onChange, open, onOpenChange }: { placeholder: string; value: string; onChange: (value: string) => void; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [month, setMonth] = useState(() => dateParts(value));
+  const selected = dateParts(value);
+  const firstWeekday = (new Date(month.year, month.month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(month.year, month.month + 1, 0).getDate();
+  const monthLabel = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(new Date(month.year, month.month, 1));
+  const shiftMonth = (amount: number) => setMonth((current) => {
+    const date = new Date(current.year, current.month + amount, 1);
+    return { ...current, year: date.getFullYear(), month: date.getMonth() };
+  });
+  const selectDay = (day: number) => {
+    onChange(`${month.year}-${String(month.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+    onOpenChange(false);
+  };
+  const chooseToday = () => {
+    const today = new Date();
+    setMonth({ year: today.getFullYear(), month: today.getMonth(), day: today.getDate() });
+    onChange(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`);
+    onOpenChange(false);
+  };
+
+  return <div className="archive-date-field">
+    <button type="button" className={`archive-date-trigger${value ? " has-value" : ""}`} aria-label={placeholder} aria-expanded={open} onClick={() => { setMonth(dateParts(value)); onOpenChange(!open); }}>
+      <span>{value ? formatDate(value) : placeholder}</span><b aria-hidden="true">□</b>
+    </button>
+    {value && <button type="button" className="archive-date-clear" aria-label={`${placeholder} temizle`} title="Tarihi temizle" onClick={() => onChange("")}>×</button>}
+    {open && <div className="archive-calendar" role="dialog" aria-label={`${placeholder} seçimi`}>
+      <header><button type="button" aria-label="Önceki ay" onClick={() => shiftMonth(-1)}>‹</button><strong>{monthLabel}</strong><button type="button" aria-label="Sonraki ay" onClick={() => shiftMonth(1)}>›</button></header>
+      <div className="archive-calendar-weekdays">{["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"].map((day) => <span key={day}>{day}</span>)}</div>
+      <div className="archive-calendar-days">{Array.from({ length: firstWeekday + daysInMonth }, (_, index) => index < firstWeekday ? null : index - firstWeekday + 1).map((day, index) => day == null ? <span key={`blank-${index}`}/> : <button type="button" key={day} className={value && selected.year === month.year && selected.month === month.month && selected.day === day ? "selected" : ""} onClick={() => selectDay(day)}>{day}</button>)}</div>
+      <footer><button type="button" onClick={() => onChange("")}>Temizle</button><button type="button" onClick={chooseToday}>Bugün</button></footer>
+    </div>}
+  </div>;
+}
+
 function weekday(value: string) {
   if (!value) return -1;
   const date = new Date(`${value}T12:00:00`);
@@ -109,6 +151,7 @@ export default function VideoArchive() {
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [openDateField, setOpenDateField] = useState<"from" | "to" | null>(null);
   const [weekdays, setWeekdays] = useState<Set<number>>(new Set());
   const [excludeShorts, setExcludeShorts] = useState(true);
   const [excludeLive, setExcludeLive] = useState(true);
@@ -353,9 +396,9 @@ export default function VideoArchive() {
       <div className="channel-sync-controls">
         <div className="channel-sync-options">
           <div className="channel-scan-options" aria-label="Kanal tarama kapsamı">
-            <label><input type="checkbox" checked={excludeShorts} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeShorts(event.target.checked)}/><span>Shorts videolarını tarama</span></label>
-            <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınları tarama</span></label>
-            <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel videoları tarama</span></label>
+            <label><input type="checkbox" checked={excludeShorts} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeShorts(event.target.checked)}/><span>Kısa videolar</span></label>
+            <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınlar</span></label>
+            <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel</span></label>
           </div>
           <div className="channel-media-options" aria-label="Kanal dil ve görsel tercihleri">
             <label><span>Başlık dili</span><select aria-label="Kanal başlık ve metadata dili" value={displayedMediaOptions.metadataLanguage} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
@@ -382,41 +425,40 @@ export default function VideoArchive() {
     </section>
 
     <div className="catalog-metrics">
-      <Metric label="Kanal kataloğu" value={stats.total} note="kaynak havuzu"/>
-      <Metric label="Altyazı mevcut" value={availableSubtitleCount} note="YouTube kaynağında"/>
-      <Metric label="Arşivde" value={archivedTranscriptCount} note="yerel transkript"/>
-      <Metric label="Arşivlenmemiş" value={unarchivedTranscriptCount} note="kanal kataloğunda"/>
+      <Metric label="Katalog" value={stats.total} note="kaynak video"/>
+      <Metric label="Altyazı mevcut" value={availableSubtitleCount} note="YouTube"/>
+      <Metric label="Arşivde" value={archivedTranscriptCount} note="yerel"/>
+      <Metric label="Arşivlenmemiş" value={unarchivedTranscriptCount} note="bekliyor"/>
     </div>
 
     <section className={`catalog-workspace panel${filtersVisible ? "" : " filters-hidden"}`}>
       {filtersVisible && <aside className="catalog-filters">
         <div className="filter-title"><small>FİLTRELER</small><strong>{filtered.length} sonuç</strong></div>
+        <div className="date-filter"><span>Tarih aralığı</span><CalendarField placeholder="Başlangıç tarihi" value={dateFrom} onChange={setDateFrom} open={openDateField === "from"} onOpenChange={(open) => setOpenDateField(open ? "from" : null)}/><CalendarField placeholder="Bitiş tarihi" value={dateTo} onChange={setDateTo} open={openDateField === "to"} onOpenChange={(open) => setOpenDateField(open ? "to" : null)}/></div>
         <label><span>Başlıkta ara</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Video ara…"/></label>
         <label><span>Süre</span><select value={duration} onChange={(event) => setDuration(event.target.value as DurationFilter)}><option value="all">Tüm süreler</option><option value="0-10">0–10 dk</option><option value="10-30">10–30 dk</option><option value="30-60">30–60 dk</option><option value="60+">60+ dk</option></select></label>
         <label><span>Arşiv durumu</span><select value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as ArchiveFilter)}><option value="all">Tümü</option><option value="missing">Arşivlenmemiş</option><option value="ready">Arşivde</option></select></label>
-        <div className="date-filter"><span>Tarih aralığı</span><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}/><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}/></div>
         <div className="weekday-filter"><span>Haftanın günü</span><div>{dayLabels.map((label, day) => <button key={day} className={weekdays.has(day) ? "active" : ""} onClick={() => toggleWeekday(day)}>{label}</button>)}</div></div>
         <button className="text-button clear-filters" onClick={() => { setQuery(""); setDuration("all"); setArchiveFilter("all"); setDateFrom(""); setDateTo(""); setWeekdays(new Set()); }}>Filtreleri temizle</button>
       </aside>}
 
       <div className="catalog-table-wrap">
         <div className="catalog-selection-toolbar">
+          <button type="button" className={`catalog-filter-toggle${filtersVisible ? " active" : ""}`} aria-label={filtersVisible ? "Filtreyi gizle" : "Filtreyi göster"} title={filtersVisible ? "Filtreyi gizle" : "Filtreyi göster"} aria-pressed={filtersVisible} onClick={() => setFiltersVisible((current) => !current)}><svg className="filter-icon" aria-hidden="true" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12M5 2.5v3M11 6.5v3M7 10.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
           <div className="catalog-selection-actions">
             <button className="secondary-button" disabled={Boolean(busy) || !filteredSelectable.length} onClick={selectAllResults}>Arşivlenmemişleri seç <small>{filteredSelectable.length}</small></button>
             <button className="text-button" disabled={Boolean(busy) || !selected.size} onClick={() => setSelected(new Set())}>Seçimi temizle</button>
-            <span>{selected.size ? `${selected.size} video seçili` : "Seçim yapılmadı"}</span>
           </div>
           <div className="catalog-page-controls">
-            <label><span>Sayfada</span><select aria-label="Sayfada gösterilecek kayıt adedi" value={pageSize} disabled={Boolean(busy)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25 kayıt</option><option value={50}>50 kayıt</option><option value={100}>100 kayıt</option><option value={200}>200 kayıt</option></select></label>
+            <label><select aria-label="Sayfada gösterilecek kayıt adedi" value={pageSize} disabled={Boolean(busy)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25 kayıt</option><option value={50}>50 kayıt</option><option value={100}>100 kayıt</option><option value={200}>200 kayıt</option></select></label>
             {pageCount > 1 && <div className="catalog-pagination catalog-pagination-toolbar"><button aria-label="Önceki sayfa" disabled={page <= 1 || Boolean(busy)} onClick={() => setPage((value) => Math.max(1, value - 1))}>←</button><span>{page} / {pageCount}</span><button aria-label="Sonraki sayfa" disabled={page >= pageCount || Boolean(busy)} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>→</button></div>}
           </div>
+          <div className="catalog-display-controls" aria-label="Katalog görünümü">
+            <button type="button" aria-label="Liste görünümü" title="Liste" className={catalogView === "list" ? "active" : ""} aria-pressed={catalogView === "list"} onClick={() => setCatalogView("list")}>☷</button>
+            <button type="button" aria-label="Kart görünümü" title="Kartlar" className={catalogView === "grid" ? "active" : ""} aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")}>▦</button>
+          </div>
           <div className="catalog-toolbar-right">
-            <div className="catalog-display-controls" aria-label="Katalog görünümü">
-              <button type="button" className={filtersVisible ? "active" : ""} aria-pressed={filtersVisible} onClick={() => setFiltersVisible((current) => !current)}>{filtersVisible ? "Filtreyi gizle" : "Filtreyi göster"}</button>
-              <button type="button" className={catalogView === "list" ? "active" : ""} aria-pressed={catalogView === "list"} onClick={() => setCatalogView("list")}>Liste</button>
-              <button type="button" className={catalogView === "grid" ? "active" : ""} aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")}>Kartlar</button>
-            </div>
-            <button className="primary-button" disabled={Boolean(busy) || !selected.size || !tool?.available} onClick={() => void archiveSelected()}>{busy === "archive-bulk" ? "Arşivleniyor…" : "Seçilen altyazıları arşivle"}</button>
+            <button className="primary-button" disabled={Boolean(busy) || !selected.size || !tool?.available} onClick={() => void archiveSelected()}>{busy === "archive-bulk" ? "Arşivleniyor…" : "Seçilenleri Arşivle"}</button>
           </div>
         </div>
         {catalogView === "list"
