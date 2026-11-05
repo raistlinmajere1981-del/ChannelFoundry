@@ -5,8 +5,9 @@ Kanalın AI, araştırma ve YouTube üretim motoru `ChannelFoundry` reposundadı
 - Kanal bağlantısı ve repo: `channel.json`
 - Site kaynakları: `web/` (ayrı Git reposu; ana repo yalnızca submodule commit işaretçisini tutar)
 - Studio'nun yerel verileri: `.local-data/` (Git dışında)
-- Tasarım durumu: offline, canlı yayın kilitli.
-- Yeni alan adı: `https://birdesengorgizlievren.com` (Natro, henüz deploy yok).
+- Site durumu (2026-11-04): V2 önizlemesi Natro üzerinde canlı, geçici PHP şifre kapısı etkin; nihai sanat/gerçek cihaz kabulü devam ediyor.
+- Site: `https://birdesengorgizlievren.com` (V1 Babylon kaynakları ve eski yayın test dosyaları sunucudan kaldırıldı).
+- Yerel Natro dağıtım komutu: `birdesengor-natro deploy` (normal yayınları korur). Site detayları: `web/README.md`.
 
 Ana dizinden komutlar:
 
