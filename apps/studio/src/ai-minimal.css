@@ -22,3 +22,5 @@
 .ai-minimal-check-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 
 .ai-endpoint-row{display:flex;gap:8px;align-items:center;min-width:0}.ai-endpoint-row input{flex:1}.ai-endpoint-row button{flex:0 0 auto;min-height:38px;padding:8px 11px;font-size:11px;border-radius:6px}
+
+.ai-minimal-note{margin:0;padding:2px 0;color:var(--text-muted);font-size:11px;line-height:1.5}

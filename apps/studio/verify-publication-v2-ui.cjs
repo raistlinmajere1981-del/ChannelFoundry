@@ -16,7 +16,8 @@ const studioApi = read("apps/web/public/api/studio/index.php");
 const assetApi = read("apps/web/public/api/studio/asset.php");
 const publicationApi = read("apps/web/public/api/studio/publication.php");
 const publicationBuilder = read("apps/studio/publication-v2.cjs");
-const communityProvider = read("apps/web/src/community/http-provider.js");
+const communityApp = read("apps/web/src/App.jsx");
+const communityModel = read("apps/web/src/community/communityModel.js");
 const deployWeb = read("apps/web/scripts/deploy-natro.mjs");
 
 assert.match(center, /KİTAP WEB · PUBLICATION V2/, "Yayınlama merkezi tek hedefi Kitap Web publication v2 olarak göstermeli");
@@ -57,9 +58,13 @@ assert.match(publicationApi, /physical_layout_forbidden/, "Sunucu fiziksel page/
 assert.match(publicationBuilder, /publicationSupport\(db\)/, "Publication v2 onaylı sponsor ve katkı kayıtlarını DB'den üretmeli");
 assert.match(publicationApi, /publication_validate_support/, "Sunucu publication support sözleşmesini doğrulamalı");
 assert.match(publicationApi, /community-credits\.json/, "Sunucu eski web sürümleri için community credits dosyasını publication ile üretmeli");
-assert.match(communityProvider, /publication\?\.support/, "Web sponsorları öncelikle yetkili publication paketinden okumalı");
+assert.match(communityApp, /buildCommunityBookModel\(\{\s*\.\.\.community,\s*support:\s*publication\.support\s*\}\)/, "Web sponsorları yetkili publication paketinden topluluk kitabına geçirmeli");
+assert.match(communityModel, /const support = state\.support/, "Topluluk kitabı sponsorları yayın modelinden almalı");
 assert.match(deployWeb, /mirror -R/, "Web aktarımı ayrı web reposunun dist çıktısını kullanmalı");
-assert.doesNotMatch(deployWeb, /--delete/, "Web aktarımı sunucu yayın ve topluluk dosyalarını silmemeli");
+assert.match(deployWeb, /--exclude-glob content --exclude-glob content\/\*/, "Ana statik dağıtım Studio yayın içeriğini dışlamalı");
+assert.match(deployWeb, /if \(pruneManaged\) \{[\s\S]*?quote\(path\.join\(dist, "scene-assets"\)\) \+ " scene-assets"/, "Temiz silme yalnız yönetilen sahne varlıklarına uygulanmalı");
+assert.match(deployWeb, /if \(resetContent\) \{[\s\S]*?" content"/, "Studio yayın içeriği yalnız açık reset seçeneğiyle temizlenebilmeli");
+assert.doesNotMatch(deployWeb, /--delete[^\n]*quote\(dist\) \+ " \."/, "Web dağıtımı public_html kökünü silen --delete kullanmamalı");
 
 for (const legacy of [
   "apps/studio/publication-preview.cjs",

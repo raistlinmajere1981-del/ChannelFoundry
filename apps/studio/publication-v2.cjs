@@ -7,6 +7,7 @@ const visualCompletion = require("./visual-completion-store.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const aiAnalysis = require("./ai-analysis-public.cjs");
 const supportPublic = require("./support-public.cjs");
+const vefkPublication = require("./vefk-publication.cjs");
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
@@ -244,6 +245,7 @@ function buildPublicationV2(db, options = {}) {
   const assets = [...assetMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId));
   const youtubeAnalysis = { videos: aiAnalysis.publicVideoSummaries(db) };
   const support = supportPublic.publicationSupport(db);
+  const vefkCatalog = vefkPublication.buildCatalog(db);
   const logical = {
     schemaVersion: 2,
     journal: journalResult.journal,
@@ -251,6 +253,7 @@ function buildPublicationV2(db, options = {}) {
     assets,
     youtubeAnalysis,
     support,
+    ...(vefkCatalog.entries.length ? { vefkCatalog } : {}),
   };
   const contentFingerprint = fingerprint(logical);
   const generatedAt = clean(options.generatedAt, 80) || new Date().toISOString();
@@ -266,11 +269,13 @@ function buildPublicationV2(db, options = {}) {
     assets: logical.assets,
     youtubeAnalysis: logical.youtubeAnalysis,
     support: logical.support,
+    ...(vefkCatalog.entries.length ? { vefkCatalog } : {}),
   };
   return {
     snapshot,
     assetSources: [...assetSourceMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId)),
     readiness: journalResult.readiness,
+    vefkCatalog,
   };
 }
 
@@ -286,6 +291,9 @@ function exportPublicationV2(db, userDataPath, options = {}) {
     for (const asset of built.assetSources) fs.copyFileSync(asset.file, path.join(temporaryAssets, asset.filename));
     fs.mkdirSync(contentDirectory, { recursive: true });
     fs.writeFileSync(temporaryFile, `${JSON.stringify(built.snapshot, null, 2)}\n`, "utf8");
+    // Export exactly the same approved, explicitly selected documents for
+    // offline site preview; live transport uses the embedded catalog.
+    vefkPublication.exportCatalog(db, userDataPath, built.vefkCatalog);
     fs.rmSync(assetsDirectory, { recursive: true, force: true });
     fs.renameSync(temporaryAssets, assetsDirectory);
     fs.renameSync(temporaryFile, file);
@@ -304,6 +312,7 @@ function exportPublicationV2(db, userDataPath, options = {}) {
     entityCount: built.snapshot.archive.entities.length,
     relationCount: built.snapshot.archive.relations.length,
     assetCount: built.snapshot.assets.length,
+    vefkCount: built.vefkCatalog.entries.length,
     readiness: built.readiness,
   };
 }

@@ -36,6 +36,7 @@ export type PublicationInfo = {
   entityCount: number;
   relationCount: number;
   assetCount: number;
+  vefkCount: number;
   itemCount?: number;
 };
 
@@ -64,7 +65,7 @@ export type PublicationPreview = {
   publicationId: string;
   contentFingerprint: string;
   changed: boolean;
-  counts: { sections: number; entities: number; relations: number; assets: number };
+  counts: { sections: number; entities: number; relations: number; assets: number; vefks: number };
   readiness: ThemePublicationReadiness;
   baseline: null | {
     source: "live";

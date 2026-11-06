@@ -11,6 +11,10 @@ const universeWorkspace = require("./universe-workspace.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const publicationV2 = require("./publication-v2.cjs");
+const vefkStore = require("./vefk-store.cjs");
+const vefkSources = require("./vefk-sources.cjs");
+const vefkPreparations = require("./vefk-preparations.cjs");
+const vefkPublication = require("./vefk-publication.cjs");
 const {
   openStudioDatabase,
   exportPublicSnapshot,
@@ -35,6 +39,10 @@ function database() {
     universeMerge.ensureSchema(studioDatabase);
     universeWorkspace.ensureSchema(studioDatabase);
     visualProfiles.ensureSchema(studioDatabase, app.getPath("userData"));
+    vefkStore.ensureSchema(studioDatabase);
+    vefkPublication.ensureSchema(studioDatabase);
+    vefkSources.schema(studioDatabase);
+    vefkPreparations.ensureSchema(studioDatabase);
   }
   return studioDatabase;
 }
@@ -73,6 +81,7 @@ function publicationPreview() {
       entities: snapshot.archive.entities.length,
       relations: snapshot.archive.relations.length,
       assets: snapshot.assets.length,
+      vefks: snapshot.vefkCatalog?.entries?.length ?? 0,
     },
     readiness: built.readiness,
     baseline: previous?.schemaVersion === 2 ? {
@@ -273,6 +282,20 @@ function cancelUniverseQueue() {
   return { ...result, running: universeWorkerRunning, ...universeMerge.status(database()) };
 }
 
+async function pickVefkSource() {
+  const options = {
+    title: "Vefk kaynak görselini seç",
+    properties: ["openFile"],
+    filters: [{ name: "Görseller", extensions: ["png", "jpg", "jpeg", "webp"] }],
+  };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths[0]) return { canceled: true };
+  const source = vefkSources.importSource(database(), app.getPath("userData"), result.filePaths[0]);
+  return { canceled: false, source };
+}
+
 async function pickVisualImage(input) {
   const options = {
     title: "Görsel seç",
@@ -385,6 +408,8 @@ module.exports = {
   navigateMainWindow,
   notifyYtDlpChanged,
   pickVisualImage,
+  pickVefkSource,
+  vefkUserDataPath: () => app.getPath("userData"),
   processAnalysisQueue,
   processUniverseQueue,
   publicationPreview,

@@ -4,9 +4,9 @@
   "private": true,
   "main": "main.cjs",
   "scripts": {
-    "dev": "concurrently -k --success first \"vite --strictPort\" \"wait-on http://127.0.0.1:5194/__channel-foundry-studio-identity__ && cross-env CHANNEL_FOUNDRY_DEV_SERVER_URL=http://127.0.0.1:5194 electron .\"",
+    "dev": "concurrently -k --success first \"vite --strictPort --logLevel warn\" \"wait-on http://127.0.0.1:5194/__channel-foundry-studio-identity__ && cross-env CHANNEL_FOUNDRY_DEV_SERVER_URL=http://127.0.0.1:5194 node studio-electron-launch.cjs\"",
     "build": "tsc --noEmit && vite build",
-    "start": "electron .",
+    "start": "node studio-electron-launch.cjs",
     "verify:data-paths": "node verify-studio-data-paths.cjs",
     "verify:web-connection": "node verify-web-connection.cjs",
     "verify:ytdlp": "node verify-ytdlp-manager.cjs",

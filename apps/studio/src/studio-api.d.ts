@@ -40,7 +40,7 @@ type StudioYoutubeCatalogVideo = {
   videoId: string; channelId: string; title: string; publishedAt: string; durationSeconds: number | null; url: string; thumbnailUrl: string; thumbnailFile: string;
   availability: string; liveStatus: string; subtitleStatus: "manual" | "automatic" | "none" | "unknown" | "";
   subtitleLanguages: string[]; automaticCaptionLanguages: string[];
-  contentKey: string | null; editorialStatus: "published" | "draft" | null; hasTranscript: boolean; thumbnailCached: boolean;
+  contentKey: string | null; editorialStatus: "published" | "draft" | null; hasTranscript: boolean; subtitleIgnored: boolean; thumbnailCached: boolean;
 };
 type StudioYoutubeCatalogStats = { total: number; imported: number; transcripts: number; pendingImport: number };
 type StudioYoutubeChannelAddResult = { ok: true; created: boolean; channel: StudioYoutubeChannel };
@@ -87,8 +87,8 @@ type StudioYtDlpStatus = {
 type StudioAiProvider = "ollama" | "openai-compatible" | "codex-cli" | "opencode-cli";
 type StudioAiImageMode = "auto" | "enabled" | "disabled";
 type StudioAiImageProvider = "openai-compatible" | "cloudflare-workers-ai" | "codex-cli";
-type StudioCodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
-type StudioCodexReasoningOption = { reasoningEffort: StudioCodexReasoningEffort; description: string };
+type StudioCodexReasoningEffort = string; // Catalog-driven; providers choose their own names.
+type StudioCodexReasoningOption = { reasoningEffort: StudioCodexReasoningEffort; description: string; mode?: "effort" | "variant" | "thinkingLevel" };
 type StudioAiModelCatalogEntry = {
   id: string;
   text: boolean;
@@ -116,6 +116,7 @@ type StudioAiConfig = {
   endpoint: string;
   model: string;
   reasoningEffort: StudioCodexReasoningEffort | "";
+  reasoningMode: "" | "effort" | "variant" | "thinkingLevel";
   fallbackModel: string;
   configured: boolean;
   apiKeyConfigured: boolean;
@@ -124,6 +125,8 @@ type StudioAiConfig = {
     provider: StudioAiImageProvider;
     endpoint: string;
     model: string;
+    reasoningEffort: StudioCodexReasoningEffort | "";
+    reasoningMode: "" | "effort" | "variant" | "thinkingLevel";
     configured: boolean;
     apiKeyConfigured: boolean;
   };
@@ -409,11 +412,13 @@ interface Window {
     youtubeCatalogCancel(): Promise<{ canceled: boolean }>;
     onYoutubeCatalogProgress(callback: (progress: StudioYoutubeSyncProgress) => void): () => void;
     youtubeCatalogImport(input: { videoId: string }): Promise<StudioYoutubeImportResult>;
+    transcriptIgnoreClear(input: { videoId: string }): Promise<{ cleared: boolean }>;
     transcriptGet(contentKey: string): Promise<StudioTranscript | null>;
     transcriptSave(input: { contentKey: string; source?: "youtube" | "manual"; language?: string; text: string }): Promise<StudioTranscript>;
     transcriptDelete(contentKey: string): Promise<{ deleted: boolean; contentKey: string }>;
     transcriptToolStatus(): Promise<StudioTranscriptToolStatus>;
-    transcriptFetchYoutube(input: { contentKey?: string; videoId?: string }): Promise<StudioTranscript & { ytDlpVersion: string; filename: string; captionType?: string }>;
+    transcriptFetchYoutube(input: { contentKey?: string; videoId?: string; archiveOperationId?: string }): Promise<StudioTranscript & { ytDlpVersion: string; filename: string; captionType?: string }>;
+    transcriptArchiveCancel(input: { archiveOperationId: string }): Promise<{ canceled: boolean }>;
     aiProviders(): Promise<Array<{ id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean }>>;
     aiOpenCodeService(): Promise<string>;
     aiTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; reply: string; config: StudioAiConfig }>;
@@ -423,11 +428,11 @@ interface Window {
     aiRevealKey(kind: "text" | "image"): Promise<string>;
     aiParseGoogleQuickstart(value: string): Promise<StudioGoogleQuickstart>;
     aiSaveConfig(input: {
-      provider: StudioAiProvider; endpoint: string; model: string; reasoningEffort?: StudioCodexReasoningEffort | ""; fallbackModel?: string; apiKey?: string; clearApiKey?: boolean;
-      imageMode?: StudioAiImageMode; imageProvider?: StudioAiImageProvider; imageEndpoint?: string; imageModel?: string; imageApiKey?: string; clearImageApiKey?: boolean;
+      provider: StudioAiProvider; endpoint: string; model: string; reasoningEffort?: StudioCodexReasoningEffort | ""; reasoningMode?: "" | "effort" | "variant" | "thinkingLevel"; fallbackModel?: string; apiKey?: string; clearApiKey?: boolean;
+      imageMode?: StudioAiImageMode; imageProvider?: StudioAiImageProvider; imageEndpoint?: string; imageModel?: string; imageReasoningEffort?: StudioCodexReasoningEffort | ""; imageReasoningMode?: "" | "effort" | "variant" | "thinkingLevel"; imageApiKey?: string; clearImageApiKey?: boolean;
     }): Promise<StudioAiConfig>;
     aiModels(input?: StudioAiModelCatalogRequest): Promise<{ models: StudioAiModelCatalogEntry[]; textModels: string[]; imageModels: string[]; defaultModel?: string; config: StudioAiConfig }>;
-    aiImageModels(input?: StudioAiImageModelCatalogRequest): Promise<{ provider: StudioAiImageProvider; models: Array<{ id: string; label: string }>; imageModels: string[]; defaultModel?: string; config: StudioAiConfig }>;
+    aiImageModels(input?: StudioAiImageModelCatalogRequest): Promise<{ provider: StudioAiImageProvider; models: Array<StudioAiModelCatalogEntry>; imageModels: string[]; defaultModel?: string; config: StudioAiConfig }>;
     aiTest(): Promise<{ ok: true; reply: string; fallback: null | { model: string; reply: string }; config: StudioAiConfig }>;
     aiImageCapability(): Promise<StudioAiImageCapability>;
     aiSuggest(input: { selected: StudioPersistedItem; related: StudioPersistedItem[]; candidates: StudioPersistedItem[]; transcript?: string }): Promise<StudioAiSuggestion>;
@@ -454,6 +459,29 @@ interface Window {
     visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536" }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability } }>;
     visualImageClear(entityKey: string): Promise<{ cleared: boolean; entityKey: string; profile?: StudioVisualProfile }>;
     visualImageShow(entityKey: string): Promise<boolean>;
+    vefkGenerate(input: StudioVefkCreateInput): Promise<StudioVefkDocument>;
+    vefkValidate(document: StudioVefkDocument): Promise<{ ok: true; contentHash: string; pathCount: number; strokeCount: number }>;
+    vefkList(input?: { status?: StudioVefkStatus; query?: string; limit?: number; offset?: number }): Promise<StudioVefkListItem[]>;
+    vefkGet(input: { id: string; revision?: number }): Promise<StudioVefkRecord | null>;
+    vefkRevisions(id: string): Promise<StudioVefkRevision[]>;
+    vefkSaveDraft(input: { document: StudioVefkDocument; expectedContentHash?: string }): Promise<StudioVefkRecord>;
+    vefkReview(input: { id: string; revision: number; status: "draft" | "checked" | "approved"; expectedContentHash: string }): Promise<StudioVefkRecord>;
+    vefkApproved(): Promise<StudioVefkRecord[]>;
+    vefkCatalogList(): Promise<StudioVefkCatalogSelection[]>;
+    vefkCatalogSelect(input: { id: string; revision?: number; contentHash?: string; sortOrder?: number; enabled: boolean }): Promise<{ id: string; revision?: number; selected: boolean; contentHash?: string; sortOrder?: number; selectedAt?: string }>;
+    vefkSourcePick(): Promise<{ canceled: true } | { canceled: false; source: StudioVefkSource }>;
+    vefkSourceList(): Promise<StudioVefkSource[]>;
+    vefkSourceGet(id: string): Promise<StudioVefkSourceImage | null>;
+    vefkSourcePrepare(input: {
+      sourceId: string;
+      expectedRevision: number;
+      config: StudioVefkPreparationConfig;
+      imageDataUrl: string;
+    }): Promise<StudioVefkPreparation>;
+    vefkSourceAnalysis(id: string): Promise<StudioVefkSourceAnalysis | null>;
+    vefkSourceAnalyze(id: string): Promise<StudioVefkSourceAnalysis>;
+    vefkSourceReview(input: { sourceId: string; expectedAnalysisId: number; result: StudioVefkSourceAnalysisResult }): Promise<StudioVefkSourceAnalysis>;
+    vefkVisionSupport(): Promise<StudioVefkVisionSupport>;
     webConnectionConfig(): Promise<StudioWebConnectionConfig>;
     webConnectionTest(input: { url: string }): Promise<StudioWebConnectionTest>;
     webConnectionSave(input: { url: string; youtubeChannelUrl: string }): Promise<StudioWebConnectionConfig>;

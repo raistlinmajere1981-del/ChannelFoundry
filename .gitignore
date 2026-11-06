@@ -20,3 +20,7 @@ apps/studio/local-data/
 
 # Aktif kanal seçimi sadece bu bilgisayara özgüdür.
 /.channel-active.json
+
+# Ham tasarım kaynakları yerelde kalır; optimize web varlıkları submodule içinde sürümlenir.
+/channels4_profile.jpg
+/Mystical Moonlit Occult Workshop.png

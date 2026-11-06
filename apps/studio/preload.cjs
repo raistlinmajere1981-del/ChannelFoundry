@@ -1,5 +1,16 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+async function invokeWithOutcome(channel, ...args) {
+  const result = await ipcRenderer.invoke(channel, ...args);
+  if (result?.status === "failure") {
+    const error = new Error(result.message || "İşlem tamamlanamadı.");
+    if (result.code) error.code = result.code;
+    throw error;
+  }
+  if (result?.status === "success") return result.value;
+  throw new Error("Studio işlem yanıtı geçersiz.");
+}
+
 contextBridge.exposeInMainWorld("channelFoundryStudio", {
   channelProjects: () => ipcRenderer.invoke("studio:channel-projects"),
   channelProjectCreate: (input) => ipcRenderer.invoke("studio:channel-project-create", input),
@@ -54,18 +65,20 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
     return () => ipcRenderer.removeListener("studio:youtube-catalog-progress", listener);
   },
   youtubeCatalogImport: (input) => ipcRenderer.invoke("studio:youtube-catalog-import", input),
+  transcriptIgnoreClear: (input) => ipcRenderer.invoke("studio:transcript-ignore-clear", input),
   transcriptGet: (contentKey) => ipcRenderer.invoke("studio:transcript-get", contentKey),
   transcriptSave: (input) => ipcRenderer.invoke("studio:transcript-save", input),
   transcriptDelete: (contentKey) => ipcRenderer.invoke("studio:transcript-delete", contentKey),
   transcriptToolStatus: () => ipcRenderer.invoke("studio:transcript-tool-status"),
-  transcriptFetchYoutube: (input) => ipcRenderer.invoke("studio:transcript-fetch-youtube", input),
+  transcriptFetchYoutube: (input) => invokeWithOutcome("studio:transcript-fetch-youtube", input),
+  transcriptArchiveCancel: (input) => ipcRenderer.invoke("studio:transcript-archive-cancel", input),
   aiConfig: () => ipcRenderer.invoke("studio:ai-config"),
   aiCliStatus: () => ipcRenderer.invoke("studio:ai-cli-status"),
   aiRevealKey: (kind) => ipcRenderer.invoke("studio:ai-reveal-key", kind),
   aiParseGoogleQuickstart: (value) => ipcRenderer.invoke("studio:ai-parse-google-quickstart", value),
   aiSaveConfig: (input) => ipcRenderer.invoke("studio:ai-save-config", input),
   aiProviders: () => ipcRenderer.invoke("studio:ai-providers"),
-  aiOpenCodeService: () => ipcRenderer.invoke("studio:ai-opencode-service"),
+  aiOpenCodeService: () => invokeWithOutcome("studio:ai-opencode-service"),
   aiTestCandidate: (input) => ipcRenderer.invoke("studio:ai-test-candidate", input),
   aiImageTestCandidate: (input) => ipcRenderer.invoke("studio:ai-image-test-candidate", input),
   aiModels: (input) => ipcRenderer.invoke("studio:ai-models", input),
@@ -127,6 +140,24 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   visualImageGenerate: (input) => ipcRenderer.invoke("studio:visual-image-generate", input),
   visualImageClear: (entityKey) => ipcRenderer.invoke("studio:visual-image-clear", entityKey),
   visualImageShow: (entityKey) => ipcRenderer.invoke("studio:visual-image-show", entityKey),
+  vefkGenerate: (input) => ipcRenderer.invoke("studio:vefk-generate", input),
+  vefkValidate: (document) => ipcRenderer.invoke("studio:vefk-validate", document),
+  vefkList: (input) => ipcRenderer.invoke("studio:vefk-list", input),
+  vefkGet: (input) => ipcRenderer.invoke("studio:vefk-get", input),
+  vefkRevisions: (id) => ipcRenderer.invoke("studio:vefk-revisions", id),
+  vefkSaveDraft: (input) => ipcRenderer.invoke("studio:vefk-save-draft", input),
+  vefkReview: (input) => ipcRenderer.invoke("studio:vefk-review", input),
+  vefkApproved: () => ipcRenderer.invoke("studio:vefk-approved"),
+  vefkCatalogList: () => ipcRenderer.invoke("studio:vefk-catalog-list"),
+  vefkCatalogSelect: (input) => ipcRenderer.invoke("studio:vefk-catalog-select", input),
+  vefkSourcePick: () => ipcRenderer.invoke("studio:vefk-source-pick"),
+  vefkSourceList: () => ipcRenderer.invoke("studio:vefk-source-list"),
+  vefkSourceGet: (id) => ipcRenderer.invoke("studio:vefk-source-get", id),
+  vefkSourcePrepare: (input) => ipcRenderer.invoke("studio:vefk-source-prepare", input),
+  vefkSourceAnalysis: (id) => ipcRenderer.invoke("studio:vefk-source-analysis", id),
+  vefkSourceAnalyze: (id) => ipcRenderer.invoke("studio:vefk-source-analyze", id),
+  vefkSourceReview: (input) => ipcRenderer.invoke("studio:vefk-source-review", input),
+  vefkVisionSupport: () => ipcRenderer.invoke("studio:vefk-vision-support"),
   webConnectionConfig: () => ipcRenderer.invoke("studio:web-connection-config"),
   webConnectionTest: (input) => ipcRenderer.invoke("studio:web-connection-test", input),
   webConnectionSave: (input) => ipcRenderer.invoke("studio:web-connection-save", input),

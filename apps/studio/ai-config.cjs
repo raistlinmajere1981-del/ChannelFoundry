@@ -10,6 +10,9 @@ const DEFAULT_CONFIG = {
   endpoint: "http://127.0.0.1:11434/v1",
   model: "",
   reasoningEffort: "",
+  reasoningMode: "",
+  imageReasoningEffort: "",
+  imageReasoningMode: "",
   fallbackModel: "",
   apiKey: "",
   timeoutSeconds: 420,
@@ -67,6 +70,12 @@ function sanitizeConfig(input, existing = DEFAULT_CONFIG) {
   const cliProvider = isCliProvider(provider);
   const model = String(input?.model ?? existing.model ?? "").trim();
   const reasoningEffort = normalizeReasoningEffort(input?.reasoningEffort ?? existing.reasoningEffort, true);
+  const reasoningMode = require("./ai-reasoning.cjs").validatedMode(input?.reasoningMode ?? existing.reasoningMode);
+  const hasChangedImageProvider = input?.imageProvider && input.imageProvider !== existing.imageProvider;
+  const imageReasoningEffort = normalizeReasoningEffort(input?.imageReasoningEffort ??
+    (hasChangedImageProvider ? "" : existing.imageReasoningEffort), true);
+  const imageReasoningMode = require("./ai-reasoning.cjs").validatedMode(input?.imageReasoningMode ??
+    (hasChangedImageProvider ? "" : existing.imageReasoningMode));
   if (!model && provider !== "codex-cli") throw new Error("AI model adı gerekli.");
   const requestedFallbackModel = String(input?.fallbackModel ?? existing.fallbackModel ?? "").trim();
   const fallbackModel = !cliProvider && requestedFallbackModel && requestedFallbackModel !== model ? requestedFallbackModel : "";
@@ -90,7 +99,7 @@ function sanitizeConfig(input, existing = DEFAULT_CONFIG) {
   if (input?.clearImageApiKey === true) imageApiKey = "";
   if (imageProvider === "codex-cli") imageApiKey = "";
 
-  return { provider, endpoint, model, reasoningEffort, fallbackModel, apiKey, timeoutSeconds, imageMode, imageProvider, imageEndpoint, imageModel, imageApiKey };
+  return { provider, endpoint, model, reasoningEffort, reasoningMode, imageReasoningEffort, imageReasoningMode, fallbackModel, apiKey, timeoutSeconds, imageMode, imageProvider, imageEndpoint, imageModel, imageApiKey };
 }
 
 function readConfig(userDataPath) {
@@ -105,6 +114,9 @@ function readConfig(userDataPath) {
       endpoint: isCliProvider(provider) ? "" : provider === "opencode-cli" ? normalizeEndpoint(raw?.endpoint || "", provider) : String(raw?.endpoint ?? DEFAULT_CONFIG.endpoint),
       model: String(raw?.model ?? ""),
       reasoningEffort: normalizeReasoningEffort(raw?.reasoningEffort),
+      reasoningMode: require("./ai-reasoning.cjs").validatedMode(raw?.reasoningMode),
+      imageReasoningEffort: normalizeReasoningEffort(raw?.imageReasoningEffort),
+      imageReasoningMode: require("./ai-reasoning.cjs").validatedMode(raw?.imageReasoningMode),
       fallbackModel: isCliProvider(provider) || provider === "opencode-cli" ? "" : String(raw?.fallbackModel ?? ""),
       apiKey: isCliProvider(provider) ? "" : String(raw?.apiKey ?? ""),
       timeoutSeconds: normalizeTimeoutSeconds(raw?.timeoutSeconds),
@@ -126,6 +138,7 @@ function publicConfig(config) {
     endpoint: config.endpoint,
     model: config.model,
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
+    reasoningMode: config.reasoningMode || "",
     fallbackModel: config.fallbackModel,
     timeoutSeconds: normalizeTimeoutSeconds(config.timeoutSeconds),
     configured: config.provider === "codex-cli" || Boolean(config.model && config.endpoint),
@@ -135,6 +148,8 @@ function publicConfig(config) {
       provider: config.imageProvider,
       endpoint: config.imageEndpoint,
       model: config.imageModel,
+      reasoningEffort: normalizeReasoningEffort(config.imageReasoningEffort),
+      reasoningMode: config.imageReasoningMode || "",
       configured: config.imageProvider === "codex-cli"
         ? config.imageMode !== "disabled"
         : Boolean(config.imageModel && (config.imageEndpoint || (!cliProvider && config.endpoint))),

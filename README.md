@@ -1,20 +1,21 @@
 # ChannelFoundry
 
-Birden fazla YouTube kanalıyla çalışabilen yerel Studio ve editoryal üretim motoru. Kanal arşivi, altyazı araştırması, AI çözümleme, ayıklama, anlatı, görsel tamamlama ve publication üretimi tek uygulamada yürütülür. Aktif geliştirilen tek kaynak repo burasıdır.
+Birden fazla YouTube kanalıyla çalışabilen yerel Electron Studio ve editoryal üretim motoru. Kanal arşivi, altyazı araştırması, AI çözümleme, ayıklama, anlatı, görsel tamamlama ve yayın paketi üretimi Studio'da yürütülür. BirDeSenGör'ün tek web uygulaması V2 sahnesidir.
 
-## Düzen
+## Kaynak düzeni
 
-- `apps/studio`: Electron + React/Vite Studio
-- `packages/domain`: ortak veri/yayın sözleşmeleri
-- `packages/subtitle-analysis`: altyazı arama çekirdeği
-- `channels/birdesengor/channel.json`: kanal proje bağlantısı
-- `channels/birdesengor/web`: ayrı [birdesengor-web](https://github.com/raistlinmajere1981-del/birdesengor-web) Git deposu (submodule)
-- `apps/web`: tek web kaynağına yerel kısayol (dosya kopyası değil)
-- `channels/birdesengor/.local-data`: Birdesengör Studio yerel verisi (Git dışında)
+- `apps/studio/`: Electron + React/TypeScript/Vite Studio.
+- `packages/`: ortak veri/yayın sözleşmeleri ve altyazı araştırma çekirdeği.
+- `channels/birdesengor/channel.json`: kanal proje bağlantısı.
+- `channels/birdesengor/web/`: tek V2 frontend; React/Vite, Grabfold defterleri ve veri güdümlü fiziksel sahne.
+- `channels/birdesengor/web/public/api/`: aynı web kökünde korunan PHP Studio/Vefk, topluluk ve YouTube backend'i.
+- `channels/birdesengor/web/public/index.php`: PHP önizleme erişim kapısı; `.htaccess` doğrudan derlenmiş HTML erişimini sınırlar.
+- `apps/web`: `../channels/birdesengor/web` hedefine symlink; ikinci kaynak kopyası değildir.
+- `channels/birdesengor/.local-data/studio/`: Git dışındaki özgün yerel Studio verisi ve public export.
 
-Ana repo ve web repo farklı commit ve Git geçmişine sahiptir. Web repo kendi başına `npm ci && npm run dev` ile geliştirilir. Tasarım offline; hiçbir canlı siteye otomatik deploy yok.
+Web, aynı `channels/birdesengor/web` yolundaki ayrı [birdesengor-web](https://github.com/raistlinmajere1981-del/birdesengor-web) Git submodule'ü olarak kalır. Ana repo ile web deposunun Git geçmişi ayrıdır. V1 Babylon/React tasarımı, eski CSS/sahne varlıkları ve eski Natro deploy doğrulama araçları emekliye ayrılmıştır; ikinci web kökü veya V1 fallback yoktur. Bu kaynak düzeni canlı dağıtım yapmaz.
 
-## İlk kurulum
+## Kurulum
 
 ```bash
 git clone --recurse-submodules https://github.com/raistlinmajere1981-del/ChannelFoundry.git
@@ -23,58 +24,36 @@ npm ci
 npm ci --prefix channels/birdesengor/web
 ```
 
-Mevcut çalışma klasöründe web reposunu eşitlemek için: `git submodule update --init`.
+Web'in kanonik efekt motoru `~/YardimciWorkspace/EfektAtolyesi/src` altından okunur. Başka konum için `BIRDESENGOR_CANONICAL_EFFECTS_ROOT` ayarlanır; kaynak yoksa build hata verir. Ayrıntılar: [web README](channels/birdesengor/web/README.md).
 
-## Geliştirme komutları
+## Yerel çalışma ve doğrulama
 
 ```bash
-npm run start:birdesengor       # kanalın yerel Studio verisiyle Electron
-npm run dev:studio:birdesengor  # Studio geliştirme
-npm run dev:birdesengor        # bağımsız web Vite
-npm run build:birdesengor      # bağımsız web derlemesi
-npm run verify:release         # yerel bütünleşik kontroller
+npm run start:birdesengor       # kanalın mevcut yerel verisiyle Electron
+npm run dev:studio:birdesengor  # Studio geliştirme: 127.0.0.1:5194
+npm run dev:web                # tek web kökü: 127.0.0.1:5208
+npm run build:web              # web/dist üretimi
+npm run verify:web             # web Node testleri + build + Chromium E2E
+npm run verify:community-admin # geçici PHP fixture ile ilk admin kontrolü
+npm run verify:channel-projects
+npm run build:studio
+npm run verify:release         # Studio kontrolleri + PHP admin + V2 web verify
 ```
 
-Studio ve Web ayrı Git depolarıdır. Bir web sitesinde yapılan commit önce o web reposuna gönderilir, ana repodaki submodule işaretçisi ayrı bir ChannelFoundry commitinde güncellenir. `npm run verify:release` her ikisini yerelde bütünleşik kontrol eder.
+`dev:birdesengor` ve `build:birdesengor` aynı web kökünü kanal kaydı üzerinden çalıştırır. Web ve Studio yalnız loopback üzerinde sabit port kullanır; dolu porta sessizce alternatif seçmez. Yardımcı Asistan'ın `127.0.0.1:5174` portu başka projeye aittir. Web E2E testleri kendi geçici loopback portunu seçer.
 
-## Temel üretim hattı
+Web geliştirme sunucusu gerçek yerel publication export'unu yalnız `CHANNEL_FOUNDRY_PUBLICATION_FILE` verilirse okur. PHP geliştirme bağlantıları açıkça etkinleştirilen ve yalnız loopback HTTP origin kabul eden proxy'lerdir. API/veri yoksa dürüst boş veya kullanılamıyor durumu gösterilir. Derleme yayın verisi üretmez; PHP endpoint'leri `public/` içinden `dist/` içine kopyalanır. `verify:release` ve web komutları deploy çalıştırmaz.
+
+## Studio üretim akışı
 
 `Çözümleme → Ayıklama → Evrene İşleme → İnceleme → Hikâyeleştir → Görsel Tamamlama → Yayınlama`
 
-Kanal kataloğu çoklu kanal destekler. Kanal özelinde ayrılmış Studio veri kökü kullanılır. Tek Studio oturumunda editoryal kayıtların bütünüyle kanal bazında ayrılması sonraki geliştirme konusudur.
+Üst çubuktan aktif kanal projesi seçilir; yt-dlp yönetimi ve görünüm ayarları küçük panellerde açılır. **Ayarlar → Kanal ve yayın** YouTube kaynağı, arşiv kapsamı ve yayın hedefinin tek kaydıdır. **Kaydet** yerel kaydı günceller. **Kataloğu bağla** kaynağı doğrulayıp boş kataloğu kaydeder; video/altyazı alımı Video Arşivi'ndeki manuel senkronizasyondur. Yerel site paketi hazırlama ile canlı yayın ayrı eylemlerdir; canlı yayın kanalın `deploymentEnabled` ayarına bağlıdır.
 
-## Dokümantasyon
+AI ayarlarında Metin ve Görsel servisleri bağımsızdır. OpenCode metin üretiminde Studio'ya ait geçici oturum kullanır; mevcut TUI oturumları değiştirilmez. Servis parolaları Git dışında yerel ayarlarda tutulur. Görsel üretim sağlayıcıları kendi ayarlarıyla çalışır.
 
-`docs/00-Vizyon.md`, `docs/01-Manifesto.md`, `docs/02-Yol-Haritasi.md`, `docs/05-Veri-Mimarisi.md` ve diğer belgeler.
+## Belgeler
 
-## Paralel geliştirme portları
-
-- Yardımcı Asistan masaüstü geliştirme portu: `127.0.0.1:5174` (başka projeye ait; değiştirilmez)
-- ChannelFoundry Studio: `127.0.0.1:5194`, port sabit ve sunucu kimliği zorunludur.
-- BirDeSenGör web tasarımı: `127.0.0.1:5195`, port sabittir.
-
-Başlatmak için `npm run dev:studio:birdesengor` ve bağımsız web için `npm run dev:birdesengor` kullanılır. Port doluysa işlem başka porta sessizce taşınmaz; hata verir. Studio Electron yalnızca kendi kimlik doğrulama endpointini sunan Vite sunucusunu açar.
-
-Kontrol: `npm run verify:dev-isolation`.
-
-
-## Studio üst çubuk ve kanal yönetimi
-
-Tüm ekranlarda üst çubuktan aktif **kanal projesi** değiştirilebilir.
-Sağdaki simgeler **yt-dlp** yönetimini (kurulum, sürüm, otomatik kontrol) ve
-**Studio görünümünü** (tema, metin boyutu) küçük panellerde açar.
-
-**Ayarlar → Kanal ve yayın** tek kaynak kaydıdır: YouTube kanal adresi,
-tüm kanal veya playlist arşiv kapsamı ve web yayın hedefi burada belirlenir.
-**Kaydet** yalnız yerel proje kaydını değiştirir; video indirmez ve web yayını
-yapmaz. **Kataloğu bağla** seçilen YouTube kaynağını doğrular ve boş katalog
-olarak kaydeder; video/altyazı alımı Video Arşivi'ndeki manuel senkronizasyondur.
-Ayarlar'ın diğer bölümleri AI, Topluluk, Yerel veri şeklinde ayrıdır.
-
-Projenin `deploymentEnabled` bayrağı kapalıyken Studio canlı web yayınını
-engeller; Birdesengör Natro kurulumu için bu durum değiştirilmedi. Temiz
-başlangıç öncesi mevcut indirilen arşiv verilerine dokunulmadı.
-
-## AI servisleri ve OpenCode
-
-Ayarlar > AI servisleri iki bağımsız Metin / Görsel sekmesi kullanır. OpenCode yalnız metin için desteklenir. OpenCode sunucusu yerel uygulama ayarlarından belirlenir; Ortak servis düğmesi aktif opencode service status adresini bulur (bu bilgisayarda 127.0.0.1:49374). Ayrı opencode serve sunucusu (ör. 4096) başka kimlik ve kota durumuna sahip olabilir. Ortak servisin parolası Studio içinde kullanıcı tarafından girilir. HTTP API ile yalnız Studio'ya ait geçici, araç izinleri kapalı bir oturumda metin üretimi yapılır ve bu oturum tamamlandığında silinir. Mevcut OpenCode TUI oturumlarına müdahale edilmez. OpenCode V2 ücretsiz metin modelleri read yeteneği tamamen kapatılan oturumlarda yanlış kota hatası döndürebildiği için geçici boş çalışma alanında read açık, diğer bütün araçlar ve external_directory kapalıdır. Parola yalnız yerel ai-config.json içinde dosya izni 0600 olarak tutulur, GitHub'a gönderilmez. Görsel tarafında Codex CLI, Cloudflare ve OpenAI uyumlu servisler bağımsız çalışır. Testler ayarları kaydetmez ve AI kuyruğunu başlatmaz. Modelin gerçek kotası sunucu tarafından belirlenir.
+- [Vizyon](docs/00-Vizyon.md), [yol haritası](docs/02-Yol-Haritasi.md), [veri mimarisi](docs/05-Veri-Mimarisi.md).
+- [Studio Vefk planı](docs/VEFK_STUDIO_MASTER_PLAN.md) ve [site bağlantı sözleşmesi](docs/contracts/VEFK_SITE_HANDOFF.md).
+- [Web sahne planı](channels/birdesengor/web/docs/SCENE_V2_MASTER_PLAN.md) ve [görsel kabul geçmişi](channels/birdesengor/web/docs/VISUAL_ASSETS_P7.md). Önceki paralel V1/V2 çalışma anlatımları tarihsel kayıttır; güncel kaynak düzeni bu README'dedir.

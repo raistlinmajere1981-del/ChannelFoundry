@@ -65,7 +65,8 @@ const aiClient = require("./ai-client.cjs");
       seen.push({ url: req.url, method: req.method, body: body ? JSON.parse(body) : {} });
       res.writeHead(200, { "content-type": "application/json" });
       if (req.url === "/api/model") {
-        res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash" }] }));
+        res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash",
+          variants: { high: {}, ultra: {} } }] }));
       } else if (req.url === "/api/session" && req.method === "POST") {
         res.end(JSON.stringify({ data: { id: sessionId } }));
       } else if (req.url === "/api/session/" + sessionId + "/prompt") {
@@ -92,8 +93,10 @@ const aiClient = require("./ai-client.cjs");
     await assert.rejects(openCode.listModels({ endpoint, apiKey: "wrong" }), /401/);
     const models = await openCode.listModels({ endpoint, apiKey: "test-local-secret" });
     assert.equal(models.models[0].id, "opencode/deepseek-v4.1-flash-free");
+    assert.deepEqual(models.models[0].supportedReasoningEfforts.map(x=>x.reasoningEffort), ["high","ultra"]);
     const response = await openCode.complete({
       endpoint, apiKey: "test-local-secret", model: models.models[0].id,
+      reasoningEffort: "ultra", reasoningMode: "variant",
     }, [{ role: "user", content: "Reply OK" }]);
     assert.equal(response.content, "OK");
     const created = seen.find((item) => item.url === "/api/session" && item.method === "POST");
@@ -106,6 +109,7 @@ const aiClient = require("./ai-client.cjs");
     assert.match(created.body.location.directory, /channel-foundry-ai-/);
     const sent = seen.find((item) => item.url === "/api/session/" + sessionId + "/prompt");
     assert.match(sent.body.text, /Reply OK/);
+    assert.equal(sent.body.variant, "ultra");
     assert.ok(seen.some((item) => item.url === "/api/session/" + sessionId && item.method === "DELETE"));
     assert.ok(!seen.some((item) => item.url.includes("/api/experimental/generate")));
   } finally { await new Promise((resolve) => server.close(resolve)); }

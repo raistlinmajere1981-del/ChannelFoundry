@@ -42,6 +42,7 @@ function exportInfo(result: LocalExportResult): PublicationInfo {
     entityCount: Number(value.entityCount ?? 0),
     relationCount: Number(value.relationCount ?? 0),
     assetCount: Number(value.assetCount ?? 0),
+    vefkCount: Number(value.vefkCount ?? 0),
   };
 }
 
@@ -96,7 +97,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
 
   const readiness = preview?.readiness;
   const ready = Boolean(readiness?.readyForTheme);
-  const counts = preview?.counts ?? { sections: 0, entities: 0, relations: 0, assets: 0 };
+  const counts = preview?.counts ?? { sections: 0, entities: 0, relations: 0, assets: 0, vefks: 0 };
   const reasons = [
     ...(readiness && readiness.narrativeSections === 0 ? ["05 · Hikâyeleştir aşamasında en az bir anlatı bölümü onaylanmalı."] : []),
     ...(readiness?.narrativeChangesPending ? ["Onaylı Evren değişiklikleri yaşayan anlatıya henüz uygulanmadı; 05 · Hikâyeleştir tamamlanmalı."] : []),
@@ -145,7 +146,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       return;
     }
     const confirmed = window.confirm(
-      `${latestPreview.counts.sections} anlatı bölümü, ${latestPreview.counts.entities} arşiv kaydı ve ${latestPreview.counts.assets} görsel yeni Kitap Web'e yayınlansın mı?`,
+      `${latestPreview.counts.sections} anlatı bölümü, ${latestPreview.counts.entities} arşiv kaydı, ${latestPreview.counts.assets} görsel ve ${latestPreview.counts.vefks} onaylı vefk yeni Kitap Web'e yayınlansın mı?`,
     );
     if (!confirmed) return;
 
@@ -195,6 +196,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <div><small>ARŞİV</small><strong>{counts.entities}</strong><span>Approved entity</span></div>
         <div><small>BAĞLANTI</small><strong>{counts.relations}</strong><span>Approved relation</span></div>
         <div><small>ASSET</small><strong>{counts.assets}</strong><span>Publication görseli</span></div>
+        <div><small>VEFK</small><strong>{counts.vefks}</strong><span>Site kataloğunda seçili</span></div>
       </div>
 
       {reasons.length ? <div className="theme-publication-gates">
@@ -235,6 +237,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
           <span><small>Arşiv</small><strong>{publicationInfo.entityCount}</strong></span>
           <span><small>Bağlantı</small><strong>{publicationInfo.relationCount}</strong></span>
           <span><small>Asset</small><strong>{publicationInfo.assetCount}</strong></span>
+          <span><small>Vefk</small><strong>{publicationInfo.vefkCount}</strong></span>
         </div>
         <p className="export-path">{publicationInfo.file}</p>
         {publicationInfo.publicationId && <code>{publicationInfo.publicationId} · {publicationInfo.contentFingerprint.slice(0, 20)}…</code>}
@@ -242,7 +245,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
 
       {livePublication && <div className="live-proof">
         <div><span className="local-dot"/><strong>Canlı publication v2 doğrulandı</strong><small>{formatExportDate(livePublication.generatedAt)}</small></div>
-        <div><span>{livePublication.sectionCount} bölüm</span><span>{livePublication.entityCount} entity</span><span>{livePublication.assetCount} asset</span><span>{Math.max(1, Math.round(livePublication.bytes / 1024))} KB</span></div>
+        <div><span>{livePublication.sectionCount} bölüm</span><span>{livePublication.entityCount} entity</span><span>{livePublication.assetCount} asset</span><span>{publicationInfo?.vefkCount ?? 0} vefk</span><span>{Math.max(1, Math.round(livePublication.bytes / 1024))} KB</span></div>
         <p>{livePublication.publicUrl}</p>
         <code>{livePublication.contentFingerprint.slice(0, 20)}…</code>
       </div>}

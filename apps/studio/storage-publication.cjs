@@ -17,6 +17,7 @@ function recordPublicationInfo(db, info) {
     entityCount: number(info?.entityCount),
     relationCount: number(info?.relationCount),
     assetCount: number(info?.assetCount),
+    vefkCount: number(info?.vefkCount),
   };
   setMeta(db, "last_export_at", publication.generatedAt);
   setMeta(db, "last_export_file", publication.file);
@@ -26,6 +27,7 @@ function recordPublicationInfo(db, info) {
   setMeta(db, "last_export_entities", publication.entityCount);
   setMeta(db, "last_export_relations", publication.relationCount);
   setMeta(db, "last_export_assets", publication.assetCount);
+  setMeta(db, "last_export_vefks", publication.vefkCount);
   return {
     ...publication,
     itemCount: publication.sectionCount + publication.entityCount,
@@ -58,6 +60,7 @@ function getPublicationInfo(db) {
     entityCount,
     relationCount: number(getMeta(db, "last_export_relations")),
     assetCount: number(getMeta(db, "last_export_assets")),
+    vefkCount: number(getMeta(db, "last_export_vefks")),
     itemCount: sectionCount + entityCount,
   };
 }

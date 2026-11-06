@@ -12,6 +12,7 @@ import { studioLogoMarkUrl } from "./studio-assets";
 const VideoArchive = lazy(() => import("./VideoArchive"));
 const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
 const AiWorkbench = lazy(() => import("./AiWorkbench"));
+const VefkWorkshop = lazy(() => import("./VefkWorkshop"));
 const EditorialWorkspaceV2 = lazy(() => import("./EditorialWorkspaceV2"));
 const CommunityAdmin = lazy(() => import("./CommunityAdmin"));
 const PublishCenter = lazy(() => import("./PublishCenter"));
@@ -21,6 +22,7 @@ const productionSections = [
   "Video Arşivi",
   "Altyazı Araştırma",
   "AI Atölyesi",
+  "Vefk Atölyesi",
   "Kayıt Dosyaları",
 ] as const;
 
@@ -37,6 +39,7 @@ const navIcons: Record<(typeof sections)[number], StudioIconName> = {
   "Video Arşivi": "video",
   "Altyazı Araştırma": "subtitles",
   "AI Atölyesi": "sparkles",
+  "Vefk Atölyesi": "vefk",
   "Kayıt Dosyaları": "records",
   "Topluluk": "community",
   "Yayınlama": "publish",
@@ -138,6 +141,9 @@ export default function StudioPipeline() {
 
   const studioItems = useMemo<StudioItem[]>(() => items.map((item) => ({ ...item, relatedCount: connectedKeys(item.key, relations).size })), [items, relations]);
   const activateSection = (section: NavigableSection) => {
+    if (active === "Vefk Atölyesi" && section !== active
+      && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
+      && !window.confirm("Kaydedilmemiş vefk düzenlemeleri var. Çalışma alanından çıkılsın mı?")) return;
     if (section === "Muhataplar") {
       requestEditorialMode("characters");
       setActive("Kayıt Dosyaları");
@@ -147,6 +153,8 @@ export default function StudioPipeline() {
   };
   const selectProject = async (id: string) => {
     if (!bridge || projectBusy || !id || id === activeProjectId) return;
+    if (active === "Vefk Atölyesi" && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
+      && !window.confirm("Kaydedilmemiş vefk düzenlemeleri var. Proje değiştirilsin mi?")) return;
     setProjectBusy(true);
     try {
       await bridge.channelProjectSelect({ id });
@@ -183,11 +191,11 @@ export default function StudioPipeline() {
         </nav>
         <div className="nav-caption system-caption">SİSTEM</div>
         <nav className="studio-nav" aria-label="Sistem">
-          {systemSections.filter((section) => section !== "Ayarlar").map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => setActive(section)}/>)}
+          {systemSections.filter((section) => section !== "Ayarlar").map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
         </nav>
       </div>
       <nav className="studio-nav studio-settings-nav" aria-label="Uygulama ayarları">
-        <SidebarNavItem section="Ayarlar" icon={navIcons.Ayarlar} active={active === "Ayarlar"} collapsed={sidebarMode === "collapsed"} onSelect={() => setActive("Ayarlar")}/>
+        <SidebarNavItem section="Ayarlar" icon={navIcons.Ayarlar} active={active === "Ayarlar"} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection("Ayarlar")}/>
       </nav>
     </aside>
     <main className="studio-main pipeline-main">
@@ -199,6 +207,7 @@ export default function StudioPipeline() {
           {active === "Video Arşivi" && <VideoArchive/>}
           {active === "Altyazı Araştırma" && <SubtitleResearch/>}
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
+          {active === "Vefk Atölyesi" && <VefkWorkshop/>}
           {active === "Kayıt Dosyaları" && <EditorialWorkspaceV2 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin/>}
           {active === "Yayınlama" && <PublishCenter items={studioItems} relations={relations} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus}/>}

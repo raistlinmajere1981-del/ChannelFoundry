@@ -29,16 +29,32 @@ function stats(db) {
 }
 
 function publicVideoSummaries(db) {
-  if (!tableExists(db, "source_ai_analyses")) return [];
+  // This is the camera's publication allowlist. Channel discovery never adds
+  // records here; only completed analyses with a real summary enter a snapshot.
+  if (!["source_ai_analyses", "ai_analysis_jobs", "ai_analysis_editorial_reviews", "youtube_videos"].every((name) => tableExists(db, name))) return [];
   return db.prepare(`
-    SELECT external_id AS videoId, summary
-    FROM source_ai_analyses
-    WHERE provider='youtube' AND TRIM(summary) <> ''
-    ORDER BY external_id ASC
+    SELECT a.external_id AS videoId, a.summary,
+           COALESCE(NULLIF(TRIM(y.title), ''), a.title) AS title,
+           y.thumbnail_url AS thumbnailUrl, y.published_at AS publishedAt,
+           y.duration_seconds AS durationSeconds, y.availability
+    FROM source_ai_analyses a
+    JOIN ai_analysis_jobs j ON j.provider=a.provider AND j.external_id=a.external_id AND j.state='done'
+    LEFT JOIN ai_analysis_editorial_reviews e ON e.provider=a.provider AND e.external_id=a.external_id
+    LEFT JOIN youtube_videos y ON y.video_id=a.external_id
+    WHERE a.provider='youtube' AND TRIM(a.summary) <> ''
+      AND COALESCE(e.state, 'pending') <> 'excluded'
+    ORDER BY y.published_at DESC, a.external_id ASC
   `).all().map((row) => ({
     videoId: String(row.videoId ?? "").trim(),
-    summary: String(row.summary ?? "").trim().replace(/\s+/g, " ").slice(0, 1800),
-  })).filter((entry) => entry.videoId && entry.summary);
+    title: String(row.title ?? "").trim(),
+    summary: String(row.summary ?? "").trim(),
+    thumbnailUrl: String(row.thumbnailUrl ?? "").trim(),
+    publishedAt: String(row.publishedAt ?? "").trim(),
+    durationSeconds: Number.isInteger(row.durationSeconds) && row.durationSeconds >= 0 ? row.durationSeconds : null,
+    membersOnly: ["subscriber_only", "premium_only", "needs_auth"].includes(row.availability),
+    analysisStatus: "complete",
+    publicationStatus: "published",
+  })).filter((entry) => /^[A-Za-z0-9_-]{11}$/.test(entry.videoId) && entry.title && entry.summary);
 }
 
 module.exports = {

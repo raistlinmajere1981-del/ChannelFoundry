@@ -3,6 +3,7 @@ const source = require("./youtube-catalog-source.cjs");
 const store = require("./youtube-catalog-store.cjs");
 const { cacheThumbnails, thumbnailCacheFile } = require("./youtube-thumbnail-cache.cjs");
 const ytDlp = require("./ytdlp-manager.cjs");
+const ignored = require("./youtube-transcript-ignore.cjs");
 
 async function addChannel(db, input) {
   store.ensureSchema(db);
@@ -54,7 +55,10 @@ async function syncChannel(db, userDataPath, input) {
     excludeMembersOnly: input?.excludeMembersOnly,
     signal: input?.signal,
     onProgress: input?.onProgress,
-    skipVideoIds: store.detailedVideoIds(db, detailSignature, selectedChannel.id),
+    skipVideoIds: [...new Set([
+      ...store.detailedVideoIds(db, detailSignature, selectedChannel.id),
+      ...ignored.ignoredVideoIds(db, mediaOptions.subtitleLanguages),
+    ])],
   });
   const videos = source.flattenEntries(payload?.entries)
     .filter((entry) => source.shouldIncludeEntry(entry, filters))
@@ -114,6 +118,7 @@ module.exports = {
   flattenEntries: source.flattenEntries,
   getChannel: store.getChannel,
   importCatalogVideo: store.importCatalogVideo,
+  clearIgnoredSubtitle: (db, videoId) => ignored.clear(db, videoId),
   listChannels: store.listChannels,
   listVideos: store.listVideos,
   normalizeChannelUrl: source.normalizeChannelUrl,

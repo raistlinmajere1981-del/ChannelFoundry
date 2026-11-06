@@ -376,6 +376,7 @@ function normalizeCodexModels(entries) {
       seenReasoningEfforts.add(reasoningEffort);
       supportedReasoningEfforts.push({
         reasoningEffort,
+        mode: "effort",
         description: String(option?.description ?? "").trim(),
       });
     }
@@ -716,7 +717,7 @@ async function requestImageGeneration(config, prompt, options = {}) {
       args: codexImageArgs(),
       cwd: temporaryDirectory,
       model: controllerModel,
-      reasoningEffort: validatedCodexReasoningEffort(config?.reasoningEffort),
+      reasoningEffort: validatedCodexReasoningEffort(config?.imageReasoningEffort),
       prompt: imageGenerationPrompt(prompt, options.size),
       timeoutMs: Number(options.timeoutMs) || Math.max(30, Number(config?.timeoutSeconds) || 420) * 1000,
       signal: options.signal,

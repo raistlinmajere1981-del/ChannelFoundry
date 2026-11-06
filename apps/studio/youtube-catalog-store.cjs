@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const youtubeImporter = require("./youtube-import.cjs");
+const ignored = require("./youtube-transcript-ignore.cjs");
 
 const DEFAULT_CHANNEL_MEDIA_OPTIONS = Object.freeze({
   metadataLanguage: "tr",
@@ -64,6 +65,7 @@ function ensureActiveSelection(db) {
 }
 
 function ensureSchema(db) {
+  ignored.ensureSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS youtube_channels (
       id TEXT PRIMARY KEY,
@@ -354,8 +356,13 @@ function listVideos(db, input = {}) {
            yv.thumbnail_file AS thumbnailFile, yv.availability, yv.live_status AS liveStatus,
            yv.subtitle_status AS subtitleStatus, yv.subtitle_languages_json AS subtitleLanguagesJson,
            yv.automatic_caption_languages_json AS automaticCaptionLanguagesJson,
-           ci.key AS contentKey, ci.status AS editorialStatus, ${transcriptSelect}
+           ci.key AS contentKey, ci.status AS editorialStatus,
+           yi.subtitle_languages_json AS ignoredLanguagesJson,
+           yc.subtitle_languages_json AS channelSubtitleLanguagesJson,
+           ${transcriptSelect}
     FROM youtube_videos yv
+    JOIN youtube_channels yc ON yc.id=yv.channel_id
+    LEFT JOIN youtube_transcript_ignored yi ON yi.video_id=yv.video_id
     LEFT JOIN content_sources cs ON cs.provider='youtube' AND cs.external_id=yv.video_id
     LEFT JOIN content_items ci ON ci.key=cs.content_key
     ${sourceTranscriptJoin}
@@ -368,6 +375,12 @@ function listVideos(db, input = {}) {
     subtitleLanguages: parseJsonArray(row.subtitleLanguagesJson),
     automaticCaptionLanguages: parseJsonArray(row.automaticCaptionLanguagesJson),
     hasTranscript: Boolean(row.hasTranscript),
+    subtitleIgnored: !row.hasTranscript && Boolean(row.ignoredLanguagesJson)
+      && row.ignoredLanguagesJson === ignored.signature(
+        parseJsonArray(row.channelSubtitleLanguagesJson).length
+          ? parseJsonArray(row.channelSubtitleLanguagesJson)
+          : DEFAULT_CHANNEL_MEDIA_OPTIONS.subtitleLanguages,
+      ),
     thumbnailCached: Boolean(row.thumbnailFile && fs.existsSync(row.thumbnailFile)),
   }));
 }

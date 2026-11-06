@@ -1,3 +1,5 @@
+const ignored = require("./youtube-transcript-ignore.cjs");
+
 function tableExists(db, name) {
   return Boolean(db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = ?").get(String(name)));
 }
@@ -125,6 +127,10 @@ function saveTranscript(db, input) {
     ON CONFLICT(content_key) DO UPDATE SET source=excluded.source, language=excluded.language,
       text=excluded.text, updated_at=CURRENT_TIMESTAMP
   `).run(contentKey, source, language, text);
+  if (tableExists(db, "content_sources")) {
+    const mapped = db.prepare("SELECT external_id AS videoId FROM content_sources WHERE provider='youtube' AND content_key=?").get(contentKey);
+    if (mapped?.videoId) ignored.clear(db, mapped.videoId);
+  }
   return getTranscript(db, contentKey);
 }
 
@@ -141,6 +147,7 @@ function saveSourceTranscript(db, input) {
     ON CONFLICT(provider, external_id) DO UPDATE SET source=excluded.source, language=excluded.language,
       text=excluded.text, updated_at=CURRENT_TIMESTAMP
   `).run(videoId, source, language, text);
+  ignored.clear(db, videoId);
   return getSourceTranscript(db, videoId);
 }
 

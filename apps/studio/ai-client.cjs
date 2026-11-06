@@ -9,6 +9,7 @@ const aiJson = require("./ai-json.cjs");
 const aiCli = require("./ai-cli.cjs");
 const openCode = require("./ai-opencode.cjs");
 const aiActivity = require("./ai-activity.cjs");
+const aiReasoning = require("./ai-reasoning.cjs");
 
 const TRANSIENT_FETCH_CODES = new Set([
   "EAI_AGAIN",
@@ -141,14 +142,31 @@ function geminiBody(messages, options = {}) {
   const contents = [];
   for (const message of Array.isArray(messages) ? messages : []) {
     const text = messageText(message?.content);
-    if (!text) continue;
     if (message?.role === "system") {
-      system.push(text);
+      if (text) system.push(text);
       continue;
     }
+    const parts = [];
+    if (typeof message?.content === "string") {
+      if (text) parts.push({ text });
+    } else if (Array.isArray(message?.content)) {
+      for (const item of message.content) {
+        if (typeof item === "string" && item.trim()) {
+          parts.push({ text: item });
+        } else if ((item?.type === "text" || item?.type == null)
+          && typeof item?.text === "string" && item.text.trim()) {
+          parts.push({ text: item.text });
+        } else if (item?.type === "image_url" && typeof item?.image_url?.url === "string") {
+          const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(item.image_url.url);
+          if (!match) throw new Error("Gemini'ye yalnız yerel, desteklenen base64 görsel gönderilebilir.");
+          parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+        }
+      }
+    }
+    if (!parts.length) continue;
     contents.push({
       role: message?.role === "assistant" || message?.role === "model" ? "model" : "user",
-      parts: [{ text }],
+      parts,
     });
   }
   if (!contents.length) throw new Error("Gemini isteği için en az bir kullanıcı mesajı gerekli.");
@@ -156,6 +174,8 @@ function geminiBody(messages, options = {}) {
     temperature: options.temperature ?? 0.2,
     maxOutputTokens: options.maxTokens ?? 1200,
     ...(options.json ? { responseMimeType: "application/json" } : {}),
+    ...(options.reasoningMode === "thinkingLevel" && options.reasoningEffort
+      ? { thinkingConfig: { thinkingLevel: options.reasoningEffort } } : {}),
   };
   return {
     contents,
@@ -193,7 +213,9 @@ async function requestGeminiContent(config, messages, options = {}) {
     method: "POST",
     headers: geminiHeaders(config?.apiKey),
     signal: options.signal,
-    body: JSON.stringify(geminiBody(messages, options)),
+    body: JSON.stringify(geminiBody(messages, {
+      ...options, reasoningEffort: config.reasoningEffort, reasoningMode: config.reasoningMode,
+    })),
   });
   const text = await response.text();
   let payload = null;
@@ -281,6 +303,8 @@ async function requestModelCompletion(config, messages, options = {}) {
         max_tokens: options.maxTokens ?? 1200,
         stream: false,
         ...(options.json ? { response_format: { type: "json_object" } } : {}),
+        ...(config.reasoningMode === "effort" && config.reasoningEffort
+          ? { reasoning_effort: config.reasoningEffort } : {}),
       }),
     }, { retryDelaysMs: options.retryDelaysMs });
     const text = await response.text();
@@ -366,7 +390,10 @@ async function requestTextCompletion(config, messages, options = {}) {
       json: options.json,
     });
     try {
-      const result = await requestModelCompletion({ ...config, model, fallbackModel: "" }, messages, options);
+      const result = await requestModelCompletion({
+        ...config, model, fallbackModel: "",
+        ...(attempt === "fallback" ? { reasoningEffort: "", reasoningMode: "" } : {}),
+      }, messages, options);
       aiActivity.completeRequest(activityRequest, {
         content: result.content,
         finishReason: result.finishReason,
@@ -419,7 +446,10 @@ function normalizeListedModels(entries) {
     const methods = Array.isArray(entry?.supportedGenerationMethods) ? entry.supportedGenerationMethods.map(String) : [];
     const image = modelSignalsImage(entry) || /(?:^|[-_.])(image|imagen)(?:[-_.]|$)/i.test(id);
     const text = methods.length ? methods.includes("generateContent") : !/^imagen(?:-|$)/i.test(id);
-    models.push({ id, text, image, label: String(entry?.displayName ?? entry?.owned_by ?? id) });
+    models.push({
+      id, text, image, label: String(entry?.displayName ?? entry?.owned_by ?? id),
+      ...aiReasoning.fromModelMetadata(entry),
+    });
   }
   return models.sort((a, b) => a.id.localeCompare(b.id));
 }

@@ -3,7 +3,8 @@ import "./ai-minimal.css";
 
 type Provider = { id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean };
 type Role = "text" | "image";
-type CatalogEntry = { id: string; label?: string; supportedReasoningEfforts?: Array<{ reasoningEffort: string }> };
+type ReasoningChoice = { reasoningEffort: string; mode?: "effort"|"variant"|"thinkingLevel"; description?: string };
+type CatalogEntry = { id: string; label?: string; supportedReasoningEfforts?: ReasoningChoice[]; defaultReasoningEffort?: string };
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method [\x27\x22][^\x27\x22]+[\x27\x22]: (?:Error: )?/, "").replace(/^Error: /, "");
 const isCompatible = (id: string) => id === "google-ai-studio" || id === "openai-compatible" || id === "ollama";
 const backendId = (id: string): StudioAiProvider => id === "google-ai-studio" ? "openai-compatible" : id as StudioAiProvider;
@@ -30,6 +31,7 @@ export default function AiProviderSettings() {
   const [fallbackModel, setFallbackModel] = useState("");
   const [imageModel, setImageModel] = useState("");
   const [reasoning, setReasoning] = useState("");
+  const [imageReasoning, setImageReasoning] = useState("");
   const [textModels, setTextModels] = useState<CatalogEntry[]>([]);
   const [imageModels, setImageModels] = useState<CatalogEntry[]>([]);
   const [busy, setBusy] = useState("");
@@ -49,6 +51,7 @@ export default function AiProviderSettings() {
       setTextModel(config.model); setImageModel(config.image.model);
       setFallbackModel(config.fallbackModel);
       setReasoning(config.reasoningEffort);
+      setImageReasoning(config.image.reasoningEffort ?? "");
     }).catch((reason) => setError(errorText(reason)));
   }, []);
 
@@ -73,7 +76,7 @@ export default function AiProviderSettings() {
       setTextModel(""); setFallbackModel(""); setReasoning(""); setTextModels([]); setTextKey(""); setTextVerified(false);
     } else {
       setImageProvider(id); setImageEndpoint(definition.endpoint);
-      setImageModel(""); setImageModels([]); setImageKey(""); setImageVerified(false);
+      setImageModel(""); setImageReasoning(""); setImageModels([]); setImageKey(""); setImageVerified(false);
     }
   };
   const useSharedService = async () => {
@@ -83,7 +86,7 @@ export default function AiProviderSettings() {
       const detected = await bridge.aiOpenCodeService();
       if (detected !== textEndpoint) {
         setTextEndpoint(detected); setTextKey(""); setTextModels([]);
-        setTextModel(""); setFallbackModel(""); setTextVerified(false);
+        setTextModel(""); setFallbackModel(""); setReasoning(""); setTextVerified(false);
       }
       setResult("Ortak servis · " + detected);
     } catch (reason) { setError(errorText(reason)); }
@@ -92,13 +95,26 @@ export default function AiProviderSettings() {
   const chooseModel = (id: string) => {
     setFeedback();
     if (role === "text") { setTextModel(id); setTextVerified(false); setReasoning(""); }
-    else { setImageModel(id); setImageVerified(false); }
+    else { setImageModel(id); setImageReasoning(""); setImageVerified(false); }
   };
+  const selectedText = textModels.find((entry) => entry.id === textModel);
+  const textReasoningOptions = selectedText?.supportedReasoningEfforts ?? [];
+  const selectedImage = imageModels.find((entry) => entry.id === imageModel);
+  const imageReasoningOptions = selectedImage?.supportedReasoningEfforts ?? [];
+  const activeTextReasoning = textReasoningOptions.find((option)=>option.reasoningEffort === reasoning);
+  const activeImageReasoning = imageReasoningOptions.find((option)=>option.reasoningEffort === imageReasoning);
+  // Avoid wiping saved choices just because the user edited the other tab without fetching a new catalog.
+  const savedTextReasoning = !textModels.length && stored?.model === textModel &&
+    inferText(stored) === textProvider && stored.reasoningEffort === reasoning;
+  const savedImageReasoning = !imageModels.length && stored?.image.model === imageModel &&
+    inferImage(stored) === imageProvider && stored.image.reasoningEffort === imageReasoning;
   const textCandidate = () => ({
     provider: backendId(textProvider),
     endpoint: provider(textProvider)?.transport === "cli" ? "" : textEndpoint.trim(),
     apiKey: textKey.trim() || (sameTextConnection ? undefined : ""),
-    model: textModel, fallbackModel, reasoningEffort: reasoning as StudioCodexReasoningEffort | "",
+    model: textModel, fallbackModel,
+    reasoningEffort: activeTextReasoning?.reasoningEffort ?? (savedTextReasoning ? reasoning : ""),
+    reasoningMode: activeTextReasoning?.mode ?? (savedTextReasoning ? stored?.reasoningMode ?? "" : ""),
     timeoutSeconds: 420,
   });
   const imageFields = () => ({
@@ -106,6 +122,8 @@ export default function AiProviderSettings() {
     imageProvider: (imageProvider === "disabled" ? "openai-compatible" : imageProvider) as StudioAiImageProvider,
     imageEndpoint: imageProvider === "codex-cli" || imageProvider === "disabled" ? "" : imageEndpoint.trim(),
     imageModel: imageProvider === "disabled" ? "" : imageModel,
+    imageReasoningEffort: activeImageReasoning?.reasoningEffort ?? (savedImageReasoning ? imageReasoning : ""),
+    imageReasoningMode: activeImageReasoning?.mode ?? (savedImageReasoning ? stored?.image.reasoningMode ?? "" : ""),
     imageApiKey: imageKey.trim() || (sameImageConnection ? undefined : ""),
   });
   const discover = async (loadModels = true) => {
@@ -119,10 +137,13 @@ export default function AiProviderSettings() {
         });
         const entries = response.models.filter((entry) => entry.text).map((entry) => ({
           id: entry.id, label: entry.label, supportedReasoningEfforts: entry.supportedReasoningEfforts,
+          defaultReasoningEffort: entry.defaultReasoningEffort,
         }));
         if (loadModels) {
           setTextModels(entries);
-          if (!entries.some((entry) => entry.id === textModel)) { setTextModel(""); setTextVerified(false); }
+          const chosen = entries.find((entry) => entry.id === textModel);
+          if (!chosen) { setTextModel(""); setTextVerified(false); }
+          if (!chosen?.supportedReasoningEfforts?.some((option)=>option.reasoningEffort === reasoning)) setReasoning("");
         }
         setResult(loadModels ? entries.length + " metin modeli" : "Bağlantı hazır");
       } else {
@@ -133,10 +154,14 @@ export default function AiProviderSettings() {
           imageProvider: imageProvider as StudioAiImageProvider, imageEndpoint: imageFields().imageEndpoint,
           ...(imageKey ? { imageApiKey: imageKey } : {}), timeoutSeconds: 420,
         });
-        const entries = response.models.map((entry) => ({ id: entry.id, label: entry.label }));
+        const entries = response.models.map((entry) => ({ id: entry.id, label: entry.label,
+          supportedReasoningEfforts: entry.supportedReasoningEfforts,
+          defaultReasoningEffort: entry.defaultReasoningEffort }));
         if (loadModels) {
           setImageModels(entries);
-          if (!entries.some((entry) => entry.id === imageModel)) { setImageModel(""); setImageVerified(false); }
+          const chosen = entries.find((entry) => entry.id === imageModel);
+          if (!chosen) { setImageModel(""); setImageVerified(false); }
+          if (!chosen?.supportedReasoningEfforts?.some((option)=>option.reasoningEffort === imageReasoning)) setImageReasoning("");
         }
         setResult(loadModels ? entries.length + " görsel modeli" : "Bağlantı hazır");
       }
@@ -173,7 +198,8 @@ export default function AiProviderSettings() {
     finally { setBusy(""); }
   };
   if (!bridge) return null;
-  const reasoningOptions = textModels.find((entry) => entry.id === textModel)?.supportedReasoningEfforts || [];
+  const reasoningOptions = role === "text" ? textReasoningOptions : imageReasoningOptions;
+  const selectedReasoning = role === "text" ? reasoning : imageReasoning;
   return <section className="ai-provider-panel ai-minimal">
     <header className="ai-minimal-header"><h2>AI modelleri</h2>
       <button className="primary-button" disabled={Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
@@ -188,7 +214,14 @@ export default function AiProviderSettings() {
           <option key={entry.id} value={entry.id}>{entry.label}</option>)}
       </select></label>
       {current?.transport === "api" || current?.transport === "local" ? <>
-        <label><span>Endpoint</span><div className="ai-endpoint-row"><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => { if (role === "text") { setTextEndpoint(event.target.value); setTextVerified(false); } else { setImageEndpoint(event.target.value); setImageVerified(false); } setFeedback(); }}/>{role === "text" && currentProvider === "opencode-cli" && <button type="button" className="secondary-button" onClick={() => void useSharedService()} disabled={Boolean(busy)}>{busy === "service" ? "Aranıyor…" : "Ortak servis"}</button>}</div></label>
+        <label><span>Endpoint</span><div className="ai-endpoint-row"><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => {
+          if (role === "text") {
+            setTextEndpoint(event.target.value);setTextModels([]);setTextModel("");setFallbackModel("");setReasoning("");setTextVerified(false);
+          } else {
+            setImageEndpoint(event.target.value);setImageModels([]);setImageModel("");setImageReasoning("");setImageVerified(false);
+          }
+          setFeedback();
+        }}/>{role === "text" && currentProvider === "opencode-cli" && <button type="button" className="secondary-button" onClick={() => void useSharedService()} disabled={Boolean(busy)}>{busy === "service" ? "Aranıyor…" : "Ortak servis"}</button>}</div></label>
         {current.secret && <label><span>{currentProvider === "opencode-cli" ? "Sunucu parolası" : "API anahtarı"}</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "••••••••••••" : currentProvider === "opencode-cli" ? "OpenCode sunucu parolası" : "API anahtarı"} onChange={(event) => { if (role === "text") setTextKey(event.target.value); else setImageKey(event.target.value); setFeedback(); }}/></label>}
       </> : null}
       {currentProvider !== "disabled" && <>
@@ -203,7 +236,16 @@ export default function AiProviderSettings() {
           {models.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}
         </select>
         {role === "text" && current?.transport !== "cli" && <label><span>Yedek model</span><select value={models.some((entry) => entry.id === fallbackModel) ? fallbackModel : ""} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
-        {role === "text" && reasoningOptions.length > 0 && <label><span>Reasoning</span><select value={reasoning} onChange={(event) => setReasoning(event.target.value)}><option value="">Varsayılan</option>{reasoningOptions.map((entry) => <option key={entry.reasoningEffort} value={entry.reasoningEffort}>{entry.reasoningEffort}</option>)}</select></label>}
+        {reasoningOptions.length > 0 && <label><span>Reasoning · modelin bildirdiği seçenekler</span>
+          <select aria-label="Reasoning" value={selectedReasoning}
+            onChange={(event) => { if (role === "text") setReasoning(event.target.value); else setImageReasoning(event.target.value); setFeedback(); }}>
+            <option value="">Varsayılan</option>
+            {reasoningOptions.map((entry) => <option key={entry.reasoningEffort} value={entry.reasoningEffort}
+              title={entry.description}>{entry.reasoningEffort}{entry.description ? " · " + entry.description : ""}</option>)}
+          </select>
+        </label>}
+        {model && models.some((entry)=>entry.id === model) && !reasoningOptions.length &&
+          <p className="ai-minimal-note">Bu model reasoning seçeneklerini katalogda bildirmiyor. Varsayılan kullanılacak; seçenek tahmin edilmeyecek.</p>}
         <div className="ai-minimal-actions">
           <button type="button" className="secondary-button" disabled={Boolean(busy) || !model} onClick={() => void test()}>{busy === "test" ? "Test ediliyor…" : "Modeli dene"}</button>
           {(role === "text" ? textVerified : imageVerified) && <span className="ai-minimal-verified">✓ Test başarılı</span>}

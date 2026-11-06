@@ -3,6 +3,7 @@ const visualProfiles = require("./visual-profiles.cjs");
 const { normalizeEndpoint, normalizeTimeoutSeconds, publicConfig, readConfig } = require("./ai-config.cjs");
 const { authHeaders, normalizeListedModels } = require("./ai-client.cjs");
 const aiCli = require("./ai-cli.cjs");
+const aiReasoning = require("./ai-reasoning.cjs");
 
 function imageProvider(config) {
   if (config.imageProvider === "codex-cli") return "codex-cli";
@@ -44,7 +45,10 @@ function normalizeCloudflareModels(entries) {
     const id = String(entry?.name ?? entry?.id ?? entry?.model ?? "").trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    models.push({ id, label: String(entry?.display_name ?? entry?.displayName ?? entry?.description ?? id) });
+    // Workers AI text-to-image run accepts model-specific inputs, not a
+    // standard reasoning level. Do not show an option we cannot actually send.
+    models.push({ id, label: String(entry?.display_name ?? entry?.displayName ?? entry?.description ?? id),
+      supportedReasoningEfforts: [], defaultReasoningEffort: "" });
   }
   return models.sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -81,7 +85,9 @@ async function listImageModels(userDataPath, input = null) {
     });
     return {
       provider,
-      models: catalog.models.map((entry) => ({ id: entry.id, label: entry.label })),
+      models: catalog.models.map((entry) => ({ id: entry.id, label: entry.label,
+        supportedReasoningEfforts: entry.supportedReasoningEfforts,
+        defaultReasoningEffort: entry.defaultReasoningEffort })),
       imageModels: catalog.textModels,
       defaultModel: catalog.defaultModel,
       config: publicConfig(config),
@@ -222,7 +228,9 @@ async function requestGeneratedImage(config, finalPrompt, size, signal) {
     : `${endpoint}/images/generations`;
   const body = provider === "cloudflare-workers-ai"
     ? { prompt: finalPrompt, steps: 4 }
-    : { model: config.imageModel, prompt: finalPrompt, n: 1, size };
+    : { model: config.imageModel, prompt: finalPrompt, n: 1, size,
+        ...(config.imageReasoningMode === "effort" && config.imageReasoningEffort
+          ? { reasoning_effort: config.imageReasoningEffort } : {}) };
   const response = await fetch(requestUrl, {
     method: "POST",
     headers: authHeaders(apiKey),

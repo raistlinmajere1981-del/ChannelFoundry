@@ -18,6 +18,21 @@ type SortKey = "date" | "subtitle" | "archive";
 type SortDirection = "asc" | "desc";
 type CatalogView = "list" | "grid";
 type SyncNotice = { text: string; tone: "active" | "success" | "canceled" | "error" };
+type ArchiveProgress = {
+  total: number;
+  processed: number;
+  completed: number;
+  failed: number;
+  currentTitle: string;
+};
+
+function archiveProgressLabel(progress: ArchiveProgress) {
+  return `İşlenen ${progress.processed}/${progress.total} · Kalan ${Math.max(0, progress.total - progress.processed)} · Başarılı ${progress.completed} · Hatalı ${progress.failed}`;
+}
+
+function archiveOperationId() {
+  return `archive_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -110,6 +125,7 @@ function archiveRank(video: StudioYoutubeCatalogVideo) {
 }
 
 function subtitleLabel(video: StudioYoutubeCatalogVideo) {
+  if (video.subtitleIgnored) return "Eksik";
   if (video.subtitleStatus === "manual") return "Manuel";
   if (video.subtitleStatus === "automatic") return "Otomatik";
   if (video.subtitleStatus === "none") return "Yok";
@@ -118,10 +134,6 @@ function subtitleLabel(video: StudioYoutubeCatalogVideo) {
 
 function youtubeVideoUrl(videoId: string) {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function progressLabel(progress: StudioYoutubeSyncProgress | null) {
@@ -153,9 +165,10 @@ export default function VideoArchive() {
   const [dateTo, setDateTo] = useState("");
   const [openDateField, setOpenDateField] = useState<"from" | "to" | null>(null);
   const [weekdays, setWeekdays] = useState<Set<number>>(new Set());
-  const [excludeShorts, setExcludeShorts] = useState(true);
-  const [excludeLive, setExcludeLive] = useState(true);
-  const [excludeMembersOnly, setExcludeMembersOnly] = useState(true);
+  const [includeShorts, setIncludeShorts] = useState(false);
+  const [includeLive, setIncludeLive] = useState(false);
+  const [includeMembersOnly, setIncludeMembersOnly] = useState(false);
+  const [showMissingSubtitles, setShowMissingSubtitles] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filtersVisible, setFiltersVisible] = useState(true);
@@ -166,6 +179,12 @@ export default function VideoArchive() {
   const [busy, setBusy] = useState<"recent" | "full" | "archive-bulk" | string | null>(null);
   const [syncProgress, setSyncProgress] = useState<StudioYoutubeSyncProgress | null>(null);
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
+  const [archiveNotice, setArchiveNotice] = useState<SyncNotice | null>(null);
+  const [archiveProgress, setArchiveProgress] = useState<ArchiveProgress | null>(null);
+  const [archiveCanceling, setArchiveCanceling] = useState(false);
+  const archiveAbortRef = useRef(false);
+  const archiveIdRef = useRef<string | null>(null);
+  const archivePauseWakeRef = useRef<(() => void) | null>(null);
   const [mediaOptions, setMediaOptions] = useState<StudioYoutubeChannelMediaOptions | null>(null);
   const [optionsBusy, setOptionsBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -185,14 +204,20 @@ export default function VideoArchive() {
     setVideos(nextVideos);
     setStats(nextStats);
     setMediaOptions(nextMediaOptions);
-    setSelected((current) => new Set([...current].filter((videoId) => nextVideos.some((video) => video.videoId === videoId && !video.hasTranscript))));
+    setSelected((current) => new Set([...current].filter((videoId) => nextVideos.some((video) => video.videoId === videoId && !video.hasTranscript && !video.subtitleIgnored))));
   };
 
   useEffect(() => {
     void load().catch((reason) => setSyncNotice({ text: `Katalog yüklenemedi · ${errorText(reason)}`, tone: "error" }));
     const stopData = bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
     const stopProgress = bridge?.onYoutubeCatalogProgress?.((progress) => setSyncProgress(progress));
-    return () => { stopData?.(); stopProgress?.(); };
+    return () => {
+      archiveAbortRef.current = true;
+      archivePauseWakeRef.current?.();
+      if (archiveIdRef.current) void bridge?.transcriptArchiveCancel({ archiveOperationId: archiveIdRef.current }).catch(() => undefined);
+      stopData?.();
+      stopProgress?.();
+    };
   }, []);
 
   const saveMediaOptions = async (next: Partial<Omit<StudioYoutubeChannelMediaOptions, "channelId">>) => {
@@ -202,6 +227,9 @@ export default function VideoArchive() {
     try {
       const updated = await bridge.youtubeChannelMediaOptionsSave({ ...mediaOptions, ...next });
       setMediaOptions(updated);
+      // Ignore entries are scoped to the selected subtitle languages.
+      // Refresh their visibility after the language preferences change.
+      await load();
       setSyncNotice({ text: "Kanalın dil ve görsel tercihleri kaydedildi; sonraki senkronizasyon ve altyazı arşivlemesinde kullanılacak.", tone: "success" });
     } catch (reason) {
       setSyncNotice({ text: `Kanal tercihleri kaydedilemedi · ${errorText(reason)}`, tone: "error" });
@@ -213,6 +241,7 @@ export default function VideoArchive() {
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
     const matches = videos.filter((video) => {
+      if (!showMissingSubtitles && video.subtitleIgnored) return false;
       if (term && !`${video.title} ${video.videoId}`.toLocaleLowerCase("tr-TR").includes(term)) return false;
       if (!matchesDuration(video.durationSeconds, duration)) return false;
       if (dateFrom && (!video.publishedAt || video.publishedAt < dateFrom)) return false;
@@ -230,18 +259,19 @@ export default function VideoArchive() {
       if (comparison === 0) comparison = right.video.publishedAt.localeCompare(left.video.publishedAt) || left.index - right.index;
       return sortDirection === "asc" ? comparison : -comparison;
     }).map(({ video }) => video);
-  }, [videos, query, duration, archiveFilter, dateFrom, dateTo, weekdays, sortKey, sortDirection]);
+  }, [videos, showMissingSubtitles, query, duration, archiveFilter, dateFrom, dateTo, weekdays, sortKey, sortDirection]);
 
-  useEffect(() => { setPage(1); }, [query, duration, archiveFilter, dateFrom, dateTo, weekdays]);
+  useEffect(() => { setPage(1); }, [showMissingSubtitles, query, duration, archiveFilter, dateFrom, dateTo, weekdays]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const filteredSelectable = filtered.filter((video) => !video.hasTranscript);
+  const filteredSelectable = filtered.filter((video) => !video.hasTranscript && !video.subtitleIgnored);
   const selectedResultCount = filteredSelectable.filter((video) => selected.has(video.videoId)).length;
   const allResultsSelected = Boolean(filteredSelectable.length) && selectedResultCount === filteredSelectable.length;
   const availableSubtitleCount = videos.filter((video) => video.subtitleStatus === "manual" || video.subtitleStatus === "automatic").length;
   const archivedTranscriptCount = videos.filter((video) => video.hasTranscript).length;
-  const unarchivedTranscriptCount = Math.max(0, videos.length - archivedTranscriptCount);
+  const excludedSubtitleCount = videos.filter((video) => video.subtitleIgnored).length;
+  const unarchivedTranscriptCount = videos.filter((video) => !video.hasTranscript && !video.subtitleIgnored).length;
   const displayedMediaOptions = mediaOptions ?? INITIAL_MEDIA_OPTIONS;
   const primarySubtitle = displayedMediaOptions.subtitleLanguages[0] || "tr";
   const fallbackSubtitle = displayedMediaOptions.subtitleLanguages[1] || "";
@@ -258,7 +288,7 @@ export default function VideoArchive() {
     setSyncNotice(null);
     setSyncProgress({ phase: "preparing", processed: 0, total: 0, percent: 0, currentTitle: "" });
     try {
-      const result = await bridge.youtubeCatalogSync({ mode, excludeShorts, excludeLive, excludeMembersOnly });
+      const result = await bridge.youtubeCatalogSync({ mode, excludeShorts: !includeShorts, excludeLive: !includeLive, excludeMembersOnly: !includeMembersOnly });
       if (!result.ok) {
         setSyncNotice({ text: "Senkronizasyon iptal edildi; mevcut katalog verileri korundu.", tone: "canceled" });
         return;
@@ -290,19 +320,75 @@ export default function VideoArchive() {
     }
   };
 
-  const archiveVideo = async (video: StudioYoutubeCatalogVideo) => {
-    if (!bridge || video.hasTranscript || busy) return;
-    setBusy(video.videoId);
-    setSyncNotice({ text: `“${video.title}” altyazısı arşivleniyor…`, tone: "active" });
+  const cancelArchive = async () => {
+    if (!bridge || !archiveIdRef.current || archiveCanceling) return;
+    archiveAbortRef.current = true;
+    setArchiveCanceling(true);
+    archivePauseWakeRef.current?.();
     try {
-      const result = await bridge.transcriptFetchYoutube({ videoId: video.videoId });
+      // A cancellation between videos still stops the queue even when there
+      // is no child process to terminate at that exact instant.
+      await bridge.transcriptArchiveCancel({ archiveOperationId: archiveIdRef.current });
+    } catch (reason) {
+      setArchiveNotice({ text: `Çalışan indirme durdurulamadı · ${errorText(reason)}`, tone: "error" });
+      setArchiveCanceling(false); // IPC error: permit another stop attempt.
+    }
+  };
+
+  const pauseBetweenVideos = () => new Promise<void>((resolve) => {
+    if (archiveAbortRef.current) return resolve();
+    const timer = setTimeout(() => {
+      archivePauseWakeRef.current = null;
+      resolve();
+    }, 1400);
+    archivePauseWakeRef.current = () => {
+      clearTimeout(timer);
+      archivePauseWakeRef.current = null;
+      resolve();
+    };
+  });
+
+  const archiveVideo = async (video: StudioYoutubeCatalogVideo) => {
+    if (!bridge || video.hasTranscript || video.subtitleIgnored || busy) return;
+    const operationId = archiveOperationId();
+    archiveAbortRef.current = false;
+    archiveIdRef.current = operationId;
+    setArchiveCanceling(false);
+    setArchiveProgress({ total: 1, processed: 0, completed: 0, failed: 0, currentTitle: video.title });
+    setArchiveNotice(null);
+    setBusy(video.videoId);
+    try {
+      const result = await bridge.transcriptFetchYoutube({ videoId: video.videoId, archiveOperationId: operationId });
+      if (archiveAbortRef.current) {
+        setArchiveNotice({ text: "Arşivleme iptal edildi; mevcut kayıtlar korundu.", tone: "canceled" });
+      } else {
+        setArchiveNotice({ text: `“${video.title}” altyazısı arşivlendi · ${result.wordCount.toLocaleString("tr-TR")} kelime.`, tone: "success" });
+      }
       await load();
-      setSyncNotice({ text: `“${video.title}” altyazısı arşivlendi · ${result.wordCount.toLocaleString("tr-TR")} kelime.`, tone: "success" });
       await bridge.refreshMain().catch(() => undefined);
     } catch (reason) {
-      setSyncNotice({ text: `Altyazı arşivlenemedi · ${errorText(reason)}`, tone: "error" });
+      // Missing subtitles now enter a persistent ignore list; refresh the row
+      // immediately so it disappears unless "Eksik altyazılar" is checked.
+      await load().catch(() => undefined);
+      setArchiveNotice(archiveAbortRef.current
+        ? { text: "Arşivleme iptal edildi; mevcut kayıtlar korundu.", tone: "canceled" }
+        : { text: `Altyazı arşivlenemedi · ${errorText(reason)}`, tone: "error" });
     } finally {
+      archiveIdRef.current = null;
+      setArchiveProgress(null);
+      setArchiveCanceling(false);
       setBusy(null);
+    }
+  };
+
+  const retryIgnoredVideo = async (video: StudioYoutubeCatalogVideo) => {
+    if (!bridge || busy) return;
+    try {
+      await bridge.transcriptIgnoreClear({ videoId: video.videoId });
+      await load();
+      await archiveVideo({ ...video, subtitleIgnored: false });
+    } catch (reason) {
+      setArchiveNotice({ text: "Video yeniden denemeye açılamadı · " + errorText(reason), tone: "error" });
     }
   };
 
@@ -328,7 +414,7 @@ export default function VideoArchive() {
     if (busy) return;
     const ids = filteredSelectable.map((video) => video.videoId);
     setSelected((current) => new Set([...current, ...ids]));
-    setSyncNotice({ text: `${ids.length} sonuç seçildi.`, tone: "success" });
+    setArchiveNotice({ text: `${ids.length} sonuç seçildi.`, tone: "success" });
   };
 
   const toggleAllResults = () => {
@@ -343,31 +429,49 @@ export default function VideoArchive() {
 
   const archiveSelected = async () => {
     if (!bridge || !selected.size || busy) return;
-    const targets = videos.filter((video) => selected.has(video.videoId) && !video.hasTranscript);
+    const targets = videos.filter((video) => selected.has(video.videoId) && !video.hasTranscript && !video.subtitleIgnored);
     if (!targets.length) return;
     if (!confirm(`${targets.length} video için YouTube altyazısı sırayla arşivlensin mi? İşlem sırasında Studio açık kalmalı.`)) return;
+    const operationId = archiveOperationId();
+    archiveAbortRef.current = false;
+    archiveIdRef.current = operationId;
+    setArchiveCanceling(false);
+    setArchiveNotice(null);
+    setArchiveProgress({ total: targets.length, processed: 0, completed: 0, failed: 0, currentTitle: "" });
     setBusy("archive-bulk");
     let completed = 0;
     let failed = 0;
+    let processed = 0;
+    let canceled = false;
     try {
-      for (let index = 0; index < targets.length; index += 1) {
-        const video = targets[index];
-        setSyncNotice({ text: `Altyazılar arşivleniyor · ${index + 1} / ${targets.length} · ${video.title}`, tone: "active" });
+      for (const video of targets) {
+        if (archiveAbortRef.current) { canceled = true; break; }
+        setArchiveProgress({ total: targets.length, processed, completed, failed, currentTitle: video.title });
         try {
-          await bridge.transcriptFetchYoutube({ videoId: video.videoId });
+          await bridge.transcriptFetchYoutube({ videoId: video.videoId, archiveOperationId: operationId });
+          if (archiveAbortRef.current) { canceled = true; break; }
           completed += 1;
-        } catch {
+        } catch (reason) {
+          if (archiveAbortRef.current) { canceled = true; break; }
           failed += 1;
         }
-        if (index < targets.length - 1) await wait(1400);
+        processed += 1;
+        setArchiveProgress({ total: targets.length, processed, completed, failed, currentTitle: video.title });
+        if (processed < targets.length) await pauseBetweenVideos();
       }
       await load();
-      setSelected(new Set());
-      setSyncNotice({ text: `${completed} altyazı arşivlendi${failed ? ` · ${failed} video arşivlenemedi` : ""}.`, tone: failed ? "error" : "success" });
+      if (!canceled && !failed) setSelected(new Set());
+      setArchiveNotice(canceled
+        ? { text: `Arşivleme iptal edildi · ${completed} başarılı · ${failed} hatalı · ${targets.length - processed} kalan. Mevcut kayıtlar korundu.`, tone: "canceled" }
+        : { text: `${completed} altyazı arşivlendi${failed ? ` · ${failed} video arşivlenemedi` : ""}.`, tone: failed ? "error" : "success" });
       await bridge.refreshMain().catch(() => undefined);
     } catch (reason) {
-      setSyncNotice({ text: `Altyazı arşivleme kuyruğu tamamlanamadı · ${errorText(reason)}`, tone: "error" });
+      setArchiveNotice({ text: `Altyazı arşivleme kuyruğu tamamlanamadı · ${errorText(reason)}`, tone: "error" });
     } finally {
+      archiveIdRef.current = null;
+      archivePauseWakeRef.current = null;
+      setArchiveProgress(null);
+      setArchiveCanceling(false);
       setBusy(null);
     }
   };
@@ -391,14 +495,16 @@ export default function VideoArchive() {
 
   const dayLabels = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
   const syncBusy = busy === "recent" || busy === "full";
+  const archiveBusy = Boolean(busy && !syncBusy);
   return <div className="video-archive-page">
     <section className="channel-sync panel">
       <div className="channel-sync-controls">
         <div className="channel-sync-options">
           <div className="channel-scan-options" aria-label="Kanal tarama kapsamı">
-            <label><input type="checkbox" checked={excludeShorts} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeShorts(event.target.checked)}/><span>Kısa videolar</span></label>
-            <label><input type="checkbox" checked={excludeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeLive(event.target.checked)}/><span>Canlı yayınlar</span></label>
-            <label><input type="checkbox" checked={excludeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setExcludeMembersOnly(event.target.checked)}/><span>Üyelere özel</span></label>
+            <label><input type="checkbox" checked={includeShorts} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setIncludeShorts(event.target.checked)}/><span>Kısa videolar</span></label>
+            <label><input type="checkbox" checked={includeLive} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setIncludeLive(event.target.checked)}/><span>Canlı yayınlar</span></label>
+            <label><input type="checkbox" checked={includeMembersOnly} disabled={Boolean(busy) || optionsBusy} onChange={(event) => setIncludeMembersOnly(event.target.checked)}/><span>Üyelere özel</span></label>
+            <label title="Altyazısı bulunamadığı için tekrar denenmeyen videoları listede gösterir."><input type="checkbox" checked={showMissingSubtitles} onChange={(event) => setShowMissingSubtitles(event.target.checked)}/><span>Eksik altyazılar{excludedSubtitleCount ? " (" + excludedSubtitleCount + ")" : ""}</span></label>
           </div>
           <div className="channel-media-options" aria-label="Kanal dil ve görsel tercihleri">
             <label><span>Başlık dili</span><select aria-label="Kanal başlık ve metadata dili" value={displayedMediaOptions.metadataLanguage} disabled={!mediaOptions || Boolean(busy) || optionsBusy} onChange={(event) => void saveMediaOptions({ metadataLanguage: event.target.value })}>
@@ -419,7 +525,7 @@ export default function VideoArchive() {
             </select></label>
           </div>
         </div>
-        <div className={`channel-sync-progress${syncBusy || optionsBusy ? " active" : ""}${!syncBusy && !optionsBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite">{optionsBusy ? "Kanal tercihleri kaydediliyor…" : progressLabel(syncProgress) || syncNotice?.text || ""}</div>
+        {(syncBusy || optionsBusy || syncNotice) && <div className={`channel-sync-progress${syncBusy || optionsBusy ? " active" : ""}${!syncBusy && !optionsBusy && syncNotice ? ` ${syncNotice.tone}` : ""}`} role="status" aria-live="polite" title={optionsBusy ? "" : progressLabel(syncProgress) || syncNotice?.text || ""}>{optionsBusy ? "Kanal tercihleri kaydediliyor…" : progressLabel(syncProgress) || syncNotice?.text || ""}</div>}
         <button className={`primary-button${syncBusy ? " channel-cancel-button" : ""}`} disabled={!tool?.available || optionsBusy || (Boolean(busy) && !syncBusy) || canceling} onClick={() => syncBusy ? void cancelSync() : void sync("full")}>{syncBusy ? canceling ? "Durduruluyor…" : "İşlemi iptal et" : "Tam senkronizasyon"}</button>
       </div>
     </section>
@@ -458,7 +564,12 @@ export default function VideoArchive() {
             <button type="button" aria-label="Kart görünümü" title="Kartlar" className={catalogView === "grid" ? "active" : ""} aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")}>▦</button>
           </div>
           <div className="catalog-toolbar-right">
-            <button className="primary-button" disabled={Boolean(busy) || !selected.size || !tool?.available} onClick={() => void archiveSelected()}>{busy === "archive-bulk" ? "Arşivleniyor…" : "Seçilenleri Arşivle"}</button>
+            {(archiveProgress || archiveNotice) && <div className={`catalog-archive-progress${archiveBusy ? " active" : ""}${!archiveBusy && archiveNotice ? ` ${archiveNotice.tone}` : ""}`} role="status" aria-live="polite" title={archiveProgress?.currentTitle || archiveNotice?.text || ""}>
+              {archiveProgress ? archiveProgressLabel(archiveProgress) : archiveNotice?.text}
+            </div>}
+            {archiveBusy
+              ? <button className="primary-button channel-cancel-button" disabled={archiveCanceling} onClick={() => void cancelArchive()}>{archiveCanceling ? "Durduruluyor…" : "İptal et"}</button>
+              : <button className="primary-button" disabled={Boolean(busy) || !selected.size || !tool?.available} onClick={() => void archiveSelected()}>Seçilenleri Arşivle</button>}
           </div>
         </div>
         {catalogView === "list"
@@ -466,14 +577,16 @@ export default function VideoArchive() {
           : <div className="catalog-card-head"><label><input ref={selectAllRef} type="checkbox" aria-label="Bütün arşivlenmemiş sonuçları seç" title="Bütün arşivlenmemiş sonuçları seç" disabled={Boolean(busy) || !filteredSelectable.length} checked={allResultsSelected} onChange={toggleAllResults}/><span>Bütün arşivlenmemiş sonuçlar</span></label><div><span>Sırala</span><SortButton label="Tarih" sortKey="date" activeKey={sortKey} direction={sortDirection} onSort={changeSort}/><SortButton label="Altyazı" sortKey="subtitle" activeKey={sortKey} direction={sortDirection} onSort={changeSort}/><SortButton label="Arşiv" sortKey="archive" activeKey={sortKey} direction={sortDirection} onSort={changeSort}/></div></div>}
         <div className={`catalog-rows${catalogView === "grid" ? " grid-view" : ""}`}>
           {visible.map((video) => <article className={`catalog-row ${selected.has(video.videoId) ? "selected" : ""}`} key={video.videoId}>
-            <span className="catalog-check"><input type="checkbox" disabled={video.hasTranscript || Boolean(busy)} checked={selected.has(video.videoId)} onChange={() => toggleSelected(video.videoId)}/></span>
+            <span className="catalog-check"><input type="checkbox" disabled={video.hasTranscript || video.subtitleIgnored || Boolean(busy)} checked={selected.has(video.videoId)} onChange={() => toggleSelected(video.videoId)}/></span>
             <div className="catalog-video-main"><img src={video.thumbnailUrl} alt=""/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); void openYoutubeVideo(video); }}>{video.title}</a><small>{video.videoId}{video.thumbnailCached ? " · thumbnail yerelde" : ""}</small></div></div>
             <span className="catalog-date">{formatDate(video.publishedAt)}</span>
             <span className="catalog-duration">{formatDuration(video.durationSeconds)}</span>
-            <span className={`catalog-subtitle-state ${video.subtitleStatus === "manual" ? "catalog-state good" : video.subtitleStatus === "automatic" ? "catalog-state pending" : "catalog-state"}`} title={[...video.subtitleLanguages, ...video.automaticCaptionLanguages].join(", ")}>{subtitleLabel(video)}</span>
+            <span className={`catalog-subtitle-state ${video.subtitleIgnored ? "catalog-state" : video.subtitleStatus === "manual" ? "catalog-state good" : video.subtitleStatus === "automatic" ? "catalog-state pending" : "catalog-state"}`} title={[...video.subtitleLanguages, ...video.automaticCaptionLanguages].join(", ")}>{subtitleLabel(video)}</span>
             {video.hasTranscript
               ? <span className="catalog-archive-state">Arşivde</span>
-              : <button className="row-action catalog-archive-action" disabled={Boolean(busy) || !tool?.available} onClick={() => void archiveVideo(video)}>{busy === video.videoId ? "Arşivleniyor…" : "Altyazıyı arşivle"}</button>}
+              : video.subtitleIgnored
+                ? <button className="row-action catalog-archive-action" disabled={Boolean(busy) || !tool?.available} title="Hariç tutma kaydını kaldırıp altyazıyı yeniden dene" onClick={() => void retryIgnoredVideo(video)}>Tekrar dene</button>
+                : <button className="row-action catalog-archive-action" disabled={Boolean(busy) || !tool?.available} onClick={() => void archiveVideo(video)}>{busy === video.videoId ? "Arşivleniyor…" : "Altyazıyı arşivle"}</button>}
           </article>)}
           {!visible.length && <div className="catalog-empty"><strong>Bu filtrelerde video yok.</strong><span>Kanalı senkronize et veya filtreleri değiştir.</span></div>}
         </div>

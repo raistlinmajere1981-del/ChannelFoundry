@@ -51,6 +51,8 @@ Video Arşivi YouTube kanalının yerel kataloğudur.
 - Kanal kataloğundaki her video otomatik olarak public Channel Foundry içeriği değildir.
 - Kullanıcı seçtiği videoyu editoryal çalışma alanına alır.
 
+**Video Arşivi üst çubuk işlem görünürlüğü (2026-11-04):** Kanal senkronizasyonunda taranan/toplam video ve iptal, senkronizasyonun kendi üst kontrol çubuğunda kalır. Tekil/toplu altyazı arşivlemesinde **İşlenen / Kalan / Başarılı / Hatalı** sayaçları ve **İptal et** işlemi video listesinin üst araç çubuğunda gösterilir; ek mesaj paneli veya yeni yükseklik açılmaz. İptal yalnız sıradaki video kuyruğunu durdurmakla kalmaz, devam eden `yt-dlp` alt işlemini de `AbortSignal` üzerinden sonlandırır. Tamamlanmış kaynak transkriptler korunur, başlatılmamış hedefler seçili kalabilir; SQLite silme/geri alma yapılmaz. Hatalı IPC yanıtında iptal tekrar denenebilir. İlgili kod: `apps/studio/src/VideoArchive.tsx`, `apps/studio/transcript-youtube.cjs`, `apps/studio/studio-ipc.cjs`. İptal kanıtı: `node apps/studio/verify-transcript-cancel.cjs` (yt-dlp sahte alt işlem, ağ bağlantısı gerekmez).
+
 Arşiv yüzlerce / binlerce videoda çalışabilecek liste ve filtre yapısında tasarlanır.
 
 ## Altyazılar

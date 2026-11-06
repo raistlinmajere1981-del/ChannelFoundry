@@ -4,6 +4,7 @@ const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const aiReasoning = require("./ai-reasoning.cjs");
 
 // Keep the free-model text pathway working: OpenCode V2 rejects sessions
 // that deny the read capability. Ordered permission rules make read the
@@ -99,7 +100,8 @@ function normalizeServerModels(data) {
     const id = rawId.includes("/") ? rawId : String(entry?.providerID || entry?.provider?.id || "") + "/" + rawId;
     if (!MODEL_PATTERN.test(id) || seen.has(id)) continue;
     seen.add(id);
-    models.push({ id, label: String(entry?.name || entry?.label || id), text: true, image: false });
+    models.push({ id, label: String(entry?.name || entry?.label || id), text: true, image: false,
+      ...aiReasoning.fromModelMetadata(entry,"opencode-cli") });
   }
   return models;
 }
@@ -171,7 +173,9 @@ async function complete(config, messages, options = {}) {
     if (!/^ses_[A-Za-z0-9_-]+$/.test(sessionID)) throw new Error("OpenCode oturum kimliği geçersiz.");
     await serverRequest("/api/session/" + sessionID + "/prompt", {
       ...requestOptions, timeoutMs: Math.min(30000, deadline - Date.now()),
-    }, { text: prompt });
+    }, { text: prompt,
+      ...(config.reasoningMode === "variant" && config.reasoningEffort
+        ? { variant: config.reasoningEffort } : {}) });
     while (Date.now() < deadline) {
       if (options.signal?.aborted) throw new Error("OpenCode isteği durduruldu.");
       const response = await serverRequest("/api/session/" + sessionID + "/message?limit=50", {

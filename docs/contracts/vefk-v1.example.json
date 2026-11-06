@@ -1,0 +1,296 @@
+{
+  "format": "birdesengor.vefk",
+  "schemaVersion": 1,
+  "id": "vefk-3x3-demo",
+  "revision": 1,
+  "title": "Üçlü Kare — matematiksel örnek",
+  "description": "Tek dereceli Siamese yerleşiminin açıklayıcı, tarihsel yorum iddiası taşımayan örneği.",
+  "language": "tr",
+  "provenance": {
+    "kind": "algorithmic",
+    "references": [],
+    "notes": "Gösterim amaçlı matematiksel kare; sembolik etki iddiası yok."
+  },
+  "construction": {
+    "kind": "magicSquare",
+    "algorithmId": "siamese-odd",
+    "algorithmVersion": "1",
+    "parameters": {
+      "order": 3,
+      "first": 1,
+      "step": 1
+    },
+    "grid": [
+      [
+        6,
+        1,
+        8
+      ],
+      [
+        7,
+        5,
+        3
+      ],
+      [
+        2,
+        9,
+        4
+      ]
+    ],
+    "checks": {
+      "rowSums": [
+        15,
+        15,
+        15
+      ],
+      "columnSums": [
+        15,
+        15,
+        15
+      ],
+      "diagonalSums": [
+        15,
+        15
+      ],
+      "expectedSum": 15,
+      "passed": true
+    }
+  },
+  "geometry": {
+    "coordinateSpace": "svg-viewBox",
+    "viewBox": [
+      0,
+      0,
+      1000,
+      1000
+    ],
+    "paths": [
+      {
+        "id": "grid.outer",
+        "d": "M 110 110 L 890 110 L 890 890 L 110 890 Z",
+        "ink": "grid"
+      },
+      {
+        "id": "grid.v1",
+        "d": "M 370 110 L 370 890",
+        "ink": "grid"
+      },
+      {
+        "id": "grid.v2",
+        "d": "M 630 110 L 630 890",
+        "ink": "grid"
+      },
+      {
+        "id": "grid.h1",
+        "d": "M 110 370 L 890 370",
+        "ink": "grid"
+      },
+      {
+        "id": "grid.h2",
+        "d": "M 110 630 L 890 630",
+        "ink": "grid"
+      },
+      {
+        "id": "cell.r0c0",
+        "d": "M 200 174 L 280 174 M 200 174 L 200 239 M 200 239 L 280 239 M 200 239 L 200 304 M 280 239 L 280 304 M 280 304 L 200 304",
+        "ink": "glyph",
+        "semanticValue": "6"
+      },
+      {
+        "id": "cell.r0c1",
+        "d": "M 540 174 L 540 239 M 540 239 L 540 304",
+        "ink": "glyph",
+        "semanticValue": "1"
+      },
+      {
+        "id": "cell.r0c2",
+        "d": "M 720 174 L 800 174 M 800 174 L 800 239 M 800 239 L 800 304 M 800 304 L 720 304 M 720 239 L 720 304 M 720 174 L 720 239 M 720 239 L 800 239",
+        "ink": "glyph",
+        "semanticValue": "8"
+      },
+      {
+        "id": "cell.r1c0",
+        "d": "M 200 434 L 280 434 M 280 434 L 280 499 M 280 499 L 280 564",
+        "ink": "glyph",
+        "semanticValue": "7"
+      },
+      {
+        "id": "cell.r1c1",
+        "d": "M 460 434 L 540 434 M 460 434 L 460 499 M 460 499 L 540 499 M 540 499 L 540 564 M 540 564 L 460 564",
+        "ink": "glyph",
+        "semanticValue": "5"
+      },
+      {
+        "id": "cell.r1c2",
+        "d": "M 720 434 L 800 434 M 800 434 L 800 499 M 720 499 L 800 499 M 800 499 L 800 564 M 800 564 L 720 564",
+        "ink": "glyph",
+        "semanticValue": "3"
+      },
+      {
+        "id": "cell.r2c0",
+        "d": "M 200 694 L 280 694 M 280 694 L 280 759 M 200 759 L 280 759 M 200 759 L 200 824 M 280 824 L 200 824",
+        "ink": "glyph",
+        "semanticValue": "2"
+      },
+      {
+        "id": "cell.r2c1",
+        "d": "M 460 694 L 540 694 M 540 694 L 540 759 M 540 759 L 540 824 M 540 824 L 460 824 M 460 694 L 460 759 M 460 759 L 540 759",
+        "ink": "glyph",
+        "semanticValue": "9"
+      },
+      {
+        "id": "cell.r2c2",
+        "d": "M 720 694 L 720 759 M 720 759 L 800 759 M 800 694 L 800 759 M 800 759 L 800 824",
+        "ink": "glyph",
+        "semanticValue": "4"
+      }
+    ],
+    "inkStyles": {
+      "grid": {
+        "width": 7,
+        "cap": "round"
+      },
+      "glyph": {
+        "width": 11,
+        "cap": "round"
+      }
+    }
+  },
+  "drawPlan": {
+    "timeUnit": "ms",
+    "durationMs": 14610,
+    "markers": [
+      {
+        "id": "outline",
+        "atMs": 0
+      },
+      {
+        "id": "inscriptions",
+        "atMs": 4200
+      },
+      {
+        "id": "hold",
+        "atMs": 14010
+      }
+    ],
+    "strokes": [
+      {
+        "id": "stroke.01",
+        "pathId": "grid.outer",
+        "startMs": 0,
+        "durationMs": 700,
+        "ink": "grid",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.02",
+        "pathId": "grid.v1",
+        "startMs": 840,
+        "durationMs": 700,
+        "ink": "grid",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.03",
+        "pathId": "grid.v2",
+        "startMs": 1680,
+        "durationMs": 700,
+        "ink": "grid",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.04",
+        "pathId": "grid.h1",
+        "startMs": 2520,
+        "durationMs": 700,
+        "ink": "grid",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.05",
+        "pathId": "grid.h2",
+        "startMs": 3360,
+        "durationMs": 700,
+        "ink": "grid",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.06",
+        "pathId": "cell.r0c0",
+        "startMs": 4200,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.07",
+        "pathId": "cell.r0c1",
+        "startMs": 5290,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.08",
+        "pathId": "cell.r0c2",
+        "startMs": 6380,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.09",
+        "pathId": "cell.r1c0",
+        "startMs": 7470,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.10",
+        "pathId": "cell.r1c1",
+        "startMs": 8560,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.11",
+        "pathId": "cell.r1c2",
+        "startMs": 9650,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.12",
+        "pathId": "cell.r2c0",
+        "startMs": 10740,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.13",
+        "pathId": "cell.r2c1",
+        "startMs": 11830,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      },
+      {
+        "id": "stroke.14",
+        "pathId": "cell.r2c2",
+        "startMs": 12920,
+        "durationMs": 950,
+        "ink": "glyph",
+        "pen": "down"
+      }
+    ]
+  },
+  "accessibility": {
+    "summary": "Üç satır ve üç sütundan oluşan, her satır/sütun/çapraz toplamı 15 olan sayısal kare.",
+    "matrixText": "6 1 8 / 7 5 3 / 2 9 4"
+  },
+  "contentHash": "f451c5436490adfb5f05dcbfab769d174f9c9ae8a7639327745e1de4cf4ab6c9"
+}

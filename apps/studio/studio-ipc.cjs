@@ -10,6 +10,8 @@ const aiActivity = require("./ai-activity.cjs");
 const universeMerge = require("./universe-merge.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
 const { registerNarrativeIpc } = require("./narrative-ipc.cjs");
+const { registerVefkIpc } = require("./vefk-ipc.cjs");
+const { registerVefkSourceIpc } = require("./vefk-source-ipc.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const webConnection = require("./web-connection.cjs");
@@ -23,6 +25,13 @@ const {
 } = require("./storage.cjs");
 
 let youtubeSyncOperation = null;
+let transcriptArchiveOperation = null;
+
+// Closing the Studio should terminate any active yt-dlp subtitle child;
+// already committed SQLite transcripts are not rolled back.
+app.on("before-quit", () => {
+  transcriptArchiveOperation?.controller.abort();
+});
 
 function sendYoutubeSyncProgress(sender, progress) {
   if (!sender || sender.isDestroyed()) return;
@@ -135,12 +144,44 @@ function registerSourceHandlers() {
     runtime.refreshMainWindow();
     return result;
   });
+  ipcMain.handle("studio:transcript-ignore-clear", (_event, input) => {
+    const result = youtubeCatalog.clearIgnoredSubtitle(runtime.database(), input?.videoId);
+    runtime.refreshMainWindow();
+    return result;
+  });
   ipcMain.handle("studio:transcript-get", (_event, contentKey) => transcriptService.getTranscript(runtime.database(), contentKey));
   ipcMain.handle("studio:transcript-save", (_event, input) => transcriptService.saveTranscript(runtime.database(), input));
   ipcMain.handle("studio:transcript-delete", (_event, contentKey) => transcriptService.deleteTranscript(runtime.database(), contentKey));
   ipcMain.handle("studio:transcript-tool-status", () => transcriptService.ytDlpStatus());
-  ipcMain.handle("studio:transcript-fetch-youtube", (_event, input) => transcriptService.fetchYoutubeTranscript(runtime.database(), input));
+  ipcMain.handle("studio:transcript-fetch-youtube", (event, input) => returnOutcome(
+    "studio:transcript-fetch-youtube",
+    (async () => {
+      const operationId = String(input?.archiveOperationId || "");
+      // Unrelated single transcript uses keep their existing behaviour.
+      if (!operationId) return transcriptService.fetchYoutubeTranscript(runtime.database(), input);
+      if (!/^[A-Za-z0-9_-]{1,90}$/.test(operationId)) throw new Error("Geçersiz arşiv işlem kimliği.");
+      if (transcriptArchiveOperation) throw new Error("Başka bir altyazı arşivleme işlemi devam ediyor.");
+      const controller = new AbortController();
+      const operation = { controller, sender: event.sender, operationId };
+      transcriptArchiveOperation = operation;
+      try {
+        return await transcriptService.fetchYoutubeTranscript(runtime.database(), input, { signal: controller.signal });
+      } finally {
+        if (transcriptArchiveOperation === operation) transcriptArchiveOperation = null;
+      }
+    })(),
+  ));
+  ipcMain.handle("studio:transcript-archive-cancel", (event, input) => {
+    const operation = transcriptArchiveOperation;
+    if (!operation || operation.sender !== event.sender || operation.operationId !== input?.archiveOperationId) {
+      return { canceled: false };
+    }
+    operation.controller.abort();
+    return { canceled: true };
+  });
 }
+
+const { returnOutcome } = require("./studio-ipc-outcome.cjs");
 
 function registerAiHandlers() {
   ipcMain.handle("studio:ai-config", () => aiService.getConfig(app.getPath("userData")));
@@ -153,7 +194,9 @@ function registerAiHandlers() {
     return saved;
   });
   ipcMain.handle("studio:ai-providers", () => require("./ai-provider-registry.cjs").entries);
-  ipcMain.handle("studio:ai-opencode-service", () => require("./ai-opencode.cjs").sharedService());
+  ipcMain.handle("studio:ai-opencode-service", () => returnOutcome(
+    "studio:ai-opencode-service", require("./ai-opencode.cjs").sharedService(),
+  ));
   ipcMain.handle("studio:ai-test-candidate", (_event, input) => aiService.testConnection(app.getPath("userData"), { candidate: input }));
   ipcMain.handle("studio:ai-image-test-candidate", (_event, input) => aiService.testImageCandidate(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-models", (_event, input) => aiService.listModels(app.getPath("userData"), input));
@@ -260,6 +303,8 @@ function registerStudioIpc() {
   registerAiHandlers();
   registerEditorialHandlers();
   registerNarrativeIpc(ipcMain, runtime);
+  registerVefkIpc(ipcMain, runtime);
+  registerVefkSourceIpc(ipcMain, runtime);
   registerPublishingHandlers();
 }
 

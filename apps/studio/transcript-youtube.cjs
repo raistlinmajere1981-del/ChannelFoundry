@@ -6,6 +6,7 @@ const { promisify } = require("node:util");
 const store = require("./transcript-store.cjs");
 const ytDlp = require("./ytdlp-manager.cjs");
 const youtubeCatalogStore = require("./youtube-catalog-store.cjs");
+const ignored = require("./youtube-transcript-ignore.cjs");
 
 const execFileAsync = promisify(execFile);
 
@@ -74,16 +75,27 @@ function subtitleAttemptArgs({ outputTemplate, url, automatic, languages = ytDlp
   ];
 }
 
-async function runSubtitleAttempt(directory, outputTemplate, url, automatic, languages) {
+function throwIfArchiveCanceled(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error("Altyazı arşivleme iptal edildi.");
+  error.code = "CHANNEL_FOUNDRY_ARCHIVE_CANCELLED";
+  throw error;
+}
+
+async function runSubtitleAttempt(directory, outputTemplate, url, automatic, languages, signal) {
+  throwIfArchiveCanceled(signal);
   clearSubtitleFiles(directory);
   try {
     const result = await execFileAsync(ytDlp.executablePath(), subtitleAttemptArgs({ outputTemplate, url, automatic, languages }), {
       timeout: 180000,
+      signal,
       maxBuffer: 8 * 1024 * 1024,
     });
+    throwIfArchiveCanceled(signal);
     const selected = chooseSubtitleFile(fs.readdirSync(directory), languages);
     return { selected, automatic, stdout: String(result.stdout ?? ""), stderr: String(result.stderr ?? ""), error: null };
   } catch (error) {
+    throwIfArchiveCanceled(signal);
     const selected = chooseSubtitleFile(fs.readdirSync(directory), languages);
     return {
       selected,
@@ -143,33 +155,52 @@ function subtitleLanguagesForTarget(db, target) {
   return options?.subtitleLanguages?.length ? [...options.subtitleLanguages] : [...fallback.subtitleLanguages];
 }
 
-async function fetchYoutubeTranscript(db, input) {
+async function fetchYoutubeTranscript(db, input, { signal } = {}) {
+  throwIfArchiveCanceled(signal);
   store.ensureSchema(db);
   const target = resolveYoutubeTarget(db, input);
+  const languages = subtitleLanguagesForTarget(db, target);
+  if (ignored.isIgnored(db, target.videoId, languages)) {
+    const error = new Error("Bu video seçili altyazı dilleri için eksik altyazı listesinde. Yeniden denemek için önce hariç tutma kaydını kaldır.");
+    error.code = "CHANNEL_FOUNDRY_SUBTITLE_IGNORED";
+    throw error;
+  }
   const status = await ytDlpStatus();
+  throwIfArchiveCanceled(signal);
   if (!status.available) {
     throw new Error("YouTube altyazısını otomatik almak için yt-dlp kurulu olmalı. İstersen transkripti elle de yapıştırabilirsin.");
   }
 
   const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-transcript-"));
   try {
-    const languages = subtitleLanguagesForTarget(db, target);
     const outputTemplate = path.join(tempDirectory, "%(id)s.%(ext)s");
     const attempts = [];
     // Avoid wildcard languages: auto-translated composite keys can trigger HTTP 429.
-    attempts.push(await runSubtitleAttempt(tempDirectory, outputTemplate, target.canonicalUrl, false, languages));
+    attempts.push(await runSubtitleAttempt(tempDirectory, outputTemplate, target.canonicalUrl, false, languages, signal));
     let successful = attempts.find((attempt) => attempt.selected);
     if (!successful) {
-      attempts.push(await runSubtitleAttempt(tempDirectory, outputTemplate, target.canonicalUrl, true, languages));
+      attempts.push(await runSubtitleAttempt(tempDirectory, outputTemplate, target.canonicalUrl, true, languages, signal));
       successful = attempts.find((attempt) => attempt.selected);
     }
-    if (!successful?.selected) throw new Error(subtitleFailureMessage(attempts));
+    throwIfArchiveCanceled(signal);
+    if (!successful?.selected) {
+      // Only two successful yt-dlp commands with no subtitles are definitive.
+      // Never ignore temporary limits, authentication or network errors.
+      if (attempts.length === 2 && attempts.every((attempt) => !attempt.error)) {
+        ignored.mark(db, target.videoId, languages);
+        const missing = new Error("Bu video için seçili dillerde manuel veya otomatik altyazı bulunamadı. Eksik altyazılar listesine eklendi.");
+        missing.code = "CHANNEL_FOUNDRY_SUBTITLE_UNAVAILABLE";
+        throw missing;
+      }
+      throw new Error(subtitleFailureMessage(attempts));
+    }
 
     const selected = successful.selected;
     const raw = fs.readFileSync(path.join(tempDirectory, selected), "utf8");
     const text = vttToPlainText(raw);
     if (!text) throw new Error("Altyazı dosyası alındı ancak okunabilir transkript üretilemedi.");
     const language = languageFromFilename(selected);
+    throwIfArchiveCanceled(signal);
     const transcript = store.saveSourceTranscript(db, {
       videoId: target.videoId,
       source: "youtube",
@@ -179,6 +210,7 @@ async function fetchYoutubeTranscript(db, input) {
     if (target.contentKey) {
       store.saveTranscript(db, { contentKey: target.contentKey, source: "youtube", language, text });
     }
+    ignored.clear(db, target.videoId);
     return {
       ...transcript,
       contentKey: target.contentKey || target.videoId,
@@ -201,4 +233,6 @@ module.exports = {
   subtitleLanguagesForTarget,
   vttToPlainText,
   ytDlpStatus,
+  runSubtitleAttempt,
+  throwIfArchiveCanceled,
 };
