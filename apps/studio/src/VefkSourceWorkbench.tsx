@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { approveItems, cellBox, reviewQueue } from "./vefk-review-model";
 import { traceInk, projectTracedGeometry, type SourceBox, type TraceResult } from "./vefk-image-trace";
 import { classifyInk } from "./vefk-ink-mask";
 import { excludeInkFromMask } from "./vefk-ink-exclusions";
@@ -6,10 +8,23 @@ import { compareInkMasks } from "./vefk-ink-compare";
 import VefkImagePreparation from "./VefkImagePreparation";
 import "./vefk-source-workbench.css";
 
+export type SourceProgress = { remaining: number; paths: number; pendingTraces: number; untraced: number;
+  analyzed: boolean; saved: boolean; busy: boolean; preparing: boolean; aspect: number; primary: string };
+export type SourceActions = { advance: () => void; save: () => void };
 type Props = {
   sourceId: string;
-  onStartDrawing: (input: StudioVefkCreateInput) => void | Promise<void>;
+  onStartDrawing: (input: StudioVefkCreateInput, evidence: StudioVefkSourceReview) => void | Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
+  onProgress: (progress: SourceProgress) => void;
+  onSourceLoaded: (source: StudioVefkSourceImage) => void;
+  inspector: HTMLElement | null;
+  toolbar: HTMLElement | null;
+  active: boolean;
+  showPhoto: boolean;
+  showTraces: boolean;
+  onRevealTraces: () => void;
+  onInspect: () => void;
+  onPrepareStart: () => boolean;
 };
 const regionTypes: StudioVefkRegion["kind"][] = ["grid", "number", "text", "symbol", "line", "seal", "unknown"];
 const regionNames: Record<StudioVefkRegion["kind"], string> = {
@@ -27,7 +42,8 @@ function isIntegerText(text: string): boolean {
   return /^[+-]?\d+$/.test(normalized) && Number.isSafeInteger(Number(normalized));
 }
 
-export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyChange }: Props) {
+export default forwardRef<SourceActions, Props>(function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyChange,
+  onProgress, onSourceLoaded, inspector, toolbar, active, showPhoto, showTraces, onRevealTraces, onInspect, onPrepareStart }, ref) {
   const bridge = window.channelFoundryStudio;
   const [source, setSource] = useState<StudioVefkSourceImage | null>(null);
   const [analysis, setAnalysis] = useState<StudioVefkSourceAnalysis | null>(null);
@@ -35,6 +51,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
   const [vision, setVision] = useState<StudioVefkVisionSupport | null>(null);
   const [selected, setSelected] = useState<string>("");
   const pictureRef = useRef<SVGSVGElement | null>(null);
+  const suppressClick = useRef(false);
   const drawingRef = useRef<{ start: { x:number; y:number }; end:{ x:number; y:number } } | null>(null);
   const [manualSelection, setManualSelection] = useState(false);
   const [textureSelection, setTextureSelection] = useState(false);
@@ -57,9 +74,10 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     regionId:string;report:TraceResult["quality"];sample:TraceResult["sample"];
   } | null>(null);
   const [invert, setInvert] = useState(false);
-  const [showTraces, setShowTraces] = useState(true);
+  const [bulkIds, setBulkIds] = useState<string[]>([]);
+  const [conversion, setConversion] = useState<"traced" | "grid">("traced");
   const [preparing, setPreparing] = useState(false);
-  const [opacity, setOpacity] = useState(75);
+  const opacity = 100;
   const [showBoxes, setShowBoxes] = useState(true);
   const [aspect, setAspect] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -84,7 +102,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     ]).then(([item, latest, support]) => {
       if (!alive) return;
       if (!item) throw new Error("Kaynak resim bulunamadı.");
-      setSource(item);
+      setSource(item); onSourceLoaded(item);
       setAnalysis(latest);
       setWorking(latest?.result ?? null);
       setVision(support);
@@ -104,13 +122,12 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     return () => { picture.onload = null; };
   }, [source?.imageDataUrl]);
 
-  const remaining = useMemo(() => working
-    ? working.regions.filter(r => r.needsReview).length + (working.grid?.cells.filter(c => c.needsReview).length ?? 0)
-    : 0, [working]);
+  const queue = useMemo(() => reviewQueue(working), [working]);
+  const remaining = queue.length;
   const readyGrid = useMemo(() => {
     const grid = working?.grid;
     if (!grid || grid.rows !== grid.columns || grid.rows < 3 || grid.rows > 9) return null;
-    if (grid.cells.some(c => c.needsReview || !isIntegerText(c.text))) return null;
+    if (grid.cells.some(c => !c.reviewed || !isIntegerText(c.text))) return null;
     const rows: number[][] = Array.from({ length: grid.rows }, () => []);
     for (const cell of grid.cells) rows[cell.row][cell.column] = Number(cell.text.trim().replace(/[−–]/g, "-"));
     return rows.every(row => row.length === grid.rows && row.every(Number.isSafeInteger)) ? rows : null;
@@ -128,6 +145,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     setMaskComparison(null);
   }, [sourceId,selected,inkMode,traceResolution,invert,excludedAreas,
     selectedRegion?.box[0],selectedRegion?.box[1],selectedRegion?.box[2],selectedRegion?.box[3]]);
+  useEffect(() => { if (active && selected) onInspect(); }, [selected, active, onInspect]);
   const selectedCell = working?.grid?.cells.find(cell => `cell-${cell.row}-${cell.column}` === selected) ?? null;
   const traces = working?.traces ?? [];
   const tracedCount = traces.reduce((sum, group) => sum + group.paths.length, 0);
@@ -135,9 +153,9 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
   const untracedRegions = working?.regions.filter(region =>
     !traces.some(group => group.regionId === region.id)).length ?? 0;
   const readyToTransfer = analysis?.status === "reviewed" && Boolean(working)
-    && !dirty && !remaining && !unapprovedTraces;
+    && !dirty && !remaining;
   const canTransferGrid = Boolean(readyToTransfer && readyGrid);
-  const canTransferTraces = Boolean(readyToTransfer && tracedCount);
+  const canTransferTraces = Boolean(readyToTransfer && tracedCount && !unapprovedTraces);
 
   function replaceRegion(id: string, patch: Partial<StudioVefkRegion>) {
     if (!working) return;
@@ -213,6 +231,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     if ((!manualSelection&&!textureSelection)||!working||event.button!==0||busy||
       (textureSelection&&!selectedRegion)) return;
     const point=localPoint(event);
+    suppressClick.current=true;
     drawingRef.current={start:point,end:point};
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -344,7 +363,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
         regionId:selectedRegion.id,reviewed:false,
         paths:result.paths.map(line=>({id:line.id,d:line.d})),
       }]});
-      setDirty(true);
+      setDirty(true); onRevealTraces();
       setTraceQuality({regionId:selectedRegion.id,report:result.quality,sample:result.sample});
       setNotice(result.paths.length+" çizgi çıkarıldı · "+result.quality.joinedSegments+
         " iskelet parçası birleştirildi · "+result.quality.preservedDots+
@@ -368,12 +387,12 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
 
   function openPreparation() {
     if (busy || !source || preparing) return;
-    if (dirty && !window.confirm("Kaydedilmemiş inceleme düzeltmeleri var. Görsel hazırlığına geçersen bu değişikliklerden vazgeçilecek. Devam edilsin mi?")) return;
+    if (!onPrepareStart()) return;
     if (dirty) { setWorking(analysis?.result ?? null); setDirty(false); }
     setPreparing(true); setError(""); setNotice("");
   }
   function preparationSaved(updated: StudioVefkSourceImage) {
-    setSource(updated);setAnalysis(null);setWorking(null);setSelected("");setTraceQuality(null);
+    setSource(updated);onSourceLoaded(updated);setAnalysis(null);setWorking(null);setSelected("");setTraceQuality(null);
     setExcludedAreas({});setMaskPreview(null);setTextureSelection(false);
     setDirty(false);setPreparing(false);setManualSelection(false);
     setNotice("Yeni görüntü hazırlığı r" + updated.preparation?.revision + " kaydedildi. AI çözümlemesini bu görüntü üzerinde yeniden başlatabilirsin. Önceki analizler arşivde.");
@@ -407,6 +426,13 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
     if (!source || !analysis || !working || !bridge || busy || !readyToTransfer) return;
     if (mode === "grid" && !readyGrid) return;
     if (mode === "traced" && !canTransferTraces) return;
+    let partialAccepted = false;
+    if (mode === "traced" && untracedRegions) {
+      partialAccepted = window.confirm(`${untracedRegions} bölge izlenmedi ve SVG’ye aktarılmayacak. Kısmi çizim olarak devam edilsin mi?`);
+      if (!partialAccepted) return;
+    }
+    const evidence: StudioVefkSourceReview = { sourceId, analysisId: analysis.id,
+      preparationRevision: working.preparationRevision, method: mode, partialAccepted };
     setBusy(true); setError("");
     try {
       const id = sourceDocumentId();
@@ -420,7 +446,7 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
         await onStartDrawing({
           id, revision: 1, title, kind: "manualSquare", grid: readyGrid, provenance,
           description: "Görselden okunan ve insan tarafından kontrol edilen sayısal kare. Özgün yazı ve motif konturları bu şematik kareye aktarılmadı.",
-        });
+        }, evidence);
       } else {
         const sourceImage = new Image();
         sourceImage.src = source.imageDataUrl;
@@ -442,266 +468,164 @@ export default function VefkSourceWorkbench({ sourceId, onStartDrawing, onDirtyC
             summary: "Kaynak fotoğraftan çizim yolu izleme; " + paths.length + " stroke.",
             matrixText: readyGrid ? readyGrid.map(row => row.join(" ")).join(" / ") : "",
           },
-        });
+        }, evidence);
       }
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
 
-  if (!bridge) return <div className="vefk-source-missing">Görsel incelemesi Studio masaüstünde çalışır.</div>;
-  if (!source) return <div className="vefk-source-missing">{error || "Kaynak görsel açılıyor…"}</div>;
 
-  return <div className="vefk-source-workspace">
-    <header className="vefk-source-header">
-      <div><small>KAYNAK GÖRSEL · ORİJİNAL SAKLANIYOR</small><h3 title={source.filename}>{source.filename}</h3>
-        <span>{Math.round(source.bytes / 1024)} KB · {source.sha256.slice(0, 13)}… · {source.preparation ? "Düzeltilmiş r" + source.preparation.revision : "Orijinal görünüm"}</span></div>
-      <div className="vefk-source-actions">
-        <button type="button" disabled={busy || preparing} onClick={openPreparation}>Kırp / hizala</button>
-        <button type="button" disabled={busy || preparing || vision?.supported === false} onClick={() => void analyze()}>
-          {busy ? "Çözümleniyor…" : analysis ? "Yeniden çözümle" : "AI ile çözümle"}
-        </button>
-        <button type="button" disabled={(!dirty && analysis?.status === "reviewed") || !analysis || busy} onClick={() => void saveReview()}>{dirty ? "Düzeltmeleri kaydet" : "İncelemeyi kaydet"}</button>
-        <button type="button" disabled={!canTransferTraces || busy} onClick={() => void makeDraft("traced")}>
-          İzlenen çizgileri SVG'ye aktar
-        </button>
-        <button type="button" className="primary" disabled={!canTransferGrid || busy} onClick={() => void makeDraft("grid")}>
-          Sayısal kareyi SVG'ye aktar
-        </button>
-      </div>
-    </header>
+  function nextItem(after = selected) {
+    const next = queue.find(item => item.id !== after) ?? queue[0];
+    if (next) setSelected(next.id);
+  }
+  function confirmItems(ids: string[]) {
+    if (!working) return;
+    const next = approveItems(working, ids);
+    setWorking(next); setDirty(true); setBulkIds([]);
+    const item = reviewQueue(next)[0];
+    if (item) setSelected(item.id);
+    setNotice(ids.length === 1 ? "✓ Öğe onaylandı" : `✓ ${ids.length} öğe onaylandı`);
+  }
+  const primary = !working ? "İncelemeye başla" : remaining ? "Sonraki belirsiz öğe"
+    : dirty || analysis?.status !== "reviewed" ? "İncelemeyi kaydet"
+    : conversion === "grid" && readyGrid ? "Çizimi oluştur"
+    : unapprovedTraces ? "Konturları incele" : !tracedCount ? "Çizgi çıkar" : "Çizimi oluştur";
+  function advance() {
+    if (busy || preparing) return;
+    if (!working) { void analyze(); return; }
+    if (remaining) { nextItem(); return; }
+    if (dirty || analysis?.status !== "reviewed") { void saveReview(); return; }
+    if (conversion === "grid" && readyGrid) { void makeDraft("grid"); return; }
+    if (unapprovedTraces) { setSelected(traces.find(group => !group.reviewed)!.regionId); return; }
+    if (!tracedCount) { setSelected(working.regions[0]?.id ?? ""); return; }
+    void makeDraft("traced");
+  }
+  useImperativeHandle(ref, () => ({ advance, save: () => { void saveReview(); } }));
+  useEffect(() => { onProgress({ remaining, paths: tracedCount, pendingTraces: unapprovedTraces,
+    untraced: untracedRegions, analyzed: Boolean(working), saved: !dirty && analysis?.status === "reviewed",
+    busy, preparing, aspect, primary });
+  }, [remaining, tracedCount, unapprovedTraces, untracedRegions, Boolean(working), dirty, analysis?.status, busy, preparing, aspect, primary, onProgress]);
+
+  if (!bridge || !source) return <div className="vefk-source-missing">{error || "Görsel açılıyor…"}</div>;
+  const selectedTrace = traces.find(group => group.regionId === selected);
+  const select = (id: string) => { if (!manualSelection && !textureSelection) { setSelected(id); onInspect(); } };
+  const controls = <>
+    <button title="Bölge çiz" aria-label="Bölge çiz" aria-pressed={manualSelection} disabled={!working || busy}
+      onClick={() => { setManualSelection(v => !v); setTextureSelection(false); }}>▭</button>
+    <button title="Kırp ve hizala" aria-label="Kırp ve hizala" disabled={busy || preparing} onClick={openPreparation}>⌑</button>
+    <button title="AI ile yeniden çözümle" aria-label="AI ile yeniden çözümle" disabled={busy || preparing || vision?.supported === false} onClick={() => void analyze()}>✧</button>
+    <button title="Tespitleri göster" aria-label="Tespitleri göster" aria-pressed={showBoxes} onClick={() => setShowBoxes(v => !v)}>▦</button>
+  </>;
+  const properties = <div className="vefk-source-properties">
+    <div className="vefk-inspector-head"><small>{selectedCell ? "HÜCRE" : selectedRegion ? regionNames[selectedRegion.kind].toLocaleUpperCase("tr-TR") : "İNCELEME"}</small>
+      <span>{selectedCell?.reviewed || selectedRegion?.reviewed ? "✓ Onaylı" : selected ? "Onay bekliyor" : `${remaining} kaldı`}</span></div>
     {error && <p className="vefk-source-alert error" role="alert">{error}</p>}
-    {notice && <p className="vefk-source-alert" role="status">{notice}</p>}
-    {preparing
-      ? <VefkImagePreparation source={source} onSaved={preparationSaved} onClose={() => setPreparing(false)}/>
-      : <div className="vefk-source-detail">
-      <div className="vefk-source-image-pane">
-        <div className="vefk-source-preview-tools">
-          <label>İşaretler <input type="checkbox" checked={showBoxes} onChange={event => setShowBoxes(event.target.checked)}/></label>
-          <label>Mürekkep yolları <input type="checkbox" checked={showTraces} onChange={event => setShowTraces(event.target.checked)}/></label>
-          <button type="button" className={manualSelection ? "selected" : ""} disabled={!working || busy}
-            onClick={() => {setTextureSelection(false);setManualSelection(value => !value);}}>{manualSelection ? "Alan seçiminden çık" : "+ Bölge çiz"}</button>
-          <button type="button" className={maskPreview ? "selected" : ""} disabled={!selectedRegion || busy}
-            onClick={() => void previewSelectedMask()}>{maskPreview ? "Maskeyi gizle" : "Mürekkep maskesi"}</button>
-          <button type="button" className={textureSelection ? "selected" : ""} disabled={!selectedRegion || busy}
-            onClick={() => {setManualSelection(false);setTextureSelection(value => !value);}}>
-            {textureSelection ? "Doku seçiminden çık" : "+ Doku dışla"}</button>
-          <label>Görsel %{opacity} <input type="range" min="15" max="100" value={opacity}
-            onChange={event => setOpacity(Number(event.target.value))}/></label>
-          <span>{analysis?.model ? `${analysis.provider} · ${analysis.model}` : "Henüz analiz yok"}</span>
+    {notice && <p className="vefk-source-alert" role="status">{notice.length > 160 ? notice.slice(0, 157) + "…" : notice}</p>}
+    {!working && <div className="vefk-context-empty"><span>↖</span><p>Görseli incelemeye başla.</p>
+      {vision?.supported === false && <p role="alert">{vision.reason}</p>}</div>}
+    {working && <>
+      {selectedCell && <section className="vefk-source-selected-editor" key={selected}>
+        <h4>Hücre {selectedCell.row + 1} / {selectedCell.column + 1}</h4>
+        <label>Okunan değer<input value={selectedCell.text} maxLength={120} disabled={busy}
+          onChange={event => replaceCell(selectedCell.row, selectedCell.column, { text: event.target.value, reviewed: false, needsReview: true })}/></label>
+        <small>AI güveni %{Math.round(selectedCell.confidence*100)}</small>
+        <button disabled={busy || !selectedCell.text.trim() || selectedCell.reviewed} onClick={() => confirmItems([selected])}>
+          {selectedCell.reviewed ? "✓ Onaylı" : "Onayla ve ilerle"}</button>
+      </section>}
+      {selectedRegion && <section className="vefk-source-selected-editor" key={selected}>
+        <label>Tür<select aria-label="Bölge türü" value={selectedRegion.kind} disabled={busy} onChange={event => replaceRegion(selected, { kind: event.target.value as StudioVefkRegion["kind"], reviewed: false, needsReview: true })}>
+          {regionTypes.map(kind => <option key={kind} value={kind}>{regionNames[kind]}</option>)}</select></label>
+        <label>Okunan işaret<input value={selectedRegion.label} maxLength={250} disabled={busy}
+          onChange={event => replaceRegion(selected, { label: event.target.value, reviewed: false, needsReview: true })}/></label>
+        <small>AI güveni %{Math.round(selectedRegion.confidence*100)}</small>
+        <button disabled={busy || selectedRegion.reviewed || !queue.some(item => item.id === selected && item.eligible)} onClick={() => confirmItems([selected])}>
+          {selectedRegion.reviewed ? "✓ Onaylı" : "Onayla ve ilerle"}</button>
+        <div className="vefk-trace-actions">
+          <button disabled={busy} aria-pressed={maskPreview?.regionId === selected} onClick={() => void previewSelectedMask()}>Maske</button>
+          <button className="accent" disabled={busy} onClick={() => void traceSelectedRegion()}>Çizgi çıkar</button>
         </div>
-        <div className="vefk-source-picture-scroll">
-          <svg ref={pictureRef} viewBox="0 0 1000 1000" preserveAspectRatio="none"
-            className={`vefk-source-picture ${manualSelection || textureSelection ? "select-area" : ""}`}
-            style={{ aspectRatio: String(aspect) }}
-            role="img" aria-label="Orijinal vefk görseli ve AI tespitleri"
-            onPointerDown={pointerStart} onPointerMove={pointerMove} onPointerUp={pointerEnd}
-            onPointerCancel={() => { drawingRef.current = null; setManualPreview(null); }}>
-            <image href={source.imageDataUrl} x="0" y="0" width="1000" height="1000"
-              preserveAspectRatio="none" opacity={opacity / 100}/>
-            {maskPreview && maskPreview.regionId===selected && <image
-              className="vefk-source-mask-preview" href={maskPreview.dataUrl}
-              x={maskPreview.box[0]} y={maskPreview.box[1]}
-              width={maskPreview.box[2]} height={maskPreview.box[3]}
-              preserveAspectRatio="none" pointerEvents="none"/>}
-            {showBoxes && working?.regions.map(region =>
-              <g key={region.id} className={`vefk-source-region ${region.needsReview ? "uncertain" : "ready"} ${selected === region.id ? "selected" : ""}`}
-                onClick={() => { if (!manualSelection) setSelected(region.id); }} role="button" tabIndex={0}
-                onKeyDown={event => { if (event.key === "Enter" && !manualSelection) setSelected(region.id); }}>
-                <rect x={region.box[0]} y={region.box[1]} width={region.box[2]} height={region.box[3]}/>
-                <text x={region.box[0] + 4} y={Math.max(region.box[1] - 6, 16)}>{region.label || regionNames[region.kind]}</text>
-              </g>)}
-            {showTraces && traces.map(group => <g key={group.regionId} className={`vefk-source-trace ${group.reviewed ? "reviewed" : "pending"}`}
-                pointerEvents="none">
-              {group.paths.map(path => <path key={path.id} d={path.d} fill="none" strokeWidth="4.5" strokeLinecap="round"/>)}
-            </g>)}
-            {selectedRegion && selectedExclusions.map((box,index) =>
-              <rect key={index} className="vefk-source-excluded-area" x={box[0]} y={box[1]}
-                width={box[2]} height={box[3]} pointerEvents="none"/>)}
-            {manualPreview && <rect className={`vefk-source-manual-preview ${textureSelection ? "is-texture" : ""}`}
-              x={manualPreview[0]} y={manualPreview[1]}
-              width={manualPreview[2]} height={manualPreview[3]} pointerEvents="none"/>}
-          </svg>
-        </div>
-        <div className="vefk-source-note">
-          <strong>{working ? `${remaining} belirsiz öğe · ${tracedCount} kalem yolu · ${unapprovedTraces} izleme onayı` : "Kaynak hazır"}</strong>
-          <span>{working
-            ? "Turuncu işaretler inceleme, mavi konturlar çizim doğrulaması bekler. Kaynak fotoğrafı açıp kapatmadan aynı koordinatta karşılaştır."
-            : "AI çözümleme yalnızca yapılandırılmış öneri üretir; fotoğraf tek başına onaylı vefk değildir."}</span>
-        </div>
-      </div>
-      <aside className="vefk-source-review-pane">
-        {!vision?.supported && <div className="vefk-source-unsupported"><strong>Görsel AI desteği gerekli</strong><p>{vision?.reason || "AI modeli kontrol ediliyor…"}</p></div>}
-        {vision?.supported && <div className="vefk-source-provider-note">Kaynak resim, <strong>AI ile çözümle</strong> seçildiğinde Studio AI ayarlarında tanımlı modele gönderilir. Modelin görsel giriş desteği istekte doğrulanır.</div>}
-        {working ? <>
-          <div className="vefk-source-review-heading"><strong>Çözümleme önerisi</strong><span>#{analysis?.id} · {analysis?.status === "reviewed" ? "İncelendi" : "AI önerisi"}</span></div>
-          <p className="vefk-source-description">{working.note || "AI bir açıklama eklemedi."}</p>
-          {!!working.coordinateWarnings?.length && <details className="vefk-source-coordinate-warnings" open>
-            <summary>Koordinat denetimi · {working.coordinateWarnings.length} uyarı</summary>
-            <p>Kırpılan bölgeler onay bekler; atlanan bölgeleri fotoğrafa bakarak elle ekleyebilirsin.</p>
-            {working.coordinateWarnings.slice(0, 24).map((warning, index) =>
-              <div key={index}>
-                <strong>AI alanı #{warning.regionIndex}</strong> · {warning.action === "clipped" ? "Düzeltildi"
-                  : warning.action === "skipped" ? "Atlandı" : "Tür belirsiz"}
-                <span>{warning.reason} · [{warning.originalBox?.join(", ") ?? "okunamadı"}]
-                  {warning.box ? " → [" + warning.box.join(", ") + "]" : ""}</span>
-              </div>)}
-          </details>}
-          {working.grid && <section className="vefk-source-grid-area">
-            <h4>Hücre çözümlemesi <small>{working.grid.rows} × {working.grid.columns}</small></h4>
-            <div className="vefk-source-cell-grid" style={{ gridTemplateColumns: `repeat(${working.grid.columns}, minmax(0,1fr))` }}>
-              {working.grid.cells.map(cell => <button key={`${cell.row}-${cell.column}`} type="button"
-                title={`r${cell.row + 1} c${cell.column + 1} · güven %${Math.round(cell.confidence * 100)}`}
-                className={`${cell.needsReview ? "uncertain" : ""} ${selected === `cell-${cell.row}-${cell.column}` ? "selected" : ""}`}
-                onClick={() => setSelected(`cell-${cell.row}-${cell.column}`)}>
-                {cell.text || "?"}</button>)}
-            </div>
-          </section>}
-          {selectedCell && <section className="vefk-source-selected-editor">
-            <h4>Hücre {selectedCell.row + 1} / {selectedCell.column + 1}</h4>
-            <label>Okunan değer <input value={selectedCell.text} maxLength={120}
-              onChange={event => replaceCell(selectedCell.row, selectedCell.column, { text: event.target.value, reviewed: false, needsReview: true })}/></label>
-            <small>AI güveni %{Math.round(selectedCell.confidence * 100)}</small>
-            <button type="button" disabled={!selectedCell.text.trim()} onClick={() =>
-              replaceCell(selectedCell.row, selectedCell.column, { reviewed: true, needsReview: false })}>Doğruladım</button>
-          </section>}
-          {selectedRegion && <section className="vefk-source-selected-editor">
-            <h4>{selectedRegion.id} · %{Math.round(selectedRegion.confidence * 100)}</h4>
-            <div className="vefk-region-box-controls">
-              <strong>Görsel alanı · X / Y / En / Boy</strong>
-              <div>{(["X", "Y", "En", "Boy"] as const).map((caption,index) =>
-                <label key={caption}>{caption}
-                  <input type="number" min={index < 2 ? 0 : 8} max={1000} step={1}
-                    disabled={busy} value={selectedRegion.box[index]}
-                    onChange={event => { if (event.target.value.trim())
-                      updateRegionBox(selectedRegion.id,index,Number(event.target.value)); }}/>
-                </label>)}</div>
-              <small>Sınırları daraltmak kâğıt kenarı ve zemin dokusunu dışlar. Değişen bölgenin izleri yeniden kontrol edilir.</small>
-            </div>
-            <label>Tip <select value={selectedRegion.kind} onChange={event => replaceRegion(selectedRegion.id, {
-              kind: event.target.value as StudioVefkRegion["kind"], reviewed: false, needsReview: true,
-            })}>{regionTypes.map(type => <option key={type} value={type}>{regionNames[type]}</option>)}</select></label>
-            <label>İşaret / metin <input value={selectedRegion.label} maxLength={250}
-              onChange={event => replaceRegion(selectedRegion.id, { label: event.target.value, reviewed: false, needsReview: true })}/></label>
-            <button type="button" disabled={!selectedRegion.label && !["grid","line"].includes(selectedRegion.kind)}
-              onClick={() => replaceRegion(selectedRegion.id, { reviewed: true, needsReview: false })}>Bölge metnini doğruladım</button>
-            <div className="vefk-trace-controls">
-              <h4>Gerçek mürekkep izleme</h4>
-              <label>Algılama yöntemi
-                <select value={inkMode} onChange={event => setInkMode(event.target.value as "global"|"adaptive")}>
-                  <option value="adaptive">Eski kâğıt · yerel kontrast</option>
-                  <option value="global">Sabit renk eşiği</option>
-                </select>
-              </label>
-              {inkMode === "adaptive"
-                ? <label>Yerel kontrast · {localContrast}
-                  <input type="range" min="8" max="55" step="2" value={localContrast}
-                    onChange={event => setLocalContrast(Number(event.target.value))}/>
-                </label>
-                : <label>Eşik · {threshold}
-                  <input type="range" min="35" max="220" step="5" value={threshold}
-                    onChange={event => setThreshold(Number(event.target.value))}/>
-                </label>}
-              <button type="button" disabled={busy} onClick={() => void compareSelectedMasks()}>
-                {maskComparison?.regionId===selectedRegion.id ? "Karşılaştırmayı kapat" : "3 maskeyi karşılaştır"}
-              </button>
-              {maskComparison?.regionId===selectedRegion.id && <div className="vefk-mask-comparison">
-                <strong>{inkMode==="adaptive"?"Yerel kontrast":"Sabit eşik"} karşılaştırması</strong>
-                <div className="vefk-mask-comparison-options">
-                  {maskComparison.candidates.map(candidate =>
-                    <button key={candidate.level} type="button" disabled={busy}
-                      className={candidate.level===(inkMode==="adaptive"?localContrast:threshold)?"selected":""}
-                      title={"Seçili ayarı "+candidate.level+" yap; mevcut izleri yeniden izleyene kadar değiştirmez"}
-                      onClick={() => {
-                        if(inkMode==="adaptive")setLocalContrast(candidate.level);
-                        else setThreshold(candidate.level);
-                        setNotice("Kontrast seçildi. Önce maskeyi kontrol et, ardından mürekkep yollarını yeniden izle.");
-                      }}>
-                      <span>{candidate.level}</span>
-                      <img src={candidate.dataUrl} alt={candidate.level+" değerinde kaynak mürekkebi karşılaştırması"}/>
-                      <small>Aday %{candidate.density}</small>
-                      <small>Kenar %{candidate.edgeDensity}</small>
-                    </button>)}
-                </div>
-                {maskComparison.candidates.some(candidate=>candidate.edgeDensity>=22) &&
-                  <small className="vefk-mask-edge-warning">
-                    Bölgenin kenarlarında yoğun mürekkep adayı var. Harf taşması veya kâğıt sınırı olabilir; kırpmayı fotoğraftan denetle.
-                  </small>}
-                <small>Bu kıyaslama yalnız görseldir. Daha az yol veya pembe alan otomatik olarak daha doğru Arapça anlamına gelmez. Seçimden sonra konturları yeniden izle.</small>
-              </div>}
-              <label>Kaynak örnekleme
-                <select value={traceResolution} onChange={event => setTraceResolution(Number(event.target.value))}>
-                  <option value={320}>Dengeli · 320 px</option>
-                  <option value={480}>İnce yazı · 480 px</option>
-                </select>
-              </label>
-              <label className="vefk-trace-invert">Küçük yazı noktalarını koru
-                <input type="checkbox" checked={preserveDots} onChange={event => setPreserveDots(event.target.checked)}/>
-              </label>
-              <label className="vefk-trace-invert" title="Yalnız koyu zemin üzerine açık renk mürekkep bulunan kaynaklar için. Açık parşömende yanlış kontur çıkarmaz.">Ters renk · koyu zemin
-                <input type="checkbox" checked={invert} onChange={event => setInvert(event.target.checked)}/>
-              </label>
-              <div className="vefk-texture-controls">
-                <strong>Doku dışlamaları · {selectedExclusions.length}</strong>
-                {selectedExclusions.length>0 && <div>
-                  <button type="button" disabled={busy} onClick={() =>
-                    changeExcludedAreas(selectedRegion.id,selectedExclusions.slice(0,-1))}>Son alanı geri al</button>
-                  <button type="button" disabled={busy} onClick={() =>
-                    changeExcludedAreas(selectedRegion.id,[])}>Alanları temizle</button>
-                </div>}
-                {maskPreview?.regionId===selectedRegion.id && <span>
-                  Pembe maske: {maskPreview.inkPixels} aday piksel · {maskPreview.excludedPixels} dışlandı
-                </span>}
-                <small>+ Doku dışla ile fotoğraf üzerinde istemediğin alanı çiz. Dışlamalar bu oturumda geçicidir; kaydedilen SVG yolları kalıcıdır. İşaretin üzerini yanlışlıkla kapatma.</small>
-              </div>
-              <button type="button" disabled={busy} onClick={() => void traceSelectedRegion()}>
-                {traces.some(group => group.regionId === selectedRegion.id) ? "Konturları yeniden izle" : "Mürekkep çizgilerini izle"}
-              </button>
-              {traceQuality?.regionId === selectedRegion.id && <div className="vefk-trace-quality" role="status">
-                <strong>Son izleme ölçümü</strong>
-                <span>Örnek: {traceQuality.sample.width}×{traceQuality.sample.height} px ·
-                  mürekkep %{(traceQuality.report.inkFraction * 100).toFixed(1)}</span>
-                <span>{traceQuality.report.joinedSegments} iskelet parçası birleştirildi ·
-                  {traceQuality.report.preservedDots} küçük işaret korundu ·
-                  {traceQuality.report.removedSpeckles} küçük gürültü parçası ayrıldı ·
-                  {traceQuality.report.excludedPixels} aday piksel elle dışlandı</span>
-                <small>Bunlar otomatik yorumdur. Harf veya sembol olarak doğrulanmış sayılmaz; kaydetmeden önce çizgileri kaynakla karşılaştır.</small>
-              </div>}
-              {traces.filter(group => group.regionId === selectedRegion.id).map(group =>
-                <div key={group.regionId} className="vefk-trace-review">
-                  <span>{group.paths.length} yol · {group.reviewed ? "Onaylı" : "İnceleme bekliyor"}</span>
-                  <button type="button" disabled={busy || group.reviewed} onClick={() => reviewTrace(group.regionId,true)}>
-                    Konturları onayla
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => deleteTrace(group.regionId)}>İzleri sil</button>
-                </div>)}
-              <small>Yollar fotoğrafın orta hatlarından çıkarılır. Özellikle karmaşık yazılarda hatalı birleşimleri vektör editöründe düzeltmek gerekebilir.</small>
-            </div>
-          </section>}
-          <section className="vefk-source-region-list">
-            <h4>Tespitler <small>{working.regions.length}</small></h4>
-            {working.regions.map(region => <button type="button" key={region.id}
-              className={`${selected === region.id ? "selected" : ""} ${region.needsReview ? "uncertain" : ""}`}
-              onClick={() => setSelected(region.id)}>
-              <span>{regionNames[region.kind]}</span><strong>{region.label || "Okunamadı"}</strong>
-              <small>%{Math.round(region.confidence * 100)}</small>
-            </button>)}
-          </section>
-          <div className="vefk-source-conversion">
-            <strong>SVG üretim durumu</strong>
-            <p>{remaining > 0
-              ? `${remaining} belirsiz okuma var. Önce doğrulayıp incelemeyi kaydet.`
-              : unapprovedTraces > 0
-                ? `${unapprovedTraces} kontur grubunun onayı bekleniyor.`
-                : dirty ? "Düzeltmeleri kaydedince vektör aktarımı açılacak."
-                  : "İncelenmiş içeriği SVG taslağına aktarabilirsin."}</p>
-            <p>{readyGrid ? "Sayısal kare: şematik rakamlarla yeniden çizilir." : "Şematik sayı karesi: tam ve doğrulanmış kare yok."}</p>
-            <p>{tracedCount
-              ? `Özgün mürekkep: ${tracedCount} ayrı yol, ${untracedRegions} bölgede izleme yok. İzlenmemiş kısımlar çıktıya dahil edilmez.`
-              : "Özgün mürekkep: henüz hiçbir bölgeden vektör izlenmedi."}</p>
-            <p>Her iki aktarım da S2 içinde taslak açar; otomatik onay veya yayın yapmaz.</p>
-          </div>
-        </> : <div className="vefk-source-empty"><strong>Kaynak görsel hazır.</strong><p>AI ile çözümleyerek hücreleri, sembolleri ve belirsiz alanları görsel üzerinde inceleyebilirsin. Sıfırdan çizim ayrı çalışma yoludur.</p></div>}
-      </aside>
-    </div>}
+        {selectedTrace && <div className="vefk-trace-review">
+          <span>{selectedTrace.paths.length} yol · {selectedTrace.reviewed ? "✓ Onaylı" : "Mavi konturları incele"}</span>
+          <button disabled={busy || selectedTrace.reviewed} onClick={() => { reviewTrace(selected, true); setNotice("✓ Konturlar onaylandı"); }}>Konturları onayla</button>
+          <button disabled={busy} onClick={() => deleteTrace(selected)}>İzleri sil</button>
+        </div>}
+        <details className="vefk-advanced"><summary>Mürekkep ve sınırlar</summary>
+          <label>Algılama<select value={inkMode} onChange={event => setInkMode(event.target.value as "global" | "adaptive")}>
+            <option value="adaptive">Yerel kontrast</option><option value="global">Sabit eşik</option></select></label>
+          {inkMode === "adaptive" ? <label>Kontrast · {localContrast}<input type="range" min={8} max={55} step={1} value={localContrast} onChange={e => setLocalContrast(Number(e.target.value))}/></label>
+            : <label>Eşik · {threshold}<input type="range" min={35} max={220} value={threshold} onChange={e => setThreshold(Number(e.target.value))}/></label>}
+          <button disabled={busy} onClick={() => void compareSelectedMasks()}>Maskeleri karşılaştır</button>
+          {maskComparison?.regionId === selected && <div className="vefk-mask-comparison-options">{maskComparison.candidates.map(candidate =>
+            <button key={candidate.level} disabled={busy} onClick={() => inkMode === "adaptive" ? setLocalContrast(candidate.level) : setThreshold(candidate.level)}>
+              <img src={candidate.dataUrl} alt={`Maske ${candidate.level}`}/><span>{candidate.level}</span><small>%{candidate.density}</small></button>)}</div>}
+          <label>Örnekleme<select value={traceResolution} onChange={e => setTraceResolution(Number(e.target.value))}><option value={320}>320 px</option><option value={480}>480 px</option></select></label>
+          <label className="vefk-check"><input type="checkbox" checked={preserveDots} onChange={e => setPreserveDots(e.target.checked)}/>Noktaları koru</label>
+          <label className="vefk-check"><input type="checkbox" checked={invert} onChange={e => setInvert(e.target.checked)}/>Koyu zemin</label>
+          <button aria-pressed={textureSelection} disabled={busy} onClick={() => { setTextureSelection(v => !v); setManualSelection(false); }}>Doku dışla · {selectedExclusions.length}</button>
+          {!!selectedExclusions.length && <button onClick={() => changeExcludedAreas(selected, selectedExclusions.slice(0,-1))}>Son dışlamayı geri al</button>}
+          <div className="vefk-region-box-controls"><strong>Sınırlar</strong><div>{["X", "Y", "En", "Boy"].map((caption,index) =>
+            <label key={caption}>{caption}<input type="number" min={0} max={1000} value={selectedRegion.box[index]} onChange={e => { if (e.target.value) updateRegionBox(selected, index, Number(e.target.value)); }}/></label>)}</div></div>
+          {traceQuality?.regionId === selected && <small>{traceQuality.report.preservedDots} nokta korundu · {traceQuality.report.removedSpeckles} toz izi temizlendi</small>}
+        </details>
+      </section>}
+      {!selected && <div className="vefk-context-empty"><span>↖</span><p>Bir hücre veya bölge seç.</p></div>}
+      <details className="vefk-review-queue" open><summary>İnceleme kuyruğu · {remaining}</summary>
+        <button disabled={!remaining || busy} onClick={() => nextItem()}>Sonraki öğe →</button>
+        {working.grid && <div className="vefk-source-cell-grid" style={{ gridTemplateColumns: `repeat(${working.grid.columns}, minmax(0,1fr))` }}>
+          {working.grid.cells.map(cell => <button key={`${cell.row}-${cell.column}`} title={`Hücre ${cell.row+1}/${cell.column+1} · ${cell.reviewed ? "Onaylı" : "Onay bekliyor"}`}
+            aria-label={`Hücre ${cell.row+1}/${cell.column+1}`} className={`${cell.reviewed ? "reviewed" : "uncertain"} ${selected === `cell-${cell.row}-${cell.column}` ? "selected" : ""}`}
+            onClick={() => setSelected(`cell-${cell.row}-${cell.column}`)}>{cell.text || "?"}{cell.reviewed && <sup>✓</sup>}</button>)}
+        </div>}
+        <div className="vefk-source-region-list">{working.regions.map(region => <button key={region.id} className={`${region.reviewed ? "reviewed" : "uncertain"} ${selected === region.id ? "selected" : ""}`} onClick={() => setSelected(region.id)}>
+          <span>{regionNames[region.kind]}</span><strong>{region.label || "?"}</strong><small>{region.reviewed ? "✓" : "○"}</small></button>)}</div>
+      </details>
+      <details className="vefk-advanced"><summary>Toplu inceleme</summary>
+        <button onClick={() => setBulkIds(queue.filter(item => item.confidence >= .95 && item.eligible).map(item => item.id))}>Yüksek güvenlileri seç</button>
+        {queue.filter(item => item.eligible).map(item => <label className="vefk-check" key={item.id}>
+          <input type="checkbox" checked={bulkIds.includes(item.id)} onChange={e => setBulkIds(ids => e.target.checked ? [...ids,item.id] : ids.filter(id => id !== item.id))}/>{item.label} · %{Math.round(item.confidence*100)}</label>)}
+        <button disabled={!bulkIds.length || busy} onClick={() => confirmItems(bulkIds)}>Seçilenleri onayla · {bulkIds.length}</button>
+      </details>
+      <details className="vefk-advanced" open={!remaining}><summary>Üretim yöntemi</summary>
+        <select aria-label="Üretim yöntemi" value={conversion} onChange={e => setConversion(e.target.value as "traced" | "grid")}>
+          <option value="traced">Özgün çizimi koru</option><option value="grid" disabled={!readyGrid}>Sayısal kare</option></select>
+        <small>{tracedCount} yol · {untracedRegions} bölge izlenmedi</small>
+        {!!untracedRegions && <small>İzlenmeyen bölgeler SVG’ye aktarılmaz.</small>}
+        <button disabled={busy || (conversion === "traced" ? !canTransferTraces : !canTransferGrid)} onClick={() => void makeDraft(conversion)}>Çizimi oluştur</button>
+      </details>
+      <details className="vefk-advanced"><summary>Kaynak ayrıntıları</summary><small>{analysis?.provider} · {analysis?.model}</small><p>{working.note}</p>
+        <small>{source.id}</small><small>{source.sha256}</small>
+        {!!working.coordinateWarnings?.length && <p>{working.coordinateWarnings.length} koordinat uyarısı. Atlanan bölgeleri elle ekle.</p>}
+      </details>
+    </>}
   </div>;
-}
+  return <>
+    {active && toolbar && createPortal(controls, toolbar)}
+    {active && inspector && !preparing && createPortal(properties, inspector)}
+    {preparing ? <VefkImagePreparation inspector={inspector} source={source} onSaved={preparationSaved} onClose={() => setPreparing(false)}/>
+    : <svg ref={pictureRef} viewBox="0 0 1000 1000" preserveAspectRatio="none" className={`vefk-source-picture ${manualSelection || textureSelection ? "select-area" : ""}`}
+      onClickCapture={event => { if (suppressClick.current) { suppressClick.current=false; event.stopPropagation(); } }}
+      role="img" aria-label="Kaynak görsel ve inceleme tespitleri" onPointerDown={pointerStart} onPointerMove={pointerMove} onPointerUp={pointerEnd}
+      onPointerCancel={() => { drawingRef.current = null; setManualPreview(null); }} onClick={e => { if (e.target === e.currentTarget) setSelected(""); }}>
+      <image href={source.imageDataUrl} x={0} y={0} width={1000} height={1000} preserveAspectRatio="none" opacity={showPhoto ? opacity / 100 : 0} onClick={() => setSelected("")}/>
+      {maskPreview && <image href={maskPreview.dataUrl} x={maskPreview.box[0]} y={maskPreview.box[1]} width={maskPreview.box[2]} height={maskPreview.box[3]} preserveAspectRatio="none" pointerEvents="none"/>}
+      {showBoxes && working?.grid?.cells.map(cell => {
+        const box = cellBox(working, cell); if (!box) return null;
+        const id = `cell-${cell.row}-${cell.column}`;
+        return <g key={id} role="button" tabIndex={active ? 0 : -1} aria-label={`Görsel hücre ${cell.row+1}/${cell.column+1}`} onClick={() => select(id)} onKeyDown={e => { if (e.key === "Enter") select(id); }}
+          className={`vefk-source-cell ${cell.reviewed ? "reviewed" : "uncertain"} ${selected === id ? "selected" : ""}`}>
+          <rect x={box[0]} y={box[1]} width={box[2]} height={box[3]}/><text x={box[0]+8} y={box[1]+24}>{cell.reviewed ? "✓" : "?"}</text></g>;
+      })}
+      {showBoxes && working?.regions.map(region => <g key={region.id} role="button" tabIndex={active ? 0 : -1} aria-label={`${regionNames[region.kind]} ${region.label}`}
+        className={`vefk-source-region ${region.reviewed ? "reviewed" : "uncertain"} ${selected === region.id ? "selected" : ""}`}
+        onClick={() => select(region.id)} onKeyDown={e => { if (e.key === "Enter") select(region.id); }}>
+        <rect pointerEvents={region.kind === "grid" ? "stroke" : undefined} x={region.box[0]} y={region.box[1]} width={region.box[2]} height={region.box[3]}/>
+        <text x={region.box[0]+5} y={Math.max(18,region.box[1]-6)}>{region.reviewed ? "✓ " : "○ "}{region.label || regionNames[region.kind]}</text>
+      </g>)}
+      {showTraces && traces.map(group => <g key={group.regionId} className={`vefk-source-trace ${group.reviewed ? "reviewed" : "pending"}`} pointerEvents="none">
+        {group.paths.map(path => <path key={path.id} d={path.d} fill="none" strokeWidth={4.5} strokeLinecap="round"/>)}</g>)}
+      {selectedRegion && selectedExclusions.map((box,index) => <rect key={index} className="vefk-source-excluded-area" x={box[0]} y={box[1]} width={box[2]} height={box[3]} pointerEvents="none"/>)}
+      {manualPreview && <rect className={`vefk-source-manual-preview ${textureSelection ? "is-texture" : ""}`} x={manualPreview[0]} y={manualPreview[1]} width={manualPreview[2]} height={manualPreview[3]} pointerEvents="none"/>}
+    </svg>}
+  </>;
+});

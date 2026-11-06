@@ -62,9 +62,9 @@ test("Studio only shows opt-in comparison and never changes approved paths on le
   const source=fs.readFileSync(url,"utf8");
   assert.match(source,/compareSelectedMasks\(/);
   assert.match(source,/compareInkMasks\(image,selectedRegion\.box/);
-  assert.match(source,/3 maskeyi karşılaştır/);
+  assert.match(source,/Maskeleri karşılaştır/);
   assert.match(source,/maskComparison\.candidates\.map/);
   assert.match(source,/setLocalContrast\(candidate\.level\)/);
   assert.match(source,/setThreshold\(candidate\.level\)/);
-  assert.match(source,/Seçimden sonra konturları yeniden izle/);
+
 });

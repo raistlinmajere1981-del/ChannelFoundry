@@ -34,9 +34,9 @@ function reviewed(db, doc) {
 test("new database creates dedicated STRICT tables and no unrelated Studio tables", () => {
   const db = openDb();
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(r => r.name);
-  assert.deepEqual(tables, ["vefk_documents", "vefk_revisions"]);
+  assert.deepEqual(tables, ["vefk_document_sources", "vefk_documents", "vefk_revisions"]);
   const strict = db.prepare("PRAGMA table_list").all().filter(r => tables.includes(r.name));
-  assert.equal(strict.length, 2);
+  assert.equal(strict.length, 3);
   assert.ok(strict.every(r => r.strict === 1));
   assert.ok(store.listDocuments(db).length === 0);
   store.ensureSchema(db);

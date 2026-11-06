@@ -9,6 +9,7 @@ import "./vefk-timeline-editor.css";
 type Props = {
   document: StudioVefkDocument;
   disabled: boolean;
+  forceOpen?: boolean;
   selectedPath: string | null;
   onSelectPath: (id: string) => void;
   previewMs: number;
@@ -23,10 +24,11 @@ type Props = {
 
 /** Studio-only timing dock; independent of parchment/UI and public transport. */
 export default function VefkTimelineEditor({
-  document, disabled, selectedPath, onSelectPath, previewMs,
+  document, disabled, forceOpen, selectedPath, onSelectPath, previewMs,
   onPreviewMs, previewCurve, onPreviewCurve, onEnablePersistentMotion, onShowComplete, onPlanChange, onError,
 }: Props) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (forceOpen !== undefined) setOpen(forceOpen); }, [forceOpen]);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [tempoCurve, setTempoCurve] = useState<StrokeTempoCurve>("ceremony");
@@ -40,7 +42,7 @@ export default function VefkTimelineEditor({
 
   useEffect(() => { clockRef.current = previewMs; }, [previewMs]);
   useEffect(() => {
-    if (!playing || !open) return;
+    if (!playing) return;
     let frame = 0;
     let previous: number | null = null;
     const tick = (timestamp: number) => {
@@ -55,7 +57,7 @@ export default function VefkTimelineEditor({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, open, speed, total, onPreviewMs]);
+  }, [playing, speed, total, onPreviewMs]);
 
   useEffect(() => {
     setPlaying(false);
@@ -107,11 +109,21 @@ export default function VefkTimelineEditor({
     aria-label="Vefk çizim zaman çizelgesi">
     <header className="vefk-timeline-head">
       <button type="button" className="vefk-timeline-expand"
-        aria-expanded={open} onClick={() => { setOpen(value => !value); if (open) setPlaying(false); }}>
-        <span>{open ? "▾" : "▸"}</span> Çizim zaman çizelgesi
+        aria-label="Çizim zaman çizelgesi" title="Çizim zaman çizelgesi" aria-expanded={open} onClick={() => { setOpen(value => !value); if (open) setPlaying(false); }}>
+        <span>{open ? "▾" : "▸"}</span> {open ? "Çizim zaman çizelgesi" : "Çizim"}
       </button>
       <span className="vefk-timeline-summary">{rows.length} yol · {formatTime(total)}</span>
-      {open && <div className="vefk-timeline-playback">
+      <div className="vefk-timeline-scrub">
+        <span>{formatTime(Math.min(total, Math.max(0, previewMs)))}</span>
+        <input type="range" min={0} max={total} step={10} value={Math.min(total, previewMs)}
+          aria-label="Çizim zamanında ileri geri sar"
+          onChange={event => {
+            setPlaying(false);
+            const value = Number(event.target.value); clockRef.current = value; onPreviewMs(value);
+          }}/>
+        <span>{formatTime(total)}</span>
+      </div>
+      <div className="vefk-timeline-playback">
         <button type="button" aria-label="Başa sar" title="Başa sar"
           onClick={() => { setPlaying(false); clockRef.current = 0; onPreviewMs(0); }}>⏮</button>
         <button type="button" className={playing ? "active" : ""}
@@ -140,19 +152,9 @@ export default function VefkTimelineEditor({
           onClick={suggestTempoCurve}>Eğri uygula</button>
         <button type="button" title="Önizlemeyi kapat, tam vefki göster"
           onClick={() => { setPlaying(false); onShowComplete(); }}>Tam görünüm</button>
-      </div>}
+      </div>
     </header>
     {open && <>
-      <div className="vefk-timeline-scrub">
-        <span>{formatTime(Math.min(total, Math.max(0, previewMs)))}</span>
-        <input type="range" min={0} max={total} step={10} value={Math.min(total, previewMs)}
-          aria-label="Çizim zamanında ileri geri sar"
-          onChange={event => {
-            setPlaying(false);
-            const value = Number(event.target.value); clockRef.current = value; onPreviewMs(value);
-          }}/>
-        <span>{formatTime(total)}</span>
-      </div>
       {document.schemaVersion === 1 ? <div className="vefk-intrastroke-lab" role="group" aria-label="Çizgi içi hareket deneyi">
         <strong>Çizgi içi · Deney</strong>
         <select aria-label="Deneysel çizgi içi hız eğrisi (kaydedilmez)" value={previewCurve} disabled={disabled}

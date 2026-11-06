@@ -2,6 +2,7 @@
 
 const vefkCore = require("./vefk-core/index.cjs");
 const store = require("./vefk-store.cjs");
+const management = require("./vefk-management.cjs");
 const publication = require("./vefk-publication.cjs");
 
 /**
@@ -23,7 +24,11 @@ function registerVefkIpc(ipcMain, runtime) {
   register("studio:vefk-revisions", (db, id) => store.listRevisions(db, id));
   register("studio:vefk-save-draft", (db, input) => store.saveDraft(db, input), { mutates: true });
   register("studio:vefk-review", (db, input) => store.setReviewState(db, input), { mutates: true });
+  register("studio:vefk-source-review-info", (db, id) => store.sourceReview(db, id));
+  register("studio:vefk-delete", (db, input) => management.deleteDocument(db, input), { mutates: true });
+  register("studio:vefk-copy", (db, input) => management.copyDocument(db, input), { mutates: true });
   register("studio:vefk-approved", (db) => store.listApproved(db));
+  register("studio:vefk-package-status", db => publication.packageStatus(db, runtime.vefkUserDataPath()));
   register("studio:vefk-catalog-list", (db) => publication.selected(db));
   register("studio:vefk-catalog-select", (db, input) => publication.select(db, input), { mutates: true });
 }

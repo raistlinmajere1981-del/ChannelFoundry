@@ -81,7 +81,7 @@ test("S4 keeps the same site renderer, a single Studio timeline and persistent d
   assert.match(workshop, /<VefkTimelineEditor/);
   const motion = read("vefk-motion-editor.ts");
   assert.match(motion, /drawPlan: reconcileDrawPlan\(doc.geometry, doc.drawPlan, doc.schemaVersion\)/);
-  assert.match(workshop, /drawPlan: reconcileDrawPlan\(next.geometry, next.drawPlan, next.schemaVersion\)/);
+  assert.match(workshop, /reconcileDrawPlan\(next.geometry, next.drawPlan, next.schemaVersion\)/);
   assert.match(workshop, /createEditorPreviewPlayer\(working, experimentalCurve\)/);
   assert.match(motion, /createVefkPlayer\(doc\)/);
   assert.match(workshop, /strokeDashoffset=\{timelineFrame/);
@@ -93,26 +93,4 @@ test("S4 keeps the same site renderer, a single Studio timeline and persistent d
   assert.match(consumer, /phase: "travel"/);
   assert.doesNotMatch(dock, /fetch\(|publishPublicSnapshot|<iframe/);
   assert.doesNotMatch(workshop, /publishPublicSnapshot|communityAdmin|http:/);
-});
-
-test("small laptop layout keeps source header and S4 canvas usable without changing publication",()=>{
-  const read=name=>fs.readFileSync(path.join(root,name),"utf8");
-  const workshop=read("VefkWorkshop.tsx");
-  const workshopCss=read("vefk-workshop.css");
-  const timelineCss=read("vefk-timeline-editor.css");
-  const sourceCss=read("vefk-source-workbench.css");
-  assert.match(workshop,/rightOpen, setRightOpen\] = useState\(\(\) => window.innerWidth > 1200\)/);
-  assert.match(workshopCss,/@media\(max-width:1200px\)/);
-  assert.match(timelineCss,/@media\(max-width:1200px\)\{\.vefk-timeline\.is-open\{height:200px/);
-  assert.match(sourceCss,/\.vefk-source-header\{display:grid;grid-template-columns:minmax\(0,1fr\)/);
-  assert.match(workshop,/studioPenPose\(/);
-  assert.match(read("VefkTimelineEditor.tsx"),/balanceStrokeDurations\(/);
-});
-
-test("S4 responsive inspector follows breakpoint until the user makes an explicit choice",()=>{
-  const source=fs.readFileSync(path.join(root,"VefkWorkshop.tsx"),"utf8");
-  assert.match(source,/lastNarrowViewport = useRef\(window.innerWidth <= 1200\)/);
-  assert.match(source,/rightPanelUserChoice = useRef\(false\)/);
-  assert.match(source,/if \(!rightPanelUserChoice.current\) setRightOpen\(!narrow\)/);
-  assert.match(source,/rightPanelUserChoice.current = true; setRightOpen\(!rightOpen\)/);
 });

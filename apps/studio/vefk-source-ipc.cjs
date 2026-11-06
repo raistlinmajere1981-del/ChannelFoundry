@@ -1,13 +1,23 @@
 "use strict";
 
+const management = require("./vefk-management.cjs");
 const sources = require("./vefk-sources.cjs");
 const vision = require("./vefk-vision.cjs");
 const preparations = require("./vefk-preparations.cjs");
 
 function registerVefkSourceIpc(ipcMain, runtime) {
+  for (const [channel, action] of [
+    ["studio:vefk-source-delete", input => management.deleteSource(runtime.database(), runtime.vefkUserDataPath(), input)],
+    ["studio:vefk-analysis-delete", input => management.deleteAnalyses(runtime.database(), input)],
+    ["studio:vefk-source-rename", input => management.renameSource(runtime.database(), input)],
+    ["studio:vefk-source-cleanup", input => {
+      if (input?.confirmed !== true) throw new Error("Temizlik için açık onay gerekli.");
+      return management.cleanup(runtime.database(), runtime.vefkUserDataPath());
+    }],
+  ]) ipcMain.handle(channel, (_event, input) => { const result = action(input); runtime.refreshMainWindow(); return result; });
   ipcMain.handle("studio:vefk-source-list", () => sources.listSources(runtime.database()));
   ipcMain.handle("studio:vefk-source-get", (_event, id) =>
-    sources.loadSource(runtime.database(), runtime.vefkUserDataPath(), id));
+    sources.loadSource(runtime.database(), runtime.vefkUserDataPath(), typeof id === "string" ? id : id?.id, { preparationRevision: typeof id === "string" ? undefined : id?.preparationRevision }));
   ipcMain.handle("studio:vefk-source-pick", async () => {
     const result = await runtime.pickVefkSource();
     if (!result.canceled) runtime.refreshMainWindow();

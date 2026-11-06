@@ -74,7 +74,7 @@ test("normalization preserves uncertainty and fills missing grid cells", () => {
   assert.equal(data.grid.cells[1].needsReview, true);
   assert.equal(data.grid.cells[3].needsReview, true);
   assert.equal(data.regions[2].needsReview, true);
-  assert.equal(data.regions[0].needsReview, false);
+  assert.equal(data.regions[0].needsReview, true);
   assert.equal(data.orientation, "rtl");
 });
 
@@ -199,6 +199,8 @@ test("source trace groups persist as append-only reviewed S1-safe pen paths", ()
     assert.equal(preview.result.traces[0].reviewed,false);
     const accepted=structuredClone(preview.result);
     accepted.traces[0].reviewed=true;
+    accepted.regions.forEach(region => { region.reviewed = true; region.kind = region.kind === "unknown" ? "symbol" : region.kind; region.label ||= "İşaret"; });
+    accepted.grid.cells.forEach(cell => { cell.reviewed = true; cell.text ||= "Sembol"; });
     const reviewed=sources.appendAnalysis(fx.db,{
       sourceId:fx.saved.id,origin:"review",provider:"openai-compatible",model:"vision",
       expectedAnalysisId:preview.id,result:accepted,
@@ -214,7 +216,7 @@ test("source trace groups persist as append-only reviewed S1-safe pen paths", ()
         paths,inkStyles:{trace:{width:5,cap:"round"}}},
     });
     assert.equal(validateVefk(doc).ok,true);
-    store.saveDraft(fx.db,{document:doc});
+    store.saveDraft(fx.db,{document:doc, sourceReview: { sourceId: fx.saved.id, analysisId: reviewed.id, method: "traced", partialAccepted: true }});
     const saved=store.getDocument(fx.db,doc.id);
     assert.equal(saved.document.geometry.paths[0].d,paths[0].d);
     assert.equal(saved.document.contentHash,doc.contentHash);

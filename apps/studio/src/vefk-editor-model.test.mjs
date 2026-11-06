@@ -61,3 +61,17 @@ test("new freehand ids remain stable and collision-free", () => {
   assert.equal(nextPathId(rows), "mark.002");
   assert.equal(nextPathId([...rows, { id: "mark.002" }]), "mark.004");
 });
+
+
+test("canonical multi-M ink progress reveals subpaths sequentially without changing time", async () => {
+  const { visibleSubpaths } = await import("./vefk-editor-model.ts");
+  const { splitInkSubpaths, subpathInkFraction } = await import("../../../channels/birdesengor/web/src/vefk/geometry.js");
+  for (const d of ["M 10 20 L 110 20 M 250 30 L 250 330", "M 0 0 L 100 0 L 100 100 Z M 400 400 L 405 405"]) {
+    const { totalLength, subpaths } = splitInkSubpaths(d);
+    for (let i=0; i<=100; i++) {
+      const fraction=i/100;
+      assert.deepEqual(visibleSubpaths(d,fraction).map(piece => piece.fraction),
+        subpaths.map(piece => subpathInkFraction(fraction,totalLength,piece)));
+    }
+  }
+});

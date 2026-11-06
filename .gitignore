@@ -24,3 +24,8 @@ apps/studio/local-data/
 # Ham tasarım kaynakları yerelde kalır; optimize web varlıkları submodule içinde sürümlenir.
 /channels4_profile.jpg
 /Mystical Moonlit Occult Workshop.png
+
+/.superdesign/
+
+# Generated Studio/Chromium/Electron QA captures stay local.
+/artifacts/

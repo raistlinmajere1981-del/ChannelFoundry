@@ -2,9 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const channelProjects = require("../apps/studio/channel-projects.cjs");
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const [mode, channelId] = process.argv.slice(2);
@@ -33,10 +30,9 @@ if (selected.cwd === "web" && !existsSync(path.join(cwd, "package.json"))) {
   console.error(`${channel.displayName} web reposu bulunamadı: ${cwd}`);
   process.exit(2);
 }
-if (selected.cwd === "core") {
-  channelProjects.setActiveProject(channelId, root);
-}
 const env = { ...process.env };
+// The primary Studio applies the selection after acquiring its instance lock.
+if (selected.cwd === "core") env.CHANNEL_FOUNDRY_START_PROJECT = channelId;
 delete env.CHANNEL_FOUNDRY_DATA_ROOT;
 console.log(`ChannelFoundry · ${channel.displayName} · ${mode}`);
 const command = process.platform === "win32" ? "npm.cmd" : "npm";

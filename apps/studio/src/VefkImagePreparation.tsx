@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState,type PointerEvent as ReactPointerEvent} from "react";
+import { createPortal } from "react-dom";
 import {
   FULL_CORNERS,validatePreparation,prepareRgba,preparedDimensions,
   rotateCorners,type Corners,type Raster,type PreparationSettings,
@@ -6,6 +7,7 @@ import {
 import "./vefk-image-preparation.css";
 
 type Props={
+  inspector: HTMLElement | null;
   source:StudioVefkSourceImage;
   onSaved:(updated:StudioVefkSourceImage)=>void;
   onClose:()=>void;
@@ -50,7 +52,7 @@ function canvasData(raster:Raster):string{
   return canvas.toDataURL("image/png");
 }
 
-export default function VefkImagePreparation({source,onSaved,onClose}:Props){
+export default function VefkImagePreparation({source,onSaved,onClose,inspector}:Props){
   const bridge=window.channelFoundryStudio;
   const svgRef=useRef<SVGSVGElement|null>(null);
   const dragRef=useRef<number|null>(null);
@@ -60,7 +62,7 @@ export default function VefkImagePreparation({source,onSaved,onClose}:Props){
   const [previewAspect,setPreviewAspect]=useState(1);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  const [info,setInfo]=useState("Köşeleri sürükleyerek kâğıdı seç; sağdaki görüntü düzeltmenin önizlemesidir.");
+  const [info,setInfo]=useState("Dört köşeyi sürükle.");
 
   useEffect(()=>{
     let alive=true;
@@ -138,10 +140,10 @@ export default function VefkImagePreparation({source,onSaved,onClose}:Props){
   }
   const points=settings.corners;
   const polygon=points.map(p=>p.x+","+p.y).join(" ");
-  return <div className="vefk-prep-layout">
+  const surface = <div className="vefk-prep-layout">
     <div className="vefk-prep-original">
       <div className="vefk-prep-description">
-        <strong>Orijinal fotoğraf</strong><span>Dört köşe sürüklenebilir; kaynak hiç değiştirilmez.</span>
+        <strong>Orijinal fotoğraf</strong><span>Kırp ve hizala</span>
       </div>
       <div className="vefk-prep-original-scroll">
         <svg ref={svgRef} className="vefk-prep-source-svg" viewBox="0 0 1000 1000"
@@ -165,7 +167,8 @@ export default function VefkImagePreparation({source,onSaved,onClose}:Props){
         </svg>
       </div>
     </div>
-    <aside className="vefk-prep-tools">
+  </div>;
+  const tools =     <aside className="vefk-prep-tools">
       <div className="vefk-prep-description">
         <strong>Perspektif ve renk</strong>
         <span>Hazırlık revizyonu r{(source.preparation?.revision??0)+1}</span>
@@ -196,12 +199,12 @@ export default function VefkImagePreparation({source,onSaved,onClose}:Props){
       </div>
       {error&&<p className="vefk-prep-error" role="alert">{error}</p>}
       <p className="vefk-prep-description" role="status">{info}</p>
-      <p className="vefk-prep-warning">Kaydettiğinde eski analizler saklanır; yeni hizalama için Gemini analizi tekrar yapılır. Mevcut inceleme koordinatları taşınmaz.</p>
+      <small className="vefk-prep-warning">Kaydettikten sonra yeni görüntüyü yeniden çözümle.</small>
       <div className="vefk-prep-footer">
         <button type="button" disabled={busy} onClick={onClose}>Vazgeç</button>
         <button type="button" className="primary" disabled={busy||!preview||Boolean(error)}
           onClick={()=>void save()}>{busy?"Hazırlanıyor…":"Düzeltmeyi kaydet"}</button>
       </div>
-    </aside>
-  </div>;
+    </aside>;
+  return <>{surface}{inspector && createPortal(tools, inspector)}</>;
 }

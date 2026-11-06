@@ -29,6 +29,15 @@ function ensureSchema(db) {
       published_at TEXT,
       PRIMARY KEY (document_id, revision)
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS vefk_document_sources (
+      document_id TEXT PRIMARY KEY REFERENCES vefk_documents(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL,
+      analysis_id INTEGER NOT NULL,
+      preparation_revision INTEGER NOT NULL,
+      method TEXT NOT NULL CHECK(method IN ('traced','grid')),
+      partial_accepted INTEGER NOT NULL CHECK(partial_accepted IN (0,1)),
+      omitted_regions_json TEXT NOT NULL
+    ) STRICT;
     CREATE INDEX IF NOT EXISTS idx_vefk_documents_status ON vefk_documents(status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_vefk_documents_search ON vefk_documents(title_search);
     CREATE INDEX IF NOT EXISTS idx_vefk_revisions_status ON vefk_revisions(status, document_id, revision);
@@ -57,6 +66,41 @@ function transaction(db, callback) {
   }
 }
 
+function sourceReview(db, id) {
+  ensureSchema(db);
+  const row = db.prepare("SELECT * FROM vefk_document_sources WHERE document_id=?").get(requireId(id));
+  return row ? { sourceId: row.source_id, analysisId: row.analysis_id,
+    preparationRevision: row.preparation_revision, method: row.method,
+    partialAccepted: Boolean(row.partial_accepted), omittedRegions: JSON.parse(row.omitted_regions_json) } : null;
+}
+function validateSourceReview(db, document, input) {
+  const refs = document.provenance.references.filter(id => /^source-[a-f0-9]{32}$/.test(id));
+  if (!refs.length || sourceReview(db, document.id)) return null;
+  // Copying is explicit, local and preserves the original human decision even
+  // if its source/analysis has since been deleted.
+  const inherited = input.copyFrom ? sourceReview(db, input.copyFrom) : null;
+  if (inherited && refs.includes(inherited.sourceId)) return inherited;
+  const evidence = input.sourceReview;
+  if (!evidence || !refs.includes(evidence.sourceId)) throw new Error("Kaynak inceleme kaydı gerekli.");
+  const analysis = require("./vefk-sources.cjs").latestAnalysis(db, evidence.sourceId);
+  if (!analysis || analysis.id !== evidence.analysisId || analysis.origin !== "review")
+    throw new Error("Kaynak incelemesi değişti; son incelemeyi kaydet.");
+  const result = analysis.result;
+  if ([...result.regions, ...(result.grid?.cells ?? [])].some(item => !item.reviewed))
+    throw new Error("Tüm hücre ve bölgeler insan onayı bekliyor.");
+  if (!["traced", "grid"].includes(evidence.method)) throw new Error("Üretim yöntemi gerekli.");
+  const omittedRegions = result.regions.filter(region => !result.traces.some(trace => trace.regionId === region.id)).map(region => region.id);
+  if (evidence.method === "traced") {
+    if (!result.traces.length || result.traces.some(trace => !trace.reviewed)) throw new Error("Konturlar onay bekliyor.");
+    if (omittedRegions.length && evidence.partialAccepted !== true) throw new Error("İzlenmemiş bölgeler için kısmi çizim kararı gerekli.");
+  } else if (document.construction.kind !== "manualSquare" || !result.grid || result.grid.rows < 3 || result.grid.rows > 9 || result.grid.rows !== result.grid.columns ||
+    result.grid.cells.some(cell => !/^[+-]?\d+$/.test(cell.text.trim().replace(/[−–]/g, "-")) || !Number.isSafeInteger(Number(cell.text.trim().replace(/[−–]/g, "-"))))) {
+    throw new Error("Sayısal kare yalnız doğrulanmış sayılardan oluşturulabilir; semboller özgün çizimde korunmalı.");
+  }
+  return { sourceId: evidence.sourceId, analysisId: analysis.id, preparationRevision: result.preparationRevision,
+    method: evidence.method, partialAccepted: evidence.method === "traced" && omittedRegions.length > 0,
+    omittedRegions: evidence.method === "traced" ? omittedRegions : [] };
+}
 function stamp() { return new Date().toISOString(); }
 function searchKey(value) { return String(value).normalize("NFC").toLocaleLowerCase("tr-TR"); }
 
@@ -155,6 +199,7 @@ function saveDraft(db, input) {
   return transaction(db, () => {
     const existing = getDocumentRow(db, document.id);
     const now = stamp();
+    const evidence = validateSourceReview(db, document, input);
     if (!existing) {
       if (document.revision !== 1 || expectedHash !== undefined) {
         throw new Error("Yeni vefk belge revizyonu 1 olmalı.");
@@ -197,6 +242,10 @@ function saveDraft(db, input) {
         WHERE id = ?
       `).run(document.title, searchKey(document.title), document.revision, now, document.id);
     }
+    if (evidence) db.prepare(`INSERT INTO vefk_document_sources
+      (document_id,source_id,analysis_id,preparation_revision,method,partial_accepted,omitted_regions_json)
+      VALUES(?,?,?,?,?,?,?)`).run(document.id,evidence.sourceId,evidence.analysisId,evidence.preparationRevision,
+        evidence.method,evidence.partialAccepted ? 1 : 0,JSON.stringify(evidence.omittedRegions));
     return unpackRevision(getRevisionRow(db, document.id, document.revision));
   });
 }
@@ -252,5 +301,5 @@ function listApproved(db) {
 }
 
 module.exports = {
-  ensureSchema, getDocument, listDocuments, listRevisions, saveDraft, setReviewState, listApproved,
+  ensureSchema, sourceReview, getDocument, listDocuments, listRevisions, saveDraft, setReviewState, listApproved,
 };

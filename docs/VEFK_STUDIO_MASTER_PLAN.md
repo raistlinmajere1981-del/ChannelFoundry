@@ -1,5 +1,6 @@
 # BirDeSenGör — Studio Vefk Üretim Sistemi V1 / Mimari Plan
 
+> **Studio V3 — 2026-11-06:** Kaynak incelemesi, SVG düzenleme, zaman çizelgesi, kayıt yönetimi ve yerel yayın hazırlığı tek çalışma yüzeyinde birleştirildi. Güncel Studio mimarisi ve doğrulama: [Vefk Atölyesi V3](VEFK_WORKSHOP_V3.md). Aşağıdaki eski ekran önerileri tarihsel kayıttır.
 > **P7.5 bağlayıcı son karar — 2026-11-04:** Aşağıdaki eski rulo/parşömen durum makinesi ve paralel oturum sınırları tarihsel plan kaydıdır. Güncel uygulama tek `VefkStand`, üç ahşap ayak/pirinç cihaz, sabit dokulu panel ve mevcut tek `quill`dür. Rulo açma/sarma/örtme yoktur; yakınlaşma/dönüş yalnız mevcut kamera sistemiyle olur. Mekanik kol play/pause, native oyuk range seek, mühür onaylı revizyon seçimi, süpürme taşı yalnız seek(0). Binding v2 `vefk-stand.ink-plane` + aynı `quill.tip` olarak iki uçta atomik değişti; publication/catalog/document şemaları 2/1/1 kalır. Eski demo için migration/fallback eklenmez; eski binding fail closed olur. Bu birleşik görev site P7.5 kodu, Studio yayın bağlamı, ortak contract/tests/docs ile sınırlıdır; mum/kamera/kitap/efekt motoru korunur. S6 yerel doğrulama PASS; canlı dağıtım yapılmadı. Güncel test sonuçları: [birleşik kapanış](VEFK_SINGLE_SESSION_HANDOFF.md).
 
 **Tarih:** 2026-11-03

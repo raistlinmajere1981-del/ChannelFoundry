@@ -125,3 +125,27 @@ export function nextPathId(paths: Array<{ id: string }>): string {
   }
   throw new Error("Yeni yol için kimlik kalmadı.");
 }
+
+/** Rendering only: distribute the canonical ink fraction over SVG subpaths.
+ * SVG dash patterns restart at M; splitting avoids revealing later pen strokes
+ * while the canonical nib is still drawing an earlier one. No timing is made here. */
+export function visibleSubpaths(d: string, fraction: number) {
+  const pieces: Array<{ d: string; length: number; prefix: number }> = [];
+  let x = 0, y = 0, startX = 0, startY = 0, total = 0;
+  for (const segment of decodePath(d)) {
+    if (segment.command === "M") {
+      x = startX = segment.x; y = startY = segment.y;
+      pieces.push({ d: `M ${x} ${y}`, length: 0, prefix: total });
+    } else {
+      const nextX = segment.command === "Z" ? startX : segment.x;
+      const nextY = segment.command === "Z" ? startY : segment.y;
+      const length = Math.hypot(nextX-x, nextY-y);
+      const piece = pieces[pieces.length-1];
+      piece.d += segment.command === "Z" ? " Z" : ` L ${nextX} ${nextY}`;
+      piece.length += length; total += length; x = nextX; y = nextY;
+    }
+  }
+  const visible = Math.min(1, Math.max(0, fraction))*total;
+  return pieces.map(piece => ({ d: piece.d, fraction: piece.length > 0
+    ? Math.min(1, Math.max(0, (visible-piece.prefix)/piece.length)) : 0 }));
+}

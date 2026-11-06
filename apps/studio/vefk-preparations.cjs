@@ -22,7 +22,7 @@ const SCHEMA = [
 ].join(" ");
 function ensureSchema(db) { db.exec(SCHEMA); }
 
-function latest(db, sourceId) {
+function latest(db, sourceId, requestedRevision) {
   ensureSchema(db);
   if (typeof sourceId !== "string" || !/^source-[a-f0-9]{32}$/.test(sourceId)) {
     throw new TypeError("Geçersiz vefk görsel kimliği.");
@@ -30,8 +30,8 @@ function latest(db, sourceId) {
   const row = db.prepare(
     "SELECT revision,sha256,relative_path AS relativePath,bytes,width,height, "+
     "config_json AS configJson,created_at AS createdAt "+
-    "FROM vefk_source_preparations WHERE source_id=? ORDER BY revision DESC LIMIT 1"
-  ).get(sourceId);
+    "FROM vefk_source_preparations WHERE source_id=? AND (? IS NULL OR revision=?) ORDER BY revision DESC LIMIT 1"
+  ).get(sourceId, requestedRevision ?? null, requestedRevision ?? null);
   if (!row) return null;
   const {relativePath,configJson,...other} = row;
   return {...other,relativePath,config:JSON.parse(configJson)};

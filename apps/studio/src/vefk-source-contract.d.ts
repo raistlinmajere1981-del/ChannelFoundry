@@ -81,3 +81,12 @@ type StudioVefkVisionSupport = {
   model: string;
   reason: string;
 };
+
+type StudioVefkSourceReview = {
+  sourceId: string;
+  analysisId: number;
+  preparationRevision: number;
+  method: "traced" | "grid";
+  partialAccepted: boolean;
+  omittedRegions?: string[];
+};

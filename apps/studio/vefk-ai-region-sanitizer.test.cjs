@@ -29,7 +29,7 @@ test("small model overflows are clipped to 0..1000 and forced into review", () =
   assert.equal(result.coordinateWarnings.length, 2);
   assert.deepEqual(result.coordinateWarnings[0].originalBox, [988, 20, 20, 70]);
   assert.equal(result.coordinateWarnings[0].regionIndex, 1);
-  assert.equal(result.regions[2].needsReview, false);
+  assert.equal(result.regions[2].needsReview, true);
   assert.match(result.note, /2 kutu sınırda düzeltildi/);
 });
 

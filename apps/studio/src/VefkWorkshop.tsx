@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import VefkTimelineEditor from "./VefkTimelineEditor";
-import { reconcileDrawPlan } from "./vefk-timeline-model";
+import { changeDrawPlan, reconcileDrawPlan } from "./vefk-timeline-model";
 import { studioPenPose } from "./vefk-pen-pose";
 import type { IntraStrokeCurve } from "./vefk-intrastroke-preview";
 import { createEditorPreviewPlayer, editorInput, persistentMotionInput } from "./vefk-motion-editor";
 import {
-  clampPoint, movePath, nextPathId, pathBounds, scalePath, shapePath,
+  clampPoint, movePath, nextPathId, pathBounds, scalePath, shapePath, visibleSubpaths,
   type EditorTool, type Point2,
 } from "./vefk-editor-model";
-import VefkSourceWorkbench from "./VefkSourceWorkbench";
+import VefkSourceWorkbench, { type SourceActions, type SourceProgress } from "./VefkSourceWorkbench";
+import VefkViewport, { type ViewportActions } from "./VefkViewport";
 import "./vefk-workshop.css";
 
 type Bridge = NonNullable<typeof window.channelFoundryStudio>;
 type Document = StudioVefkDocument;
 type Path = StudioVefkGeometry["paths"][number];
 type Status = StudioVefkStatus | "new";
+type CollectionItem = { kind: "source" | "document"; id: string; name: string };
 type ShapeTool = Exclude<EditorTool, "select">;
 type Gesture =
   | { kind: "move"; pathId: string; original: string; start: Point2 }
@@ -55,8 +57,25 @@ function requiredPath(id: string) { return id.startsWith("cell.r") || id.startsW
 export default function VefkWorkshop() {
   const bridge = window.channelFoundryStudio as Bridge | undefined;
   const canvasRef = useRef<SVGSVGElement | null>(null);
-  const artboardScrollRef = useRef<HTMLDivElement | null>(null);
-  const zoomTouched = useRef(false);
+  const viewportRef = useRef<ViewportActions>(null);
+  const sourceRef = useRef<SourceActions>(null);
+  const [inspectorHost, setInspectorHost] = useState<HTMLElement | null>(null);
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
+  const [drawingImage, setDrawingImage] = useState<StudioVefkSourceImage | null>(null);
+  const [sourceImage, setSourceImage] = useState<StudioVefkSourceImage | null>(null);
+  const [sourceVersion, setSourceVersion] = useState(0);
+  const [sourceProgress, setSourceProgress] = useState<SourceProgress | null>(null);
+  const [sourceEvidence, setSourceEvidence] = useState<StudioVefkSourceReview | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"review" | "drawing">("review");
+  const [view, setView] = useState<"photo" | "overlay" | "svg">("overlay");
+  const inspectSource = useCallback(() => setRightOpen(true), []);
+  const revealTraces = useCallback(() => setView("overlay"), []);
+  const [pan, setPan] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [packageReady, setPackageReady] = useState(false);
+  const [packageReadiness, setPackageReadiness] = useState<string>("");
+  const [rename, setRename] = useState<{ item: CollectionItem; title: string } | null>(null);
+  const [menu, setMenu] = useState<CollectionItem | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const [records, setRecords] = useState<StudioVefkListItem[]>([]);
   const [catalogSelections, setCatalogSelections] = useState<StudioVefkCatalogSelection[]>([]);
@@ -74,7 +93,7 @@ export default function VefkWorkshop() {
   const [mode, setMode] = useState<EditorTool>("select");
   const [snap, setSnap] = useState(true);
   const [guides, setGuides] = useState(true);
-  const [zoom, setZoom] = useState(0.75);
+  const [zoom, setZoom] = useState(1);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [dragPreviewId, setDragPreviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +101,12 @@ export default function VefkWorkshop() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | Status>("");
-  const [leftOpen, setLeftOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(() => window.innerWidth > 760);
+  const leftPanelUserChoice = useRef(false);
+  useEffect(() => {
+    const adapt = () => { if (!leftPanelUserChoice.current) setLeftOpen(window.innerWidth > 760); };
+    window.addEventListener("resize", adapt); return () => window.removeEventListener("resize", adapt);
+  }, []);
   const [rightOpen, setRightOpen] = useState(() => window.innerWidth > 1200);
   const rightPanelUserChoice = useRef(false);
   const lastNarrowViewport = useRef(window.innerWidth <= 1200);
@@ -97,7 +121,7 @@ export default function VefkWorkshop() {
     return () => window.removeEventListener("resize", adapt);
   }, []);
   const [newOpen, setNewOpen] = useState(false);
-  const [newKind, setNewKind] = useState<StudioVefkKind>("magicSquare");
+  const [newKind, setNewKind] = useState<StudioVefkKind>("manualPaths");
   const [newOrder, setNewOrder] = useState(3);
   const [newTitle, setNewTitle] = useState("Yeni vefk");
   const [squareParameters, setSquareParameters] = useState({ order: 3, first: "1", step: "1" });
@@ -111,26 +135,15 @@ export default function VefkWorkshop() {
   // Use the document's viewBox ratio, not a forced square canvas. Square vefks
   // remain unchanged; traced photographs can be landscape or portrait.
   const [stageX, stageY, stageWidth, stageHeight] = working?.geometry.viewBox ?? [0,0,1000,1000];
-  const stageMax = Math.max(stageWidth, stageHeight);
-  const fitArtboard = useCallback(() => {
-    const viewport = artboardScrollRef.current;
-    if (!viewport || stageMax <= 0 || stageWidth <= 0) return;
-    // Fit to the available center-column width; tall drawings can scroll vertically.
-    const visibleWidth = Math.max(160, viewport.clientWidth - 40);
-    const fitted = Math.max(.2, Math.min(.75,
-      Number((visibleWidth / (1000 * stageWidth / stageMax)).toFixed(2))));
-    setZoom(value => value === fitted ? value : fitted);
-  }, [stageWidth, stageMax]);
-  useEffect(() => { zoomTouched.current = false; }, [working?.id, working?.revision]);
+  const fitArtboard = () => viewportRef.current?.fit();
+  const reviewing = Boolean(activeSourceId && workspaceMode === "review");
+  const selectionMatches = Boolean(siteSelection && record && siteSelection.revision === record.revision && siteSelection.contentHash === record.contentHash);
+  useEffect(() => { setPreviewOpen(false); }, [working?.id, working?.revision]);
   useEffect(() => {
-    if (!working || !artboardScrollRef.current) return;
-    const viewport = artboardScrollRef.current;
-    const sync = () => { if (!zoomTouched.current) fitArtboard(); };
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [working?.id, working?.revision, fitArtboard, leftOpen, rightOpen]);
+    if (!menu) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
+  }, [menu]);
   const square = working?.construction.kind === "magicSquare" ? working.construction : null;
   const validParameters = squareParameters.first.trim() !== "" && squareParameters.step.trim() !== ""
     && Number.isSafeInteger(Number(squareParameters.first)) && Number.isSafeInteger(Number(squareParameters.step))
@@ -142,6 +155,11 @@ export default function VefkWorkshop() {
     if (square) setSquareParameters({ order: square.parameters.order,
       first: String(square.parameters.first), step: String(square.parameters.step) });
   }, [working?.id, working?.revision, square?.parameters.order, square?.parameters.first, square?.parameters.step]);
+  const orderedPaths = useMemo(() => {
+    if (!working) return [];
+    const byId = new Map(working.geometry.paths.map(path => [path.id, path]));
+    return working.drawPlan.strokes.flatMap(stroke => { const path = byId.get(stroke.pathId); return path ? [path] : []; });
+  }, [working]);
   const selected = useMemo(() => working?.geometry.paths.find(path => path.id === selectedPath) ?? null,
     [working, selectedPath]);
   const bounds = useMemo(() => {
@@ -185,12 +203,12 @@ export default function VefkWorkshop() {
 
   async function refreshList() {
     if (!bridge) return;
-    const [next, images, catalog] = await Promise.all([
-      bridge.vefkList({ limit: 500 }), bridge.vefkSourceList(), bridge.vefkCatalogList(),
+    const [next, images, catalog, localPackage] = await Promise.all([
+      bridge.vefkList({ limit: 500 }), bridge.vefkSourceList(), bridge.vefkCatalogList(), bridge.vefkPackageStatus(),
     ]);
     setRecords(next);
     setSources(images);
-    setCatalogSelections(catalog);
+    setCatalogSelections(catalog); setPackageReady(localPackage.ready);
   }
   useEffect(() => {
     sessionStorage.setItem("channel-foundry:vefk-unsaved", dirty || sourceDirty ? "1" : "0");
@@ -209,9 +227,9 @@ export default function VefkWorkshop() {
   useEffect(() => {
     if (!bridge) return;
     let alive = true;
-    void Promise.all([bridge.vefkList({ limit: 500 }), bridge.vefkSourceList(), bridge.vefkCatalogList()])
-      .then(([result, images, catalog]) => {
-        if (alive) { setRecords(result); setSources(images); setCatalogSelections(catalog); }
+    void Promise.all([bridge.vefkList({ limit: 500 }), bridge.vefkSourceList(), bridge.vefkCatalogList(), bridge.vefkPackageStatus()])
+      .then(([result, images, catalog, localPackage]) => {
+        if (alive) { setRecords(result); setSources(images); setCatalogSelections(catalog); setPackageReady(localPackage.ready); }
       }).catch(reason => { if (alive) setError(errorText(reason)); });
     const unsubscribe = bridge.onDataChanged?.(() => {
       void refreshList().catch(() => undefined);
@@ -223,13 +241,13 @@ export default function VefkWorkshop() {
   function apply(next: Document) {
     if (!working || !canEdit) return;
     const revised = next.geometry !== working.geometry
-      ? { ...next, drawPlan: reconcileDrawPlan(next.geometry, next.drawPlan, next.schemaVersion) }
+      ? { ...next, drawPlan: next.geometry.paths.length ? reconcileDrawPlan(next.geometry, next.drawPlan, next.schemaVersion) : { ...next.drawPlan, strokes: [], markers: [], durationMs: 0 } }
       : next;
     setHistory(stack => [...stack.slice(-39), working]);
     setFuture([]);
     setWorking(revised);
     setDirty(true);
-    setNotice("");
+    setNotice(""); setPreviewOpen(false); setPackageReady(false);
     setError("");
   }
   function patchDocument(next: Partial<Document>) {
@@ -257,6 +275,7 @@ export default function VefkWorkshop() {
       const result = await bridge.vefkSourcePick();
       if (result.canceled) return;
       await refreshList();
+      setSourceImage(null); setSourceProgress(null); setSourceEvidence(null); setWorkspaceMode("review"); setView("overlay");
       setActiveSourceId(result.source.id); setRecord(null); setWorking(null); setRevisions([]);
       setDirty(false); setSelectedPath(null); resetHistory();
       setNotice(result.source.duplicate ? "Bu görsel kaynak arşivinde zaten var; mevcut kayıt açıldı." : "Orijinal görsel arşive alındı.");
@@ -265,15 +284,17 @@ export default function VefkWorkshop() {
   }
   function selectSource(id: string) {
     if (busy || !guardedLeave()) return;
+    setSourceImage(null); setSourceProgress(null); setSourceEvidence(null); setWorkspaceMode("review"); setView("overlay");
     setActiveSourceId(id); setRecord(null); setWorking(null); setRevisions([]);
     setDirty(false); setSelectedPath(null); resetHistory(); setError(""); setNotice("");
   }
-  async function startSourceDraft(input: StudioVefkCreateInput) {
+  async function startSourceDraft(input: StudioVefkCreateInput, evidence: StudioVefkSourceReview) {
     if (!bridge || busy || !guardedLeave()) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const next = await bridge.vefkGenerate(input);
       setWorking(next); setRecord(null); setRevisions([]); setDirty(true);
+      setSourceEvidence(evidence); setWorkspaceMode("drawing"); setView(evidence.method === "traced" ? "overlay" : "svg");
       setSelectedPath(null); setMode("select"); resetHistory();
       setNotice("Kaynak çözümlemesinden düzenlenebilir taslak oluşturuldu. Henüz veritabanına kaydedilmedi.");
     } catch (reason) { setError(errorText(reason)); }
@@ -288,7 +309,11 @@ export default function VefkWorkshop() {
       ]);
       if (!next) throw new Error("Seçilen vefk bulunamadı.");
       setRecord(next); setWorking(next.document); setRevisions(versions);
-      setActiveSourceId(null); setDirty(false); setSelectedPath(null); setMode("select"); resetHistory();
+      const evidence = await bridge.vefkSourceReviewInfo(id);
+      setSourceEvidence(evidence); setSourceProgress(null); setSourceImage(null);
+      setActiveSourceId(evidence && sources.some(item => item.id === evidence.sourceId) ? evidence.sourceId : null);
+      setWorkspaceMode("drawing"); setView("svg");
+      setDirty(false); setSelectedPath(null); setMode("select"); resetHistory();
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
@@ -304,7 +329,9 @@ export default function VefkWorkshop() {
         geometry: newKind === "manualPaths" ? creationGeometry() : undefined,
       };
       const doc = await bridge.vefkGenerate(input);
-      setRecord(null); setWorking(doc); setRevisions([]);
+      setRecord(null); setWorking(newKind === "manualPaths" ? { ...doc,
+        geometry: { ...doc.geometry, paths: [] }, drawPlan: { ...doc.drawPlan, strokes: [], markers: [], durationMs: 0 } } : doc); setRevisions([]);
+      setSourceEvidence(null); setSourceImage(null); setWorkspaceMode("drawing"); setView("svg");
       setActiveSourceId(null); setDirty(true); setSelectedPath(null); resetHistory(); setNewOpen(false);
       setMode("select"); setNotice("Yeni çalışma alanı hazır. Henüz veritabanına kaydedilmedi.");
     } catch (reason) { setError(errorText(reason)); }
@@ -322,18 +349,20 @@ export default function VefkWorkshop() {
   }
   async function save() {
     if (!bridge || !working || busy || locked) return;
+    if (!working.geometry.paths.length) { setError("Kaydetmek için bir çizgi ekle."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
       const canonical = await bridge.vefkGenerate(editorInput(working));
       const updated = await bridge.vefkSaveDraft({
-        document: canonical,
+        document: canonical, sourceReview: sourceEvidence,
         expectedContentHash: record?.status === "draft"
           && record.revision === canonical.revision ? record.contentHash : undefined,
       });
       setRecord(updated); setWorking(updated.document); setDirty(false); resetHistory();
+      setSourceEvidence(await bridge.vefkSourceReviewInfo(updated.id));
       setRevisions(await bridge.vefkRevisions(updated.id));
       await refreshList();
-      setNotice(`Revizyon ${updated.revision} kaydedildi · ${updated.contentHash.slice(0, 12)}`);
+      setNotice(`✓ Revizyon ${updated.revision} kaydedildi`);
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
@@ -346,6 +375,7 @@ export default function VefkWorkshop() {
         status: target, expectedContentHash: record.contentHash,
       });
       setRecord(updated); setWorking(updated.document); resetHistory();
+      setTimelinePreview(false); setPreviewOpen(false); setTimelineMs(updated.document.drawPlan.durationMs);
       setRevisions(await bridge.vefkRevisions(updated.id));
       await refreshList();
       setNotice(`Revizyon ${updated.revision}: ${statusLabels[updated.status]}`);
@@ -356,7 +386,7 @@ export default function VefkWorkshop() {
     if (!bridge || !record || busy || dirty) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      if (siteSelection) {
+      if (selectionMatches) {
         await bridge.vefkCatalogSelect({ id: record.id, enabled: false });
         setNotice("Bu vefk site yayın kataloğundan çıkarıldı; canlı site değiştirilmedi.");
       } else {
@@ -380,22 +410,24 @@ export default function VefkWorkshop() {
     try {
       const info = await bridge.exportPublicSnapshot();
       await refreshList();
-      setNotice("Yerel site paketi oluşturuldu · " + catalogSelections.length +
-        " vefk · " + info.file + " · Canlı yayın yapılmadı.");
+      setPackageReady(true);
+      setPackageReadiness(info.readiness?.readyForTheme ? "Yayınlama modülünden canlıya gönderilebilir."
+        : "Yayınlama: anlatı / görsel tamamlama koşulları bekleniyor.");
+      setNotice("✓ Yerel yayın paketi hazır · " + catalogSelections.length + " vefk. Canlı yayın için Yayınlama modülünü kullan.");
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
-  async function nextRevision() {
-    if (!bridge || !record || busy || dirty || !["approved", "published"].includes(record.status)) return;
-    const current = records.find(entry => entry.id === record.id);
-    if (current && current.currentRevision !== record.revision) {
+  async function nextRevision(targetRecord = record) {
+    if (!bridge || !targetRecord || busy || dirty && targetRecord === record || !["approved", "published"].includes(targetRecord.status)) return;
+    const current = records.find(entry => entry.id === targetRecord.id);
+    if (current && current.currentRevision !== targetRecord.revision) {
       setError("Önce koleksiyondan bu vefkin en son revizyonunu açmalısın.");
       return;
     }
     setBusy(true); setError("");
     try {
       const next = await bridge.vefkGenerate({
-        ...editorInput(record.document), revision: record.revision + 1,
+        ...editorInput(targetRecord.document), revision: targetRecord.revision + 1,
       });
       setRecord(null);
       setWorking(next); setSelectedPath(null); setDirty(true);
@@ -465,20 +497,13 @@ export default function VefkWorkshop() {
   }
   function removeSelected() {
     if (!working || !selectedPath || requiredPath(selectedPath)) return;
-    if (working.geometry.paths.length <= 1) {
-      setError("Son çizim silinemez. Önce yeni bir şekil ekleyebilirsin.");
-      return;
-    }
     patchPaths(working.geometry.paths.filter(path => path.id !== selectedPath), null);
   }
   function moveLayer(direction: -1 | 1) {
-    if (!working || !selectedPath) return;
-    const paths = [...working.geometry.paths];
-    const index = paths.findIndex(path => path.id === selectedPath);
-    const destination = index + direction;
-    if (index < 0 || destination < 0 || destination >= paths.length) return;
-    [paths[index], paths[destination]] = [paths[destination], paths[index]];
-    patchPaths(paths);
+    if (!working || !selectedPath || !canEdit) return;
+    try { apply({ ...working, drawPlan: changeDrawPlan(working.geometry, working.drawPlan,
+      { kind: "move", pathId: selectedPath, delta: direction }, working.schemaVersion) }); }
+    catch (reason) { setError(errorText(reason)); }
   }
   function nudge(dx: number, dy: number) {
     if (!working || !selected) return;
@@ -511,10 +536,10 @@ export default function VefkWorkshop() {
     setPreviewPath(null); setDragPreviewId(null);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
-  function pathStart(event: ReactPointerEvent<SVGPathElement>, path: Path) {
+  function pathStart(event: ReactPointerEvent<SVGElement>, path: Path) {
     if (timelineFrame || mode !== "select" || event.button !== 0) return;
     event.stopPropagation();
-    setSelectedPath(path.id);
+    setSelectedPath(path.id); setRightOpen(true);
     if (!canEdit || !working) return;
     const svg = canvasRef.current;
     if (!svg) return;
@@ -566,110 +591,170 @@ export default function VefkWorkshop() {
         if (Math.hypot(end.x - gesture.start.x, end.y - gesture.start.y) < 8) return;
         const d = shapePath(gesture.tool, gesture.start, end, gesture.trail);
         const id = nextPathId(working.geometry.paths);
-        patchPaths([...working.geometry.paths, { id, d, ink: "glyph" }], id);
+        const ink = working.geometry.inkStyles.glyph ? "glyph" : Object.keys(working.geometry.inkStyles)[0];
+        patchPaths([...working.geometry.paths, { id, d, ink }], id);
       }
     } catch (reason) { setError(errorText(reason)); }
   }
 
-  if (!bridge) return <div className="panel vefk-not-available">Vefk Atölyesi yalnız Studio masaüstü uygulamasında kullanılabilir.</div>;
 
-  return <div className={`vefk-workshop ${leftOpen ? "" : "no-library"} ${rightOpen ? "" : "no-inspector"} ${activeSourceId && !working ? "source-active" : ""}`}>
+  function clearWorkspace() {
+    setRecord(null); setWorking(null); setActiveSourceId(null); setSourceImage(null); setSourceEvidence(null);
+    setSourceProgress(null); setRevisions([]); setDirty(false); setSourceDirty(false); setSelectedPath(null); resetHistory();
+  }
+  async function runMenu(action: "rename" | "copy" | "revision" | "delete" | "analyses" | "catalog" | "cleanup", renameRequest?: { item: CollectionItem; title: string }) {
+    const item = renameRequest?.item ?? menu; setMenu(null); if (!bridge || !item || busy) return;
+    if (!guardedLeave()) return;
+    if (action === "revision") {
+      const latest = await bridge.vefkGet({ id: item.id });
+      await openRecord(item.id); await nextRevision(latest); return;
+    }
+    if (action === "rename" && !renameRequest) { setRename({ item, title: item.name }); return; }
+    const name = renameRequest?.title.trim() ?? item.name;
+    if (!name) return;
+    setRename(null);
+    const messages = {
+      delete: item.kind === "source" ? `“${item.name}” kaynak görseli ve tüm analizleri silinsin mi? Üretilmiş Vefk belgeleri korunur.`
+        : `“${item.name}” belgesi tüm revizyonlarıyla silinsin mi? Yerel katalog seçimi de kaldırılır. Canlı site değişmez.`,
+      analyses: `“${item.name}” için tüm AI analizleri ve incelemeler silinsin mi? Kaynak ve Vefk belgeleri korunur.`,
+      catalog: `“${item.name}” yerel yayın kataloğundan çıkarılsın mı? Canlı site değişmez.`,
+      cleanup: "Yalnız kullanılmayan yerel Vefk görsel dosyaları temizlensin mi?",
+    };
+    if (action in messages && !window.confirm(messages[action as keyof typeof messages])) return;
+    setBusy(true); setError("");
+    let resultNotice = "✓ İşlem tamamlandı";
+    try {
+      if (action === "delete") {
+        if (item.kind === "source") { const result = await bridge.vefkSourceDelete({ id: item.id, confirmed: true }); if (result.cleanupPending) resultNotice = "Kaynak silindi · Dosya temizliği bekliyor"; }
+        else await bridge.vefkDelete({ id: item.id, confirmed: true });
+        if (activeSourceId === item.id || working?.id === item.id) clearWorkspace();
+      } else if (action === "analyses") {
+        await bridge.vefkAnalysisDelete({ id: item.id, confirmed: true });
+        if (activeSourceId === item.id) { setSourceVersion(value => value+1); setSourceProgress(null); setSourceDirty(false); }
+      } else if (action === "catalog") await bridge.vefkCatalogSelect({ id: item.id, enabled: false });
+      else if (action === "cleanup") { const result = await bridge.vefkSourceCleanup({ confirmed: true }); resultNotice = `✓ ${result.removed} kullanılmayan dosya temizlendi`; }
+      else if (action === "copy") await bridge.vefkCopy({ id: item.id, newId: randomId() });
+      else if (action === "rename" && item.kind === "source") {
+        const renamed = await bridge.vefkSourceRename({ id: item.id, title: name! });
+        if (sourceImage?.id === item.id) { setSourceImage({ ...sourceImage, filename: renamed.filename }); setSourceVersion(value => value+1); }
+      } else if (action === "rename") {
+        const original = await bridge.vefkGet({ id: item.id });
+        if (!original) throw new Error("Belge bulunamadı.");
+        if (original.status === "checked") throw new Error("Yeniden adlandırmak için önce düzeltmeye aç.");
+        const revision = original.status === "draft" ? original.revision : original.revision + 1;
+        const renamed = await bridge.vefkGenerate({ ...editorInput(original.document), title: name!, revision });
+        const updated = await bridge.vefkSaveDraft({ document: renamed, expectedContentHash: original.status === "draft" ? original.contentHash : undefined });
+        if (working?.id === item.id) { setRecord(updated); setWorking(updated.document); setDirty(false); }
+      }
+      await refreshList(); setNotice(resultNotice);
+    } catch (reason) { setError(errorText(reason)); }
+    finally { setBusy(false); }
+  }
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setNewOpen(false); setMenu(null); setRename(null); setPan(false); return; }
+      const editingText = event.target instanceof HTMLElement && Boolean(event.target.closest("input,textarea,select,[contenteditable=true]"));
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault(); if (reviewing) sourceRef.current?.save(); else void save(); return;
+      }
+      if (editingText || newOpen || menu || rename || reviewing) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+      if ((event.key === "Delete" || event.key === "Backspace") && canEdit) { event.preventDefault(); removeSelected(); }
+    };
+    window.addEventListener("keydown", handle); return () => window.removeEventListener("keydown", handle);
+  });
+  const primaryLabel = reviewing ? sourceProgress?.primary ?? "İncelemeye başla" : !working ? "Görsel ekle"
+    : !working.geometry.paths.length ? "Çizgi ekle" : dirty || !record ? "Kaydet" : status === "draft" ? previewOpen ? "Önizlemeyi doğrula" : "Önizle"
+    : status === "checked" ? "Onayla" : !selectionMatches ? "Siteye hazırla" : packageReady ? "Paket hazır ✓" : "Paketi hazırla";
+  function primaryAction() {
+    if (reviewing) { setRightOpen(true); sourceRef.current?.advance(); }
+    else if (!working) void pickSource();
+    else if (!working.geometry.paths.length) { setMode("freehand"); setPan(false); }
+    else if (dirty || !record) void save();
+    else if (status === "draft") {
+      if (previewOpen) void review("checked");
+      else { setExperimentalCurve("linear"); setView("svg"); setPreviewOpen(true); setTimelinePreview(true); setTimelineMs(0); }
+    } else if (status === "checked") void review("approved");
+    else if (!selectionMatches) void toggleSiteSelection();
+    else if (!packageReady) void prepareSitePackage();
+  }
+  const steps = [
+    { name: "Kaynak", detail: activeSourceId ? "Hazır" : working ? "Sıfırdan" : "Bekliyor", done: Boolean(activeSourceId || working) },
+    { name: "İncele", detail: sourceProgress?.analyzed ? sourceProgress.remaining ? `${sourceProgress.remaining} öğe kaldı` : sourceProgress.saved ? "Tamamlandı" : "Kaydedilmeli" : sourceEvidence ? "Tamamlandı" : working ? "Gerekli değil" : "Bekliyor", done: Boolean(sourceEvidence || (sourceProgress?.saved && !sourceProgress.remaining) || (working && !activeSourceId)) },
+    { name: "Çizim", detail: `${working?.geometry.paths.length ?? sourceProgress?.paths ?? 0} yol`, done: Boolean(working) },
+    { name: "Onay", detail: ["approved","published"].includes(status) ? "Onaylı" : status === "checked" ? "Önizleme doğrulandı" : "Bekliyor", done: ["approved","published"].includes(status) },
+    { name: "Yayına hazır", detail: packageReady && selectionMatches ? "Paket hazır" : selectionMatches ? "Katalogda" : "Hazır değil", done: packageReady && selectionMatches },
+  ];
+  useEffect(() => {
+    setDrawingImage(null);
+    if (!bridge || !sourceEvidence || !activeSourceId) return;
+    let alive = true;
+    void bridge.vefkSourceGet(sourceEvidence.sourceId, sourceEvidence.preparationRevision)
+      .then(image => { if (alive) setDrawingImage(image); }).catch(() => { if (alive) setDrawingImage(null); });
+    return () => { alive = false; };
+  }, [bridge, sourceEvidence?.sourceId, sourceEvidence?.preparationRevision, activeSourceId]);
+  const currentStep = steps.findIndex(step => !step.done);
+  if (!bridge) return <div className="panel vefk-not-available">Vefk Atölyesi Studio masaüstünde çalışır.</div>;
+
+  return <div className={`vefk-workshop ${leftOpen ? "" : "no-library"} ${rightOpen ? "" : "no-inspector"}`}>
     <header className="vefk-head">
-      <div className="vefk-head-title">
-        <small>ÜRETİM / VEKTÖR ATÖLYESİ</small>
-        <h2>Vefk Atölyesi</h2>
-        <span>Görsel çözümleme · Matematik · Çizim · Revizyon</span>
-      </div>
+      <div className="vefk-head-title"><h2>Vefk Atölyesi</h2><span title={reviewing ? sourceImage?.filename : working?.title}>{reviewing ? sourceImage?.filename : working?.title || sourceImage?.filename || "Yeni çalışma"}</span></div>
       <div className="vefk-head-actions">
-        <span className="vefk-site-count" title="Yerel site paketine seçilen onaylı vefk sayısı">Site: {catalogSelections.length}</span>
-        {working && <span className={`vefk-state is-${status}`}>{statusLabels[status]} {working.revision > 1 ? `· r${working.revision}` : ""}{dirty ? " · Değişti" : ""}</span>}
-        <button type="button" className="vefk-button subtle" onClick={() => setLeftOpen(!leftOpen)} aria-label={leftOpen ? "Koleksiyonu daralt" : "Koleksiyonu aç"}>{leftOpen ? "◀" : "▶"} Koleksiyon</button>
-        <button type="button" className="vefk-button subtle" onClick={() => { rightPanelUserChoice.current = true; setRightOpen(!rightOpen); }} aria-label={rightOpen ? "Özellikleri daralt" : "Özellikleri aç"}>Özellikler {rightOpen ? "▶" : "◀"}</button>
-        <button type="button" className="vefk-button primary" onClick={() => void pickSource()} disabled={busy}>Görselden oluştur</button>
-        <button type="button" className="vefk-button" onClick={() => setNewOpen(true)} disabled={busy}>Sıfırdan oluştur</button>
-        <button type="button" className="vefk-button subtle" onClick={() => void prepareSitePackage()}
-          disabled={busy || dirty || sourceDirty} title="Yalnız yerel publication.json ve vefk kataloğunu hazırlar. Canlı yayın yapmaz.">
-          Site paketini hazırla
-        </button>
-        {working && <button type="button" className="vefk-button primary" onClick={() => void save()} disabled={!dirty || locked || busy}>{busy ? "İşleniyor…" : "Kaydet"}</button>}
+        <span className={`vefk-state is-${status}`}>{dirty || sourceDirty ? "Kaydedilmedi" : working ? statusLabels[status] : "Kaynak"}</span>
+        <button className="vefk-button subtle" title={leftOpen ? "Koleksiyonu daralt" : "Koleksiyonu aç"} aria-label={leftOpen ? "Koleksiyonu daralt" : "Koleksiyonu aç"} aria-pressed={leftOpen} onClick={() => { leftPanelUserChoice.current = true; setLeftOpen(!leftOpen); }}>◧</button>
+        <button className="vefk-button subtle" title={rightOpen ? "Özellikleri daralt" : "Özellikleri aç"} aria-label={rightOpen ? "Özellikleri daralt" : "Özellikleri aç"} aria-pressed={rightOpen} onClick={() => { rightPanelUserChoice.current = true; setRightOpen(!rightOpen); }}>◨</button>
+        <button className="vefk-button" title="Çalışmayı kaydet" aria-label="Kaydet" disabled={busy || (reviewing ? !sourceDirty : !dirty || locked || !working?.geometry.paths.length)} onClick={() => reviewing ? sourceRef.current?.save() : void save()}>Kaydet</button>
+        <button className="vefk-button primary vefk-next" disabled={busy || (reviewing && (sourceProgress?.busy || sourceProgress?.preparing)) || (packageReady && selectionMatches && !reviewing)} onClick={primaryAction}>{busy || sourceProgress?.busy && reviewing ? "İşleniyor…" : primaryLabel} <span>→</span></button>
       </div>
     </header>
-
+    <nav className="vefk-flow" aria-label="Üretim aşamaları">{steps.map((step,index) => <button key={step.name} className={`${step.done ? "done" : ""} ${index === currentStep ? "current" : ""}`}
+      aria-current={index === currentStep ? "step" : undefined} disabled={index < 2 ? !activeSourceId : index === 2 ? !working : false}
+      onClick={() => { if (index < 2 && activeSourceId) { setWorkspaceMode("review"); setView("overlay"); } else if (index === 2 && working) setWorkspaceMode("drawing"); else { setWorkspaceMode("drawing"); setRightOpen(true); } }}>
+      <span className="vefk-flow-number">{step.done ? "✓" : String(index+1).padStart(2,"0")}</span><span><strong>{step.name}</strong><small>{step.detail}</small></span></button>)}</nav>
     {error && <div className="vefk-feedback error" role="alert"><span>{error}</span><button onClick={() => setError("")} aria-label="Uyarıyı kapat">×</button></div>}
     {notice && <div className="vefk-feedback" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Bildirimi kapat">×</button></div>}
-
     <div className="vefk-layout">
       {leftOpen && <aside className="vefk-library" aria-label="Vefk koleksiyonu">
-        <div className="vefk-section-heading"><small>KAYNAK GÖRSELLER</small><strong>{sources.length}</strong></div>
-        <div className="vefk-source-mini-list">
-          {sources.map(image => <button type="button" key={image.id}
-            className={activeSourceId === image.id && !working ? "current" : ""}
-            title={image.filename} onClick={() => selectSource(image.id)}>
-            <span>▧</span><strong>{image.filename}</strong><small>{image.lastAnalysisId ? "AI çözümleme" : "Analiz yok"}</small>
-          </button>)}
-          {!sources.length && <span className="vefk-sources-empty">Henüz kaynak görsel yok.</span>}
+        <div className="vefk-library-controls"><div className="vefk-new-actions"><button onClick={() => void pickSource()} disabled={busy}>＋ Görsel</button><button onClick={() => setNewOpen(true)} disabled={busy}>＋ Sıfırdan</button></div>
+          <input aria-label="Koleksiyonda ara" placeholder="Koleksiyonda ara…" value={search} onChange={e => setSearch(e.target.value)}/>
+          <select aria-label="Duruma göre filtrele" value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}><option value="">Tüm durumlar</option><option value="new">Analiz bekliyor</option><option value="draft">Taslak</option><option value="checked">Kontrolde</option><option value="approved">Onaylı</option><option value="published">Yayında</option></select>
         </div>
-        <div className="vefk-section-heading"><small>VEFK KÜTÜPHANESİ</small><strong>{records.length}</strong></div>
-        <div className="vefk-library-controls">
-          <input aria-label="Vefk ara" placeholder="Başlığa göre ara…" value={search} onChange={event => setSearch(event.target.value)}/>
-          <select aria-label="Duruma göre filtrele" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}>
-            <option value="">Tüm durumlar</option>
-            <option value="draft">Taslak</option>
-            <option value="checked">Kontrolde</option>
-            <option value="approved">Onaylı</option>
-            <option value="published">Yayında</option>
-          </select>
+        <div className="vefk-collection-scroll">
+          <div className="vefk-section-heading"><small>KAYNAKLAR</small><strong>{sources.length}</strong></div>
+          {sources.filter(image => (!statusFilter || statusFilter === "new" && !image.lastAnalysisId) && image.filename.toLocaleLowerCase("tr-TR").includes(search.toLocaleLowerCase("tr-TR"))).map(image => <div key={image.id} className={`vefk-collection-row ${activeSourceId === image.id ? "selected" : ""}`}>
+            <button className="vefk-source-row" title={image.filename} onClick={() => selectSource(image.id)}><span>▧</span><strong>{image.filename}</strong><small title={image.lastAnalysisId ? "İnceleme var" : "Analiz bekliyor"}>{image.lastAnalysisId ? "◐" : "○"}</small></button>
+            <button className="vefk-row-menu" aria-label={`${image.filename} işlemleri`} title="Kayıt işlemleri" onClick={() => setMenu({ kind: "source", id: image.id, name: image.filename })}>⋯</button>
+          </div>)}
+          {!sources.length && <p className="vefk-empty-list">Henüz görsel yok.</p>}
+          <div className="vefk-section-heading"><small>VEFKLER</small><strong>{records.length}</strong></div>
+          {visibleRecords.map(item => <div key={item.id} className={`vefk-collection-row ${working?.id === item.id ? "selected" : ""}`}>
+            <button className="vefk-document-row" title={item.title} onClick={() => void openRecord(item.id)}><span>✦</span><strong>{item.title}</strong><small className={`is-${item.status}`} title={statusLabels[item.status]}>{["approved","published"].includes(item.status) ? "✓" : "○"}</small></button>
+            <button className="vefk-row-menu" aria-label={`${item.title} işlemleri`} title="Kayıt işlemleri" onClick={() => setMenu({ kind: "document", id: item.id, name: item.title })}>⋯</button>
+          </div>)}
+          {!visibleRecords.length && <p className="vefk-empty-list">Kayıt yok.</p>}
         </div>
-        <div className="vefk-library-list">
-          {visibleRecords.map(item => <button key={item.id} className={`vefk-document-row ${working?.id === item.id ? "selected" : ""}`} type="button"
-            onClick={() => void openRecord(item.id)}>
-            <span className="vefk-document-monogram">✦</span><span><strong>{item.title}</strong><small>r{item.currentRevision} · {statusLabels[item.status]} · {item.id}</small></span>
-          </button>)}
-          {!visibleRecords.length && <p className="vefk-empty-list">Kayıt bulunamadı. Yeni bir vefkle başlayabilirsin.</p>}
-        </div>
-        {record && <div className="vefk-revision-panel">
-          <div className="vefk-section-heading"><small>REVİZYONLAR</small><strong>{revisions.length}</strong></div>
-          {revisions.map(version => <button key={version.revision} type="button"
-            className={version.revision === working?.revision ? "current" : ""}
-            onClick={() => void openRecord(version.id, version.revision)}>
-            <span>r{version.revision} · {statusLabels[version.status]}</span><small>{version.contentHash.slice(0, 9)}</small>
-          </button>)}
-        </div>}
+        {record && <details className="vefk-revision-panel"><summary>Revizyonlar · {revisions.length}</summary>{revisions.map(version => <button key={version.revision} className={version.revision === working?.revision ? "current" : ""} onClick={() => void openRecord(version.id, version.revision)}>r{version.revision}<span>{statusLabels[version.status]}</span></button>)}</details>}
+        <button className="vefk-cleanup" disabled={busy} onClick={() => setMenu({ kind: "source", id: "", name: "Dosya temizliği" })}>Dosya temizliği</button>
       </aside>}
-
       <section className="vefk-center" aria-label="Vefk üretim alanı">
-        {!working && activeSourceId ? <VefkSourceWorkbench key={activeSourceId}
-          sourceId={activeSourceId} onStartDrawing={startSourceDraft} onDirtyChange={setSourceDirty}/>
-        : !working ? <div className="vefk-start">
-          <span className="vefk-start-symbol">▧</span><h3>Bir görselle başla.</h3>
-          <p>Mevcut vefk görselini arşive al, Studio AI ile çözümle ve okunan işaretleri orijinaliyle karşılaştır.</p>
-          <button className="vefk-button primary" onClick={() => void pickSource()}>Görselden vefk oluştur</button>
-          <button className="vefk-button" onClick={() => setNewOpen(true)}>Sıfırdan oluştur</button>
-        </div> : <>
-          <div className="vefk-toolbar" role="toolbar" aria-label="Vektör araçları">
-            <div className="vefk-tool-group">
-              {tools.map(tool => <button key={tool.id} type="button"
-                className={mode === tool.id ? "active" : ""} disabled={locked || busy}
-                title={tool.label} aria-label={tool.label} aria-pressed={mode === tool.id}
-                onClick={() => setMode(tool.id)}><span>{tool.symbol}</span></button>)}
-            </div>
-            <div className="vefk-tool-group">
-              <button title="Geri al" aria-label="Geri al" disabled={!history.length || !canEdit} onClick={undo}>↶</button>
-              <button title="Yinele" aria-label="Yinele" disabled={!future.length || !canEdit} onClick={redo}>↷</button>
-              <button title="Izgaraya yapış" aria-pressed={snap} className={snap ? "active" : ""} onClick={() => setSnap(!snap)}>⌗</button>
-              <button title="Kılavuz çizgileri" aria-pressed={guides} className={guides ? "active" : ""} onClick={() => setGuides(!guides)}>▦</button>
-            </div>
-            <div className="vefk-zoom">
-              <button title="Görünüme sığdır" aria-label="Görünüme sığdır" onClick={() => { zoomTouched.current = false; fitArtboard(); }}>⊞</button>
-              <button aria-label="Küçült" onClick={() => { zoomTouched.current = true; setZoom(value => Math.max(.2, Number((value - .1).toFixed(2)))); }}>−</button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <button aria-label="Büyüt" onClick={() => { zoomTouched.current = true; setZoom(value => Math.min(1.6, Number((value + .1).toFixed(2)))); }}>+</button>
-            </div>
-          </div>
-          <div className="vefk-artboard-scroll" ref={artboardScrollRef}>
-            <div className="vefk-artboard-wrap">
-              <svg ref={canvasRef} width={1000 * zoom * stageWidth / stageMax}
-                height={1000 * zoom * stageHeight / stageMax} viewBox={working.geometry.viewBox.join(" ")}
+        <div className="vefk-toolbar" role="toolbar" aria-label="Çalışma yüzeyi araçları">
+          <div className="vefk-view-switch" role="group" aria-label="Yüzey görünümü">{(["photo","overlay","svg"] as const).map(option => <button key={option} aria-pressed={view === option} className={view === option ? "active" : ""} disabled={!activeSourceId && option !== "svg" || !reviewing && sourceEvidence?.method === "grid" && option !== "svg"}
+            onClick={() => setView(option)}>{option === "photo" ? "Fotoğraf" : option === "overlay" ? "Üst üste" : "SVG"}</button>)}</div>
+          <div className="vefk-tool-group" ref={setToolbarHost} hidden={!reviewing}/>
+          {!reviewing && working && <div className="vefk-tool-group">{tools.map(tool => <button key={tool.id} title={tool.label} aria-label={tool.label} aria-pressed={!pan && mode === tool.id} className={!pan && mode === tool.id ? "active" : ""} disabled={!canEdit} onClick={() => { setMode(tool.id); setPan(false); }}>{tool.symbol}</button>)}
+            <button title="Geri al" aria-label="Geri al" disabled={!history.length || !canEdit} onClick={undo}>↶</button><button title="Yinele" aria-label="Yinele" disabled={!future.length || !canEdit} onClick={redo}>↷</button>
+          </div>}
+          <div className="vefk-zoom"><button title="Görünümü taşı" aria-label="Görünümü taşı" aria-pressed={pan} className={pan ? "active" : ""} onClick={() => setPan(!pan)}>✥</button><button title="Görünüme sığdır" aria-label="Görünüme sığdır" onClick={fitArtboard}>⊞</button>
+            <button title="Küçült" aria-label="Küçült" onClick={() => viewportRef.current?.zoom(-.25)}>−</button><span>{Math.round(zoom*100)}%</span><button title="Büyüt" aria-label="Büyüt" onClick={() => viewportRef.current?.zoom(.25)}>+</button></div>
+        </div>
+        {!working && !activeSourceId ? <div className="vefk-start"><span className="vefk-start-symbol">▧</span><h3>Bir görselle başla.</h3><p>İncele, çizime dönüştür, yayına hazırla.</p><button className="vefk-button primary" onClick={() => void pickSource()}>Görsel ekle</button><button className="vefk-button" onClick={() => setNewOpen(true)}>Sıfırdan oluştur</button></div>
+          : <VefkViewport ref={viewportRef} aspect={reviewing ? sourceProgress?.aspect ?? 1 : stageWidth/stageHeight} pan={pan} onScale={setZoom} unframed={reviewing && sourceProgress?.preparing}>
+            {activeSourceId && <div className="vefk-source-surface" hidden={!reviewing}><VefkSourceWorkbench key={`${activeSourceId}-${sourceVersion}`} ref={sourceRef} sourceId={activeSourceId} onStartDrawing={startSourceDraft} onDirtyChange={setSourceDirty} onProgress={setSourceProgress} onSourceLoaded={setSourceImage} inspector={inspectorHost} toolbar={toolbarHost} active={reviewing} showPhoto={view !== "svg"} showTraces={view !== "photo"} onRevealTraces={revealTraces} onInspect={inspectSource} onPrepareStart={() => {
+                if (!guardedLeave()) return false;
+                setWorking(null); setRecord(null); setRevisions([]); setDirty(false); setSourceEvidence(null); setSelectedPath(null); resetHistory();
+                return true;
+              }}/></div>}
+            {working && <div className="vefk-vector-surface" hidden={reviewing}>              <svg ref={canvasRef} width="100%" height="100%" viewBox={working.geometry.viewBox.join(" ")}
                 className={`vefk-artboard mode-${mode} ${timelineFrame ? "vefk-timeline-preview" : ""}`}
                 aria-label={`${working.title} SVG çizimi`}
                 role="img"
@@ -678,7 +763,9 @@ export default function VefkWorkshop() {
                   gestureRef.current = null; setPreviewPath(null); setDragPreviewId(null);
                 }}>
                 <rect x={stageX} y={stageY} width={stageWidth} height={stageHeight} className="vefk-surface"/>
-                {guides && <g className="vefk-guide-lines" pointerEvents="none">
+                {view !== "svg" && drawingImage && sourceEvidence?.method === "traced" && <image href={drawingImage.imageDataUrl}
+                  x={stageX} y={stageY} width={stageWidth} height={stageHeight} preserveAspectRatio="none" opacity={view === "photo" ? 1 : .65}/>}
+                {guides && view === "svg" && <g className="vefk-guide-lines" pointerEvents="none">
                   {Array.from({ length: 19 }, (_, i) => <g key={i}>
                     <path d={`M ${stageX + stageWidth * (i+1)/20} ${stageY} L ${stageX + stageWidth * (i+1)/20} ${stageY + stageHeight}`}/>
                     <path d={`M ${stageX} ${stageY + stageHeight * (i+1)/20} L ${stageX + stageWidth} ${stageY + stageHeight * (i+1)/20}`}/>
@@ -689,14 +776,17 @@ export default function VefkWorkshop() {
                   const active = path.id === selectedPath;
                   const display = active && dragPreviewId === path.id && previewPath ? previewPath : path.d;
                   const inkStyle = working.geometry.inkStyles[path.ink];
-                  const fraction = timelineFrame ? progressByPath.get(path.id) ?? 0 : 1;
-                  return <path key={path.id} d={display}
-                    className={`vefk-ink ${path.ink === "grid" ? "grid-ink" : "glyph-ink"} ${active ? "is-selected" : ""}`}
-                    pathLength={timelineFrame ? 1 : undefined}
-                    strokeDasharray={timelineFrame ? 1 : undefined}
-                    strokeDashoffset={timelineFrame ? 1 - fraction : undefined}
-                    strokeWidth={inkStyle?.width ?? 7} strokeLinecap={inkStyle?.cap ?? "round"}
-                    onPointerDown={event => pathStart(event, path)}/>;
+                  const fraction = view === "photo" ? 0 : timelineFrame ? progressByPath.get(path.id) ?? 0 : 1;
+                  const pieces = timelineFrame ? visibleSubpaths(display, fraction) : [{ d: display, fraction }];
+                  return <g key={path.id} onPointerDown={event => pathStart(event, path)}>
+                    {pieces.map((piece,index) => <path key={index} d={piece.d}
+                      className={`vefk-ink ${path.ink === "grid" ? "grid-ink" : "glyph-ink"} ${active ? "is-selected" : ""}`}
+                      pathLength={timelineFrame ? 1 : undefined}
+                      strokeDasharray={timelineFrame ? 1 : undefined}
+                      strokeDashoffset={timelineFrame ? 1 - piece.fraction : undefined}
+                      strokeOpacity={piece.fraction > 0 ? 1 : 0}
+                      opacity={view === "photo" ? 0 : 1} strokeWidth={inkStyle?.width ?? 7} strokeLinecap={inkStyle?.cap ?? "round"}/>) }
+                  </g>;
                 })}
                 {previewPath && !dragPreviewId && <path d={previewPath} className="vefk-shape-preview"/>}
                 {timelineFrame?.pen && penPose && <g
@@ -714,40 +804,19 @@ export default function VefkWorkshop() {
                 {selected && bounds && mode === "select" && <rect className="vefk-selection-box" pointerEvents="none"
                   x={bounds.x - 12} y={bounds.y - 12} width={Math.max(bounds.width + 24, 24)}
                   height={Math.max(bounds.height + 24, 24)}/>}
-              </svg>
-            </div>
-          </div>
-          <VefkTimelineEditor
-            document={working}
-            disabled={!canEdit}
-            selectedPath={selectedPath}
-            onSelectPath={id => { setSelectedPath(id); setMode("select"); }}
-            previewMs={timelineMs}
-            onPreviewMs={selectTimelineTime}
-            previewCurve={experimentalCurve}
-            onPreviewCurve={setExperimentalCurve}
-            onEnablePersistentMotion={() => void enablePersistentMotion()}
-            onShowComplete={() => { setTimelinePreview(false); setTimelineMs(working.drawPlan.durationMs); }}
-            onPlanChange={plan => apply({ ...working, drawPlan: plan })}
-            onError={setError}
-          />
-          <footer className="vefk-stage-foot">
-            <span>{kindLabels[working.construction.kind]} · {working.geometry.paths.length} yol · {Math.round(working.drawPlan.durationMs / 1000)} sn çizim planı</span>
-            <span>{selectedPath ?? "Nesne seçilmedi"} · {snap ? "10 birim snap" : "Serbest yerleşim"}</span>
-          </footer>
-        </>}
+              </svg></div>}
+          </VefkViewport>}
+        {!reviewing && working && <VefkTimelineEditor key={`${working.id}-${working.revision}`} document={working} disabled={!canEdit} selectedPath={selectedPath}
+          onSelectPath={id => { setSelectedPath(id); setMode("select"); setRightOpen(true); }} previewMs={timelineMs} onPreviewMs={selectTimelineTime}
+          previewCurve={experimentalCurve} onPreviewCurve={setExperimentalCurve} onEnablePersistentMotion={() => void enablePersistentMotion()}
+          forceOpen={previewOpen} onShowComplete={() => { setTimelinePreview(false); setTimelineMs(working.drawPlan.durationMs); }}
+          onPlanChange={plan => apply({ ...working, drawPlan: plan })} onError={setError}/>}
+        <footer className="vefk-stage-foot"><span>{reviewing ? `İnceleme: ${sourceProgress?.remaining ?? 0} kaldı` : working ? `${working.geometry.paths.length} yol · r${working.revision}` : "Kaynak bekleniyor"}</span><span>{reviewing ? "○ İnceleme　● Mavi: kontur　✓ Yeşil: onaylı" : locked ? "Revizyon kilitli" : "SVG çalışma yüzeyi"}</span></footer>
       </section>
-
-      {rightOpen && !(activeSourceId && !working) && <aside className="vefk-inspector" aria-label="Vefk özellikleri">
-        {!working ? <div className="vefk-blank-inspector">Çalışmaya başlamak için yeni bir vefk oluştur.</div> : <>
-          <div className="vefk-inspector-head"><small>BELGE ÖZELLİKLERİ</small><strong>{working.id}</strong></div>
-          <div className="vefk-properties">
-            <label><span>Başlık</span><input value={working.title} disabled={!canEdit} maxLength={300}
-              onChange={event => patchDocument({ title: event.target.value })}/></label>
-            <label><span>Açıklama</span><textarea value={working.description} rows={2} disabled={!canEdit} maxLength={4000}
-              onChange={event => patchDocument({ description: event.target.value })}/></label>
-            <div className="vefk-info-pair"><span>Yöntem</span><strong>{kindLabels[working.construction.kind]}</strong></div>
-            {working.construction.kind === "magicSquare" && <div className="vefk-square-params">
+      {rightOpen && <aside className="vefk-inspector" aria-label="Bağlamsal özellikler" ref={setInspectorHost}>
+        {!reviewing && working && <div className="vefk-properties">
+          <div className="vefk-inspector-head"><small>{selected ? "SEÇİLİ YOL" : "ÇALIŞMA"}</small><span>r{working.revision}</span></div>
+                      {working.construction.kind === "magicSquare" && <div className="vefk-square-params">
               <div className="vefk-inspector-head mini"><small>HESAPLAMA</small><strong>{working.construction.checks.passed ? "✓" : "!"}</strong></div>
               <label><span>Kare boyutu</span>
                 <select disabled={!canEdit} value={squareParameters.order} onChange={event => setSquareParameters(previous => ({ ...previous, order: Number(event.target.value) }))}>
@@ -777,17 +846,25 @@ export default function VefkWorkshop() {
                   }}/></label>}
               {bounds && <div className="vefk-bounds"><span>X {Math.round(bounds.x)}</span><span>Y {Math.round(bounds.y)}</span><span>W {Math.round(bounds.width)}</span><span>H {Math.round(bounds.height)}</span></div>}
               <div className="vefk-nudge">
-                <button disabled={!canEdit} onClick={() => nudge(-10, 0)} title="10 birim sola">←</button>
-                <button disabled={!canEdit} onClick={() => nudge(0, -10)} title="10 birim yukarı">↑</button>
-                <button disabled={!canEdit} onClick={() => nudge(0, 10)} title="10 birim aşağı">↓</button>
-                <button disabled={!canEdit} onClick={() => nudge(10, 0)} title="10 birim sağa">→</button>
+                <button disabled={!canEdit} onClick={() => nudge(-10, 0)} title="10 birim sola" aria-label="Sola taşı">←</button>
+                <button disabled={!canEdit} onClick={() => nudge(0, -10)} title="10 birim yukarı" aria-label="Yukarı taşı">↑</button>
+                <button disabled={!canEdit} onClick={() => nudge(0, 10)} title="10 birim aşağı" aria-label="Aşağı taşı">↓</button>
+                <button disabled={!canEdit} onClick={() => nudge(10, 0)} title="10 birim sağa" aria-label="Sağa taşı">→</button>
               </div>
               <div className="vefk-nudge">
                 <button disabled={!canEdit} onClick={() => resizeSelected(0.9)}>− %10</button>
                 <button disabled={!canEdit} onClick={() => resizeSelected(1.1)}>+ %10</button>
-                <button disabled={!canEdit || working.geometry.paths.length <= 1 || requiredPath(selected.id)}
+                <button disabled={!canEdit || requiredPath(selected.id)}
                   onClick={removeSelected}>Sil</button>
               </div>
+              <label><span>Geometri</span><textarea key={selected.id + selected.d} defaultValue={selected.d} disabled={!canEdit} rows={3}
+                aria-label="Yol geometrisi" onBlur={event => {
+                  if (event.target.value === selected.d || !canEdit) return;
+                  const field = event.currentTarget;
+                  const geometry = { ...working.geometry, paths: working.geometry.paths.map(path => path.id === selected.id ? { ...path, d: field.value } : path) };
+                  void bridge.vefkGenerate({ ...editorInput(working), geometry, drawPlan: reconcileDrawPlan(geometry, working.drawPlan, working.schemaVersion) })
+                    .then(next => apply(next)).catch(reason => { field.value = selected.d; setError(errorText(reason)); });
+                }}/></label>
               <label><span>Mürekkep</span><select value={selected.ink} disabled={!canEdit}
                 onChange={event => patchPath(selected.id, { ink: event.target.value })}>
                 {Object.keys(working.geometry.inkStyles).map(id => <option key={id} value={id}>{id}</option>)}
@@ -800,47 +877,42 @@ export default function VefkWorkshop() {
                       [selected.ink]: { ...working.geometry.inkStyles[selected.ink], width: Number(event.target.value) } },
                   } })}/></label>
             </div>}
-            <div className="vefk-layers">
-              <div className="vefk-inspector-head mini"><small>VEKTÖR KATMANLARI</small><strong>{working.geometry.paths.length}</strong></div>
-              <div className="vefk-layer-actions">
-                <button disabled={!canEdit || !selectedPath} onClick={() => moveLayer(-1)} title="Katmanı geri taşı">↑</button>
-                <button disabled={!canEdit || !selectedPath} onClick={() => moveLayer(1)} title="Katmanı öne taşı">↓</button>
-              </div>
-              <div className="vefk-layer-list">
-                {working.geometry.paths.map(path => <button key={path.id} type="button" className={selectedPath === path.id ? "current" : ""}
-                  onClick={() => { setSelectedPath(path.id); setMode("select"); }}><span>{path.ink === "grid" ? "▦" : "◈"}</span><strong>{path.semanticValue ?? path.id}</strong><small>{path.id}</small></button>)}
-              </div>
-            </div>
-            <div className="vefk-review">
-              <div className="vefk-inspector-head mini"><small>REVİZYON / ONAY</small><strong>r{working.revision}</strong></div>
-              <p>Önce taslağı kaydet. Kontrol edilmiş içerik yeniden düzenlenmek üzere açılabilir; onaylanmış içerik yeni revizyonla değişir.</p>
-              {status === "draft" && <button disabled={busy || dirty} onClick={() => void review("checked")}>Kontrole gönder</button>}
-              {status === "checked" && <div className="vefk-review-row">
-                <button disabled={busy} onClick={() => void review("draft")}>Düzeltmeye aç</button>
-                <button className="accent" disabled={busy} onClick={() => void review("approved")}>Onayla</button>
-              </div>}
-              {(status === "approved" || status === "published") && <button className="accent" disabled={busy} onClick={() => void nextRevision()}>Yeni revizyon oluştur</button>}
-              <div className="vefk-site-selection">
-                <strong>Site yayın seçimi</strong>
-                <small>{siteSelection
-                  ? "Site kataloğuna r" + siteSelection.revision + " seçili · " + siteSelection.contentHash.slice(0, 12)
-                  : "Bu vefk yerel site kataloğunda değil."}</small>
-                {siteSelection
-                  ? <button disabled={busy || dirty} onClick={() => void toggleSiteSelection()}>Katalogdan çıkar</button>
-                  : (status === "approved" || status === "published")
-                    ? <button className="accent" disabled={busy || dirty} onClick={() => void toggleSiteSelection()}>
-                      Onaylı r{record?.revision} · site kataloğuna ekle
-                    </button>
-                    : <small>Siteye aktarmak için önce revizyonu onayla.</small>}
-                <small>Site seçimi canlı yayın değildir. Üstteki «Site paketini hazırla» yerel JSON üretir.</small>
-              </div>
-              {status === "new" && <small>Yeni çalışmayı kaydederek ilk revizyonu oluşturabilirsin.</small>}
-            </div>
-          </div>
-        </>}
+
+          {!selected && <div className="vefk-context-empty"><span>↖</span><p>Bir yol seç veya çizim aracı kullan.</p></div>}
+          <details className="vefk-advanced"><summary>Belge</summary><label>Ad<input value={working.title} disabled={!canEdit} onChange={e => patchDocument({ title: e.target.value })}/></label><label>Açıklama<textarea value={working.description} disabled={!canEdit} onChange={e => patchDocument({ description: e.target.value })}/></label><small>{kindLabels[working.construction.kind]}</small></details>
+          <details className="vefk-advanced" open={Boolean(selected)}><summary>Yollar · {working.geometry.paths.length}</summary>
+            <div className="vefk-layer-actions"><button title="Çizim sırasında önceye al" aria-label="Çizim sırasında önceye al" disabled={!selected || !canEdit} onClick={() => moveLayer(-1)}>↑</button><button title="Çizim sırasında sonraya al" aria-label="Çizim sırasında sonraya al" disabled={!selected || !canEdit} onClick={() => moveLayer(1)}>↓</button></div>
+            <div className="vefk-layer-list">{orderedPaths.map((path,index) => <button key={path.id} className={selectedPath === path.id ? "current" : ""} onClick={() => { setSelectedPath(path.id); setMode("select"); }} title={path.id}><span>{index+1}</span><strong>{path.semanticValue ?? `Yol ${index+1}`}</strong></button>)}</div>
+          </details>
+          <details className="vefk-advanced"><summary>Teknik ayrıntılar</summary><small>{working.id}</small><small>{record?.contentHash}</small><small>Belge v{working.schemaVersion}</small></details>
+          <details className="vefk-advanced"><summary>Görünüm</summary><label className="vefk-check"><input type="checkbox" checked={snap} onChange={e => setSnap(e.target.checked)}/>Izgaraya yapış</label><label className="vefk-check"><input type="checkbox" checked={guides} onChange={e => setGuides(e.target.checked)}/>Kılavuzlar</label></details>
+          <details className="vefk-advanced" open={previewOpen || status === "checked" || selectionMatches}><summary>Yayın hazırlığı</summary>
+            <ol className="vefk-readiness">{[
+              [!dirty && Boolean(record), "Çalışma kaydedildi"], [steps[1].done, "İnceleme tamamlandı"], [true, "Çizim oluşturuldu"],
+              [status !== "new" && status !== "draft", "Önizleme doğrulandı"], [steps[3].done, "Revizyon onaylandı"], [selectionMatches, "Katalogda seçili"], [packageReady && selectionMatches, "Yerel paket hazır"],
+            ].map(([done,label]) => <li key={String(label)} className={done ? "done" : ""}><span>{done ? "✓" : "○"}</span>{label}</li>)}</ol>
+            {sourceEvidence?.partialAccepted && <small>Kısmi çizim · {sourceEvidence.omittedRegions?.length ?? sourceProgress?.untraced} bölge hariç</small>}
+            {status === "checked" && <button onClick={() => void review("draft")} disabled={busy}>Düzeltmeye aç</button>}
+            {["approved","published"].includes(status) && <button onClick={() => void nextRevision()} disabled={busy || dirty}>Yeni revizyon</button>}
+            {selectionMatches && <button disabled={busy || dirty} onClick={() => { if (window.confirm("Belge yerel yayın kataloğundan çıkarılsın mı? Canlı site değişmez.")) void toggleSiteSelection(); }}>Katalogdan çıkar</button>}
+            {packageReadiness && <small>{packageReadiness}</small>}
+          </details>
+        </div>}
+        {!reviewing && !working && <div className="vefk-context-empty"><span>↖</span><p>Görsel ekle veya yeni bir çizim oluştur.</p></div>}
       </aside>}
     </div>
-
+    {menu && <div className="vefk-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setMenu(null); }}><div className="vefk-record-menu" role="dialog" aria-modal="true" aria-label="Kayıt işlemleri"><header><strong>{menu.name}</strong><button aria-label="Menüyü kapat" onClick={() => setMenu(null)}>×</button></header>
+      {menu.id ? <>{["rename", ...(menu.kind === "document" ? ["copy", ...(records.some(item => item.id === menu.id && ["approved","published"].includes(item.status)) ? ["revision"] : [])] : ["analyses"]), ...(catalogSelections.some(s => s.id === menu.id) ? ["catalog"] : []), "delete"].map(action => <button key={action} className={action === "delete" || action === "analyses" ? "danger" : ""} onClick={() => void runMenu(action as Parameters<typeof runMenu>[0])}>{action === "rename" ? "Yeniden adlandır" : action === "copy" ? "Çoğalt" : action === "revision" ? "Yeni revizyon" : action === "analyses" ? "Yalnız analizleri sil" : action === "catalog" ? "Katalogdan çıkar" : menu.kind === "source" ? "Görseli ve analizleri sil" : "Belgeyi ve revizyonları sil"}</button>)}
+        {menu.kind === "document" && <button onClick={() => { const id = menu.id; setMenu(null); void openRecord(id); }}>Kaydı aç</button>}
+      </> : <button onClick={() => void runMenu("cleanup")}>Kullanılmayan Vefk dosyalarını temizle</button>}
+    </div></div>}
+    {rename && <div className="vefk-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setRename(null); }}>
+      <form className="vefk-create-dialog" role="dialog" aria-modal="true" aria-labelledby="vefk-rename-title" onSubmit={event => { event.preventDefault(); void runMenu("rename", rename); }}>
+        <header><h3 id="vefk-rename-title">Yeniden adlandır</h3><button type="button" aria-label="Kapat" onClick={() => setRename(null)}>×</button></header>
+        <label>Yeni ad<input autoFocus maxLength={rename.item.kind === "source" ? 200 : 300} value={rename.title} onFocus={event => event.target.select()} onChange={event => setRename({ ...rename, title: event.target.value })}/></label>
+        <footer><button type="button" className="vefk-button" onClick={() => setRename(null)}>Vazgeç</button><button type="submit" className="vefk-button primary" disabled={!rename.title.trim() || busy}>Adı kaydet</button></footer>
+      </form>
+    </div>}
     {newOpen && <div className="vefk-modal-backdrop" role="presentation" onMouseDown={event => {
       if (event.target === event.currentTarget) setNewOpen(false);
     }}>

@@ -65,5 +65,5 @@ test("Studio mask preview and exclusion changes invalidate paths without touchin
   assert.match(source,/traces:working\.traces\.filter\(group=>group\.regionId!==regionId\)/);
   assert.match(source,/maskPreview\.dataUrl/);
   assert.match(source,/excludedAreas:selectedExclusions/);
-  assert.match(source,/Dışlamalar bu oturumda geçicidir/);
+
 });

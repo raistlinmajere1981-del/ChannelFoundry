@@ -213,7 +213,28 @@ function exportCatalog(db, userDataPath, catalogInput) {
   };
 }
 
+/** Read-only readiness of the existing local publication package. A changed
+ * catalog or missing/tampered document invalidates the package indicator. */
+function packageStatus(db, userDataPath) {
+  const folder = path.resolve(userDataPath, "public-export", "content");
+  try {
+    const expected = buildCatalog(db);
+    const exported = JSON.parse(fs.readFileSync(path.join(folder, "vefk", "vefk_catalog.json"), "utf8"));
+    validateCatalog(exported);
+    const snapshot = JSON.parse(fs.readFileSync(path.join(folder, "publication.json"), "utf8"));
+    if (snapshot.vefkCatalog) validateCatalog(snapshot.vefkCatalog);
+    if (exported.fingerprint !== expected.fingerprint ||
+        (expected.entries.length ? snapshot.vefkCatalog?.fingerprint !== expected.fingerprint : Boolean(snapshot.vefkCatalog?.entries?.length))) {
+      return { ready: false };
+    }
+    for (const entry of expected.entries) {
+      if (sha256(fs.readFileSync(path.join(folder, entry.url))) !== entry.sha256) return { ready: false };
+    }
+    return { ready: true };
+  } catch { return { ready: false }; }
+}
+
 module.exports = {
   FORMAT, BINDING, BINDING_V2, SCHEMA_VERSION, MAX_ENTRIES, MAX_CATALOG_BYTES,
-  ensureSchema, selected, select, buildCatalog, validateCatalog, exportCatalog,
+  ensureSchema, selected, select, buildCatalog, validateCatalog, exportCatalog, packageStatus,
 };

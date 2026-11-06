@@ -22,7 +22,7 @@ const original=core.createVefk({id:'s4c1-browser',title:'S4c1 Chromium taslak',k
 store.saveDraft(db,{document:original});
 const methods={
   vefkList: input=>store.listDocuments(db,input),
-  vefkSourceList:()=>[], vefkCatalogList:()=>[],
+  vefkSourceReviewInfo:()=>null, vefkPackageStatus:()=>({ready:false}), vefkSourceList:()=>[], vefkCatalogList:()=>[],
   vefkRevisions:id=>store.listRevisions(db,id),
   vefkGet:({id,revision})=>store.getDocument(db,id,revision),
   vefkGenerate:input=>core.createVefk(input),
@@ -105,15 +105,20 @@ try {
   const pen=await page.locator('.vefk-pen-nib').getAttribute('transform');
   assert.equal(pen,`translate(${expectedFrame.pen.position.x} ${expectedFrame.pen.position.y})`);
   await page.screenshot({path:path.join(evidence,'studio-doc2-1366.png')});
-  await page.getByRole('button',{name:'Kontrole gönder',exact:true}).click();
-  await page.getByRole('button',{name:'Onayla',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Önizle →',exact:true}).click();
+  await page.getByRole('button',{name:'Önizlemeyi doğrula →',exact:true}).click();
+  await page.getByRole('button',{name:'Onayla →',exact:true}).waitFor();
+  if (await expand.getAttribute('aria-expanded') === 'false') await expand.click();
   assert.equal(await firstCurve.isDisabled(),true);
-  await page.getByRole('button',{name:'Onayla',exact:true}).click();
-  const nextRevision=page.getByRole('button',{name:'Yeni revizyon oluştur',exact:true});
+  await page.getByRole('button',{name:'Onayla →',exact:true}).click();
+  const nextRevision=page.getByRole('button',{name:'Yeni revizyon',exact:true});
+  if (!(await nextRevision.isVisible())) await page.getByText('Yayın hazırlığı',{exact:true}).click();
   await nextRevision.waitFor();assert.equal(await firstCurve.isDisabled(),true);
   assert.equal(store.getDocument(db,original.id).status,'approved');
+  if (!(await nextRevision.isVisible())) await page.getByText('Yayın hazırlığı',{exact:true}).click();
   await nextRevision.click();
-  await page.waitForFunction(()=>document.querySelector('.vefk-state')?.textContent?.includes('r2'));
+  await page.waitForFunction(()=>document.querySelector('.vefk-stage-foot')?.textContent?.includes('r2'));
+  if (await expand.getAttribute('aria-expanded') === 'false') await expand.click();
   assert.equal(await firstCurve.isDisabled(),false);
   assert.equal(await firstCurve.inputValue(),'ease-in-out');
   assert.equal(store.getDocument(db,original.id,1).document.contentHash,saved.contentHash);
@@ -124,8 +129,10 @@ try {
   await page.reload();
   await page.locator('.vefk-document-row').filter({hasText:locked.title}).click();
   await expand.click();await opt.waitFor();assert.equal(await opt.isDisabled(),true);
+  if (!(await nextRevision.isVisible())) await page.getByText('Yayın hazırlığı',{exact:true}).click();
   await nextRevision.click();
-  await page.waitForFunction(()=>document.querySelector('.vefk-state')?.textContent?.includes('r2'));
+  await page.waitForFunction(()=>document.querySelector('.vefk-stage-foot')?.textContent?.includes('r2'));
+  if (await expand.getAttribute('aria-expanded') === 'false') await expand.click();
   assert.equal(await opt.isDisabled(),false);
   await opt.click();await page.getByLabel(locked.drawPlan.strokes[0].pathId+' Kalıcı çizgi içi eğri',{exact:true}).waitFor();
   const lastGenerated=calls.filter(c=>c.name==='vefkGenerate').at(-1).args[0];

@@ -329,7 +329,7 @@ type StudioVisualProfileInput = {
   negativePrompt?: string;
 };
 
-type StudioPublicExportResult = { root: string; file: string; generatedAt: string; itemCount: number; relationCount: number; editorialNodeCount?: number; editorialRelationCount?: number };
+type StudioPublicExportResult = { readiness?: { readyForTheme: boolean; narrativeChangesPending: boolean; visualComplete: boolean; narrativeSections: number }; root: string; file: string; generatedAt: string; itemCount: number; relationCount: number; editorialNodeCount?: number; editorialRelationCount?: number };
 type StudioLivePublication = { ok: true; published: true; generatedAt: string; itemCount: number; relationCount: number; bytes: number; sha256: string; verified: boolean; publicUrl: string; admin: { id: number; username: string } };
 type StudioPublicPublishResult = StudioPublicExportResult & { live: StudioLivePublication };
 type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number };
@@ -459,19 +459,27 @@ interface Window {
     visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536" }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability } }>;
     visualImageClear(entityKey: string): Promise<{ cleared: boolean; entityKey: string; profile?: StudioVisualProfile }>;
     visualImageShow(entityKey: string): Promise<boolean>;
+    vefkDelete(input: { id: string; confirmed: true }): Promise<{ id: string; revisions: number; catalogRemoved: boolean }>;
+    vefkCopy(input: { id: string; newId: string; title?: string }): Promise<StudioVefkRecord>;
+    vefkSourceReviewInfo(id: string): Promise<StudioVefkSourceReview | null>;
+    vefkSourceDelete(input: { id: string; confirmed: true }): Promise<{ removed: number; cleanupPending?: boolean }>;
+    vefkAnalysisDelete(input: { id: string; confirmed: true }): Promise<{ removed: number }>;
+    vefkSourceRename(input: { id: string; title: string }): Promise<StudioVefkSource>;
+    vefkSourceCleanup(input: { confirmed: true }): Promise<{ removed: number }>;
     vefkGenerate(input: StudioVefkCreateInput): Promise<StudioVefkDocument>;
     vefkValidate(document: StudioVefkDocument): Promise<{ ok: true; contentHash: string; pathCount: number; strokeCount: number }>;
     vefkList(input?: { status?: StudioVefkStatus; query?: string; limit?: number; offset?: number }): Promise<StudioVefkListItem[]>;
     vefkGet(input: { id: string; revision?: number }): Promise<StudioVefkRecord | null>;
     vefkRevisions(id: string): Promise<StudioVefkRevision[]>;
-    vefkSaveDraft(input: { document: StudioVefkDocument; expectedContentHash?: string }): Promise<StudioVefkRecord>;
+    vefkSaveDraft(input: { document: StudioVefkDocument; expectedContentHash?: string; sourceReview?: StudioVefkSourceReview | null }): Promise<StudioVefkRecord>;
     vefkReview(input: { id: string; revision: number; status: "draft" | "checked" | "approved"; expectedContentHash: string }): Promise<StudioVefkRecord>;
     vefkApproved(): Promise<StudioVefkRecord[]>;
+    vefkPackageStatus(): Promise<{ ready: boolean }>;
     vefkCatalogList(): Promise<StudioVefkCatalogSelection[]>;
     vefkCatalogSelect(input: { id: string; revision?: number; contentHash?: string; sortOrder?: number; enabled: boolean }): Promise<{ id: string; revision?: number; selected: boolean; contentHash?: string; sortOrder?: number; selectedAt?: string }>;
     vefkSourcePick(): Promise<{ canceled: true } | { canceled: false; source: StudioVefkSource }>;
     vefkSourceList(): Promise<StudioVefkSource[]>;
-    vefkSourceGet(id: string): Promise<StudioVefkSourceImage | null>;
+    vefkSourceGet(id: string, preparationRevision?: number): Promise<StudioVefkSourceImage | null>;
     vefkSourcePrepare(input: {
       sourceId: string;
       expectedRevision: number;

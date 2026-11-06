@@ -109,14 +109,16 @@ function listSources(db) {
   `).all();
 }
 
-function loadSource(db, userData, id, { includeImage = true } = {}) {
+function loadSource(db, userData, id, { includeImage = true, preparationRevision } = {}) {
   const row = readRow(db, id);
   if (!row) return null;
   if (!/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(row.relativePath)) throw new Error("Geçersiz kaynak depolama yolu.");
   const file = path.join(rootFolder(userData), row.relativePath);
   const buffer = fs.readFileSync(file);
   if (crypto.createHash("sha256").update(buffer).digest("hex") !== row.sha256) throw new Error("Orijinal görsel içerik hash'i bozulmuş.");
-  const preparation = preparations.latest(db, id);
+  if (preparationRevision !== undefined && (!Number.isSafeInteger(preparationRevision) || preparationRevision < 0)) throw new Error("Hazırlık revizyonu geçersiz.");
+  const preparation = preparationRevision === 0 ? null : preparations.latest(db, id, preparationRevision);
+  if (preparationRevision && !preparation) throw new Error("Hazırlık revizyonu bulunamadı.");
   const originalImageDataUrl = `data:${row.mime};base64,${buffer.toString("base64")}`;
   return {
     ...metadata(row),
@@ -157,7 +159,7 @@ function normalizeAnalysis(input) {
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new RangeError("Güven skoru 0..1 olmalı.");
     const label = typeof region.label === "string" ? region.label.trim().slice(0, 250) : "";
     const reviewed = region.reviewed === true && kind !== "unknown" && (Boolean(label) || kind === "line" || kind === "grid");
-    const needsReview = !reviewed && (region.needsReview === true || confidence < .85 || kind === "unknown" || (!label && kind !== "grid" && kind !== "line"));
+    const needsReview = !reviewed;
     return { id: `region-${String(i+1).padStart(3,"0")}`, kind, box: region.box.map(n => Number(n.toFixed(2))), label, confidence, reviewed, needsReview };
   });
   const note = typeof input.note === "string" ? input.note.slice(0, 2000) : "";
@@ -199,7 +201,7 @@ function normalizeAnalysis(input) {
       if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error("Hücre güveni 0..1 olmalı.");
       const reviewed = cell.reviewed === true && Boolean(text);
       cellsByKey.set(key, { row, column, text, confidence, reviewed,
-        needsReview: !reviewed && (cell.needsReview === true || confidence < .85 || !text) });
+        needsReview: !reviewed });
     }
     const cells = [];
     for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
@@ -279,7 +281,11 @@ function appendAnalysis(db, { sourceId, origin, provider, model, result, expecte
   schema(db);
   if (!readRow(db, sourceId)) throw new Error("Kaynak görsel bulunamadı.");
   if (origin !== "ai" && origin !== "review") throw new TypeError("Kaynak analiz değişikliği türü geçersiz.");
-  const normalized = normalizeAnalysis(result);
+  const normalized = normalizeAnalysis(origin === "ai" ? { ...result,
+    regions: result.regions?.map(region => ({ ...region, reviewed: false, needsReview: true })),
+    grid: result.grid ? { ...result.grid, cells: result.grid.cells?.map(cell => ({ ...cell, reviewed: false, needsReview: true })) } : null,
+    traces: result.traces?.map(trace => ({ ...trace, reviewed: false })),
+  } : result);
   const preparationRevision = preparations.latest(db, sourceId)?.revision ?? 0;
   if (expectedPreparationRevision !== undefined && expectedPreparationRevision !== preparationRevision) {
     throw new Error("AI çalışırken kaynak görsel hazırlığı değişti; eski çözümleme kaydedilmedi.");

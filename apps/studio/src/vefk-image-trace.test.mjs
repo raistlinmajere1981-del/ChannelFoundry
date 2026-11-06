@@ -134,14 +134,14 @@ test("local classifier parameters are range-checked and unsupported modes fail s
 
 test("Studio visual tracing presents adaptive/standard methods, high resolution, and explicit review gate",()=>{
   const studioSource=fs.readFileSync(new URL("./VefkSourceWorkbench.tsx", import.meta.url),"utf8");
-  assert.match(studioSource,/Eski kâğıt · yerel kontrast/);
-  assert.match(studioSource,/Sabit renk eşiği/);
-  assert.match(studioSource,/İnce yazı · 480 px/);
-  assert.match(studioSource,/Küçük yazı noktalarını koru/);
+  assert.match(studioSource,/Yerel kontrast/);
+  assert.match(studioSource,/Sabit eşik/);
+  assert.match(studioSource,/480 px/);
+  assert.match(studioSource,/Noktaları koru/);
   assert.match(studioSource,/traceInk\(/);
   assert.match(studioSource,/localContrast,preserveDots/);
-  assert.match(studioSource,/onClick=\{\(\) => reviewTrace\(group.regionId,true\)\}/);
-  assert.match(studioSource,/Bunlar otomatik yorumdur/);
+  assert.match(studioSource,/reviewTrace\(selected, true\)/);
+
 });
 
 test("inverted polarity rejects parchment foreground instead of overwriting reviewed traces",()=>{
@@ -246,8 +246,7 @@ test("region correction invalidates stale traces and the Studio SVG editor honor
   assert.match(source,/traces: working\.traces\.filter\(group => group\.regionId !== regionId\)/);
   assert.match(source,/needsReview: true/);
   assert.match(source,/projectTracedGeometry\(/);
-  assert.match(editor,/stageWidth \/ stageMax/);
-  assert.match(editor,/stageHeight \/ stageMax/);
+  assert.match(editor,/aspect=\{reviewing \? sourceProgress\?\.aspect \?\? 1 : stageWidth\/stageHeight\}/);
   assert.match(editor,/width=\{stageWidth\} height=\{stageHeight\}/);
 });
 

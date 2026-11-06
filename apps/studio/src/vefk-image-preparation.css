@@ -26,3 +26,11 @@
 .vefk-prep-footer button.primary{background:var(--accent);color:var(--surface-panel);border-color:var(--accent);font-weight:700}
 @media(max-width:1100px){.vefk-prep-layout{grid-template-columns:minmax(0,1fr) minmax(210px,255px)}.vefk-prep-original-scroll{padding:10px}}
 @media(max-width:750px){.vefk-prep-layout{grid-template-columns:minmax(0,1fr);overflow:auto}.vefk-prep-original{min-height:380px}.vefk-prep-tools{border-left:0;border-top:1px solid var(--border-soft);overflow:visible}}
+/* Preparation shares the V3 surface and inspector. */
+.vefk-prep-layout{display:flex;flex-direction:column;height:100%;overflow:hidden}
+.vefk-prep-original{height:100%;min-height:0}
+.vefk-prep-original-scroll{display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;padding:20px;flex:1}
+.vefk-prep-source-svg{width:auto;height:100%;max-width:100%;max-height:100%;flex:none}
+.vefk-prep-tools{border:0;overflow:visible;height:auto;font-size:10px}
+.vefk-prep-preview{flex:none;min-height:100px}.vefk-prep-preview img{max-height:170px}
+@media(max-width:750px){.vefk-prep-original{min-height:0}.vefk-prep-tools{overflow:visible}}

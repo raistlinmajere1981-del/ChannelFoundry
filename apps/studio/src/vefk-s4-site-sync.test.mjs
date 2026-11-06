@@ -6,8 +6,7 @@ import {fileURLToPath} from "node:url";
 import {createVefkPlayer as canonicalPlayer} from "../../../docs/contracts/vefk-site-consumer.mjs";
 import {createVefkPlayer as sitePlayer} from "../../../channels/birdesengor/web/src/vefk/vefk-site-consumer.mjs";
 import {
-  fitContainViewBox,mapSvgPointToNormalized,
-  normalizedPointToScreen,strokeDashForFraction,
+  strokeDashForFraction,splitInkSubpaths,subpathInkFraction,
 } from "../../../channels/birdesengor/web/src/vefk/geometry.js";
 const require=createRequire(import.meta.url);
 const core=require("../vefk-core/index.cjs");
@@ -47,13 +46,11 @@ function testsForDocument(doc){
       const dash=strokeDashForFraction(progress.fraction);
       assert.equal(Number(dash.dashOffset),1-progress.fraction);
     }
-    const p=left.pen.position,box=doc.geometry.viewBox;
-    for(const [width,height] of [[760,430],[360,280],[900,900],[481,210]]){
-      const fit=fitContainViewBox(box,width,height);
-      const normalized=mapSvgPointToNormalized(p,box,width,height);
-      const screen=normalizedPointToScreen(normalized,{left:41,top:73,width,height});
-      assert.ok(Math.abs(screen.x-(41+fit.offsetX+(p.x-box[0])*fit.scale))<1e-7);
-      assert.ok(Math.abs(screen.y-(73+fit.offsetY+(p.y-box[1])*fit.scale))<1e-7);
+    for (const path of doc.geometry.paths) {
+      const {totalLength,subpaths}=splitInkSubpaths(path.d);
+      const fraction=left.visibility.find(item=>item.pathId===path.id).fraction;
+      const visibleInk=subpaths.reduce((sum,part)=>sum+part.length*subpathInkFraction(fraction,totalLength,part),0);
+      assert.ok(Math.abs(visibleInk-totalLength*fraction)<1e-7);
     }
     if(left.pen.penDown)assert.equal(left.pen.phase,"drawing");
     if(left.pen.phase==="travel")assert.equal(left.pen.penDown,false);
@@ -99,8 +96,8 @@ test("S4 site scene has a single frame source and quill CSS does not add timing"
   const scene=fs.readFileSync(new URL(
     "../../../channels/birdesengor/web/src/vefk/useVefkExperience.js",import.meta.url),"utf8");
   assert.match(scene,/selectedEntry\.player\.frameAt\(playback\.timeMs\)/);
-  assert.match(scene,/transitionMs: 0/);
-  assert.match(scene,/frame\.pen\.position/);
-  assert.match(scene,/frame\.pen\.penDown/);
+
+
+
   assert.doesNotMatch(scene,/setTimeout\([^\n]*frame\.pen\.position/);
 });

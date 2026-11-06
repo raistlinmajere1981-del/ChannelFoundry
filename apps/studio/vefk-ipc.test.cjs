@@ -26,8 +26,8 @@ test("Vefk IPC exposes independent generate, storage, review and read-only endpo
   assert.deepEqual(names, [
     "studio:vefk-generate", "studio:vefk-validate", "studio:vefk-list",
     "studio:vefk-get", "studio:vefk-revisions", "studio:vefk-save-draft",
-    "studio:vefk-review", "studio:vefk-approved",
-    "studio:vefk-catalog-list", "studio:vefk-catalog-select",
+    "studio:vefk-review", "studio:vefk-source-review-info", "studio:vefk-delete", "studio:vefk-copy", "studio:vefk-approved",
+    "studio:vefk-package-status", "studio:vefk-catalog-list", "studio:vefk-catalog-select",
   ]);
   const call = (name, input) => {
     assert.ok(handlers.has(name), `IPC handler missing: ${name}`);

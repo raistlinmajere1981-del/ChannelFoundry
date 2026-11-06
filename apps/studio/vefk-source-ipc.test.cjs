@@ -31,6 +31,7 @@ test("source IPC end-to-end: pick, list, load, analyze metadata, review and live
   };
   try {
     assert.deepEqual([...handlers.keys()], [
+      "studio:vefk-source-delete", "studio:vefk-analysis-delete", "studio:vefk-source-rename", "studio:vefk-source-cleanup",
       "studio:vefk-source-list", "studio:vefk-source-get", "studio:vefk-source-pick",
       "studio:vefk-source-prepare", "studio:vefk-vision-support", "studio:vefk-source-analysis",
       "studio:vefk-source-analyze", "studio:vefk-source-review",
@@ -78,12 +79,12 @@ test("Studio source UI keeps visual import primary and routes reviews to one can
   const sourceUI = read("src/VefkSourceWorkbench.tsx");
   const preload = read("preload.cjs");
   const ipc = read("studio-ipc.cjs");
-  assert.match(workshop, /Görselden oluştur/);
+  assert.match(workshop, /Görsel ekle/);
   assert.match(workshop, /<VefkSourceWorkbench/);
   assert.match(sourceUI, /vefkSourceAnalyze/);
   assert.match(sourceUI, /vefkSourceReview/);
-  assert.match(sourceUI, /Sayısal kareyi SVG'ye aktar/);
-  assert.match(sourceUI, /İzlenen çizgileri SVG'ye aktar/);
+  assert.match(sourceUI, /Sayısal kare/);
+  assert.match(sourceUI, /Özgün çizimi koru/);
   assert.match(ipc, /registerVefkSourceIpc/);
   for (const method of ["vefkSourcePick","vefkSourceList","vefkSourceGet","vefkSourcePrepare","vefkSourceAnalysis",
     "vefkSourceAnalyze","vefkSourceReview","vefkVisionSupport"]) assert.match(preload, new RegExp(method));
