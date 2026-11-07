@@ -155,8 +155,8 @@ async function analyzeTranscript(userDataPath, input) {
     locations: namedVisualArray(parsed.locations, 20),
     objects: namedVisualArray(parsed.objects, 20),
     scenes: sceneArray(parsed.scenes),
-    sponsors: stringArray(parsed.sponsors, 200, 260),
-    contributors: stringArray(parsed.contributors, 200, 260),
+    sponsors: stringArray(parsed.sponsors, Infinity, 260),
+    contributors: stringArray(parsed.contributors, Infinity, 260),
     config: { ...getConfig(userDataPath), model: usedModel, modelFallbackUsed },
   };
 }

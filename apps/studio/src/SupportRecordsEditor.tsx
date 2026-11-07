@@ -13,6 +13,7 @@ type SupportSource = {
   state: "curated" | "excluded" | string;
   title: string;
   publishedAt: string;
+  sourceValid?: boolean;
   url: string;
 };
 type SupportSaveResult = { ok: true; records: SupportRecord[]; sources: SupportSource[] };
@@ -97,6 +98,7 @@ export default function SupportRecordsEditor({ onStatus }: Props) {
   }, []);
 
   const sourceMap = useMemo(() => new Map(sources.map((source) => [source.videoId, source])), [sources]);
+  const invalidRecords = records.filter(record => !sourceMap.get(record.videoId) || sourceMap.get(record.videoId)?.sourceValid === false);
   const selected = records.find((record) => record.id === selectedId) ?? null;
   useEffect(() => {
     if (!selected || creating) return;
@@ -112,12 +114,13 @@ export default function SupportRecordsEditor({ onStatus }: Props) {
   }, [records, sourceMap, query]);
 
   const sponsorCount = records.filter((record) => record.kind === "sponsor").length;
+  const validSources = sources.filter(source => source.sourceValid !== false);
   const contributorCount = records.filter((record) => record.kind === "contributor").length;
 
   const startCreate = () => {
     setCreating(true);
     setSelectedId(null);
-    setDraft({ name: "", kind: "sponsor", videoId: sources[0]?.videoId ?? "" });
+    setDraft({ name: "", kind: "sponsor", videoId: validSources[0]?.videoId ?? "" });
     onStatus(null);
   };
 
@@ -168,16 +171,17 @@ export default function SupportRecordsEditor({ onStatus }: Props) {
 
   return <div className="support-records-workspace">
     <div className="support-records-metrics">
-      <article><span>SPONSOR</span><strong>{sponsorCount}</strong><small>yayına dahil kayıt</small></article>
-      <article><span>KATKIDA BULUNAN</span><strong>{contributorCount}</strong><small>yayına dahil kayıt</small></article>
+      <article><span>SPONSOR</span><strong>{sponsorCount}</strong><small>editoryal kayıt</small></article>
+      <article><span>KATKIDA BULUNAN</span><strong>{contributorCount}</strong><small>editoryal kayıt</small></article>
       <article><span>KAYNAK VİDEO</span><strong>{sources.length}</strong><small>ayıklanmış kaynak</small></article>
     </div>
 
+    {invalidRecords.length > 0 && <p role="alert">{invalidRecords.length} destek kaydının kaynak videosu eksik. Yayına girmeleri için geçerli bir video seç.</p>}
     <div className="support-records-layout">
       <section className="panel support-records-index">
         <header>
           <div><small>DESTEK KAYITLARI</small><strong>Sponsorlar ve katkıda bulunanlar</strong></div>
-          <button onClick={startCreate} disabled={!sources.length}>+ Yeni kayıt</button>
+          <button onClick={startCreate} disabled={!validSources.length}>+ Yeni kayıt</button>
         </header>
         <div className="support-records-search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad veya videoda ara…"/></div>
         <div className="support-records-list">
@@ -185,7 +189,7 @@ export default function SupportRecordsEditor({ onStatus }: Props) {
             const source = sourceMap.get(record.videoId);
             return <button key={record.id} className={!creating && selected?.id === record.id ? "active" : ""} onClick={() => choose(record)}>
               <span className="support-kind-badge">{kindShort[record.kind]}</span>
-              <span><strong>{record.name}</strong><small>{source?.title || record.videoId}</small></span>
+              <span><strong>{record.name}</strong><small>{source?.title || record.videoId}{!source || source.sourceValid === false ? " · Kaynak eksik" : source.state === "excluded" ? " · Yayın dışı" : ""}</small></span>
               <em>{originText(record.source)}</em>
             </button>;
           })}
@@ -196,17 +200,17 @@ export default function SupportRecordsEditor({ onStatus }: Props) {
       <section className="panel support-records-editor">
         {selected || creating ? <>
           <header>
-            <div><small>{creating ? "YENİ DESTEK KAYDI" : "YAYINA DAHİL KAYIT"}</small><h2>{creating ? "Yeni sponsor / katkı kaydı" : selected?.name}</h2></div>
-            {!creating && selected && <span className="support-published-state">Yayına dahil</span>}
+            <div><small>{creating ? "YENİ DESTEK KAYDI" : "DESTEK KAYDI"}</small><h2>{creating ? "Yeni sponsor / katkı kaydı" : selected?.name}</h2></div>
+            {!creating && selected && <span className="support-published-state">{sourceMap.get(selected.videoId)?.state === "excluded" ? "Yayın dışı" : "Editoryal kayıt"}</span>}
           </header>
           <div className="support-record-form">
             <label><span>TÜR</span><select value={draft.kind} onChange={(event) => setDraft((current) => ({ ...current, kind: event.target.value as SupportKind }))}><option value="sponsor">Sponsor</option><option value="contributor">Katkıda bulunan</option></select></label>
             <label><span>AD / GÖRÜNEN İSİM</span><input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kayıtta görünecek ad"/></label>
-            <label><span>KAYNAK VİDEO</span><select value={draft.videoId} onChange={(event) => setDraft((current) => ({ ...current, videoId: event.target.value }))}>{sources.map((source) => <option key={source.videoId} value={source.videoId}>{source.title} · {formatDate(source.publishedAt)}</option>)}</select></label>
+            <label><span>KAYNAK VİDEO</span><select value={draft.videoId} onChange={(event) => setDraft((current) => ({ ...current, videoId: event.target.value }))}>{sources.map((source) => <option key={source.videoId} value={source.videoId} disabled={source.sourceValid === false}>{source.title} · {formatDate(source.publishedAt)}</option>)}</select></label>
           </div>
           <div className="support-record-source-card">
             <small>KAYIT DAVRANIŞI</small>
-            <p>Bu kayıt, AI ayıklamasındaki sponsor/katkı bilgisini ezmeden editoryal bir düzeltme olarak saklanır. Kaydettiğinde sonraki Studio yayın paketine otomatik girer.</p>
+            <p>Bu kayıt, AI ayıklamasındaki sponsor/katkı bilgisini ezmeden editoryal bir düzeltme olarak saklanır. Video çözümlenmiş ve yayın kataloğunda görünür olduğunda sonraki Studio paketine girer. Yayın dışı videoların kayıtları burada düzenlenebilir.</p>
             {!creating && selected && <span>{originText(selected.source)} · {sourceMap.get(selected.videoId)?.title || selected.videoId}</span>}
           </div>
           <footer>

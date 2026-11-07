@@ -244,7 +244,7 @@ function buildPublicationV2(db, options = {}) {
   const journalResult = journalData(db, archive, assetMap, assetSourceMap);
   const assets = [...assetMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId));
   const youtubeAnalysis = { videos: aiAnalysis.publicVideoSummaries(db) };
-  const support = supportPublic.publicationSupport(db);
+  const support = supportPublic.publicationSupport(db, youtubeAnalysis.videos);
   const vefkCatalog = vefkPublication.buildCatalog(db);
   const logical = {
     schemaVersion: 2,

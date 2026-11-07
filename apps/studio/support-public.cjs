@@ -23,6 +23,7 @@ function publicSupport(db) {
     const name = String(record.name || "").trim();
     if (!videoId || !name) continue;
     const video = videos.get(videoId);
+    if (!video) continue;
     const publicRecord = {
       id: stableId(record.kind, videoId, name),
       name,
@@ -45,7 +46,7 @@ function publicationEntry(record) {
   return {
     id: String(record?.id || ""),
     name: String(record?.name || ""),
-    date: String(record?.videoPublishedAt || ""),
+    date: String(record?.videoPublishedAt || "").slice(0, 10),
     note: "",
     video: {
       id: String(record?.videoId || ""),
@@ -55,11 +56,15 @@ function publicationEntry(record) {
   };
 }
 
-function publicationSupport(db) {
+function publicationSupport(db, publishedVideos = null) {
   const support = publicSupport(db);
+  // Use the existing camera allowlist. Excluded, unresolved or unpublished
+  // sources may remain editable in Studio, but cannot leak into this snapshot.
+  const allowed = publishedVideos ? new Set(publishedVideos.map(video => video.videoId)) : null;
+  const eligible = record => !allowed || allowed.has(record.videoId);
   return {
-    sponsors: support.notebook.map(publicationEntry),
-    contributors: support.contributors.map(publicationEntry),
+    sponsors: support.notebook.filter(eligible).map(publicationEntry),
+    contributors: support.contributors.filter(eligible).map(publicationEntry),
   };
 }
 

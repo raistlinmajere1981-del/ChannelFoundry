@@ -97,6 +97,7 @@ function supportSources(db) {
     return {
       videoId,
       state: String(row.state || "curated"),
+      sourceValid: Boolean(video),
       title: String(video?.title || videoId || "Kaynak video"),
       publishedAt: String(video?.publishedAt || ""),
       url: String(video?.url || `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`),
@@ -159,11 +160,23 @@ function saveSupportRecord(db, input) {
   if (!remove && (!name || !targetVideoId || !SUPPORT_KINDS.has(targetKind))) throw new Error("Ad, tür ve kaynak video gerekli.");
 
   const moving = !remove && (targetVideoId !== videoId || targetKind !== kind);
-  if (moving) {
-    if (originalName) mutateSupport(db, videoId, kind, originalName, "");
-    mutateSupport(db, targetVideoId, targetKind, "", name);
-  } else {
-    mutateSupport(db, videoId, kind, originalName, remove ? "" : name);
+  // A failed move must leave the source record intact. Validate destinations
+  // before changing either editorial review and commit both in one savepoint.
+  const sources = new Map(supportSources(db).map(source => [source.videoId, source]));
+  if (!remove && !sources.get(targetVideoId)?.sourceValid) throw new Error("Kaynak video ilişkisi eksik veya geçersiz.");
+  db.exec("SAVEPOINT support_record_edit");
+  try {
+    if (moving) {
+      if (originalName) mutateSupport(db, videoId, kind, originalName, "");
+      mutateSupport(db, targetVideoId, targetKind, "", name);
+    } else {
+      mutateSupport(db, videoId, kind, originalName, remove ? "" : name);
+    }
+    db.exec("RELEASE support_record_edit");
+  } catch (error) {
+    db.exec("ROLLBACK TO support_record_edit");
+    db.exec("RELEASE support_record_edit");
+    throw error;
   }
 
   return { ok: true, records: supportRecords(db), sources: supportSources(db) };

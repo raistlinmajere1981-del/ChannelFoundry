@@ -47,8 +47,8 @@ try {
     INSERT INTO youtube_videos (
       video_id, channel_id, title, published_at, canonical_url, thumbnail_url
     ) VALUES (
-      'video-001', 'channel-001', 'Destek Kaynak Videosu', '2026-08-14',
-      'https://www.youtube.com/watch?v=video-001', 'https://i.ytimg.com/vi/video-001/hqdefault.jpg'
+      'support0001', 'channel-001', 'Destek Kaynak Videosu', '2026-08-14',
+      'https://www.youtube.com/watch?v=support0001', 'https://i.ytimg.com/vi/support0001/hqdefault.jpg'
     )
   `).run();
   db.prepare(`
@@ -58,14 +58,15 @@ try {
       characters_json, locations_json, objects_json, scenes_json,
       sponsors_json, contributors_json
     ) VALUES (
-      'youtube', 'video-001', 'fixture-model', 'Destek Kaynak Videosu', 'Fixture özeti',
+      'youtube', 'support0001', 'fixture-model', 'Destek Kaynak Videosu', 'Fixture özeti',
       '[]', '[]', '[]', '{}', '[]', '[]', '[]', '[]', ?, ?
     )
   `).run(JSON.stringify(["Defter Sponsoru"]), JSON.stringify(["Araştırma Katkısı"]));
-  const supportPackage = aiAnalysis.editorialPackage(db, "video-001");
+  db.prepare("INSERT INTO ai_analysis_jobs(provider, external_id, state) VALUES('youtube', 'support0001', 'done')").run();
+  const supportPackage = aiAnalysis.editorialPackage(db, "support0001");
   const supportDecisions = Object.fromEntries(supportPackage.items.map((item) => [item.key, item.decision]));
   aiAnalysis.editorialSave(db, {
-    videoId: "video-001",
+    videoId: "support0001",
     state: "curated",
     decisions: supportDecisions,
     nameOverrides: {},
@@ -78,15 +79,15 @@ try {
     kind: "story",
     name: "Araştırma Günlüğü",
     summary: "Onaylı günlük omurgası.",
-    sourceVideoIds: ["video-001"],
-    payload: { sequence: [{ text: "İlk kayıt açıldı.", sourceVideoIds: ["video-001"] }] },
+    sourceVideoIds: ["support0001"],
+    payload: { sequence: [{ text: "İlk kayıt açıldı.", sourceVideoIds: ["support0001"] }] },
   });
   insertNode(db, {
     key: "object-stone",
     kind: "object",
     name: "Babil Taşı",
     summary: "Günlükte açıkça adı geçen taş.",
-    sourceVideoIds: ["video-001", "video-002"],
+    sourceVideoIds: ["support0001", "video-002"],
     payload: { details: [{ text: "Üzerinde işaretler tarif edildi.", sourceVideoIds: ["video-002"] }] },
   });
   insertNode(db, {
@@ -99,7 +100,7 @@ try {
   db.prepare(`
     INSERT INTO universe_workspace_relations (
       key, run_id, from_key, to_key, label, source_video_ids_json, payload_json, state
-    ) VALUES ('relation-story-stone', 1, 'story-diary', 'object-stone', 'inceliyor', '["video-001"]', '{}', 'approved')
+    ) VALUES ('relation-story-stone', 1, 'story-diary', 'object-stone', 'inceliyor', '["support0001"]', '{}', 'approved')
   `).run();
 
   const run = narrative.prepareRun(db, { model: "publication-v2-fixture" });
@@ -179,9 +180,9 @@ try {
   assert.deepEqual(first.snapshot.support.sponsors.map((entry) => entry.name), ["Defter Sponsoru"]);
   assert.deepEqual(first.snapshot.support.contributors.map((entry) => entry.name), ["Araştırma Katkısı"]);
   assert.deepEqual(first.snapshot.support.sponsors[0].video, {
-    id: "video-001",
+    id: "support0001",
     title: "Destek Kaynak Videosu",
-    url: "https://www.youtube.com/watch?v=video-001",
+    url: "https://www.youtube.com/watch?v=support0001",
   });
   assert.equal(first.snapshot.support.sponsors[0].date, "2026-08-14");
 
@@ -212,7 +213,7 @@ try {
   assert.notEqual(changedObjectAsset.url, originalObjectAsset.url, "Görsel yenilenince cache-safe URL değişmeli");
 
   aiAnalysis.editorialSave(db, {
-    videoId: "video-001",
+    videoId: "support0001",
     state: "curated",
     decisions: supportDecisions,
     nameOverrides: {},

@@ -96,8 +96,8 @@ function getReview(db, videoId) {
     state: REVIEW_STATES.has(row.state) ? row.state : "pending",
     decisions: objectMap(safeJson(row.decisionsJson, {})),
     nameOverrides: objectMap(safeJson(row.nameOverridesJson, {})),
-    manualSponsors: textArray(safeJson(row.manualSponsorsJson, [])),
-    manualContributors: textArray(safeJson(row.manualContributorsJson, [])),
+    manualSponsors: textArray(safeJson(row.manualSponsorsJson, []), Infinity, 260),
+    manualContributors: textArray(safeJson(row.manualContributorsJson, []), Infinity, 260),
     reviewedAt: row.reviewedAt ? String(row.reviewedAt) : null,
     updatedAt: String(row.updatedAt ?? ""),
   };
@@ -173,10 +173,10 @@ function buildItems(row) {
     if (!name) continue;
     items.push(item("object", name, name, textArray(entry?.details, 20, 800).join(" · "), "universe", entry));
   }
-  for (const name of textArray(safeJson(row.sponsorsJson, []), 200, 260)) {
+  for (const name of textArray(safeJson(row.sponsorsJson, []), Infinity, 260)) {
     items.push(item("sponsor", name, name, "Destekçi Kaydı / sponsor", "support", name));
   }
-  for (const name of textArray(safeJson(row.contributorsJson, []), 200, 260)) {
+  for (const name of textArray(safeJson(row.contributorsJson, []), Infinity, 260)) {
     items.push(item("contributor", name, name, "Video sonu katkı kaydı", "support", name));
   }
   return items;
@@ -233,8 +233,9 @@ function saveReview(db, input) {
     const canonical = clean(value, 260);
     if (canonical && normalizeKeyText(canonical) !== normalizeKeyText(entry.label)) nameOverrides[key] = canonical;
   }
-  const manualSponsors = textArray(input?.manualSponsors, 300, 260);
-  const manualContributors = textArray(input?.manualContributors, 300, 260);
+  // Preserve every support name; the public reader pages data at its boundary.
+  const manualSponsors = textArray(input?.manualSponsors, Infinity, 260);
+  const manualContributors = textArray(input?.manualContributors, Infinity, 260);
   db.prepare(`
     INSERT INTO ai_analysis_editorial_reviews (
       provider, external_id, state, decisions_json, name_overrides_json,
@@ -329,8 +330,8 @@ function curatedResult(db, videoId) {
       objects: pickEntries(pack.items, "object", "context"),
       scenes: pickEntries(pack.items, "scene", "context"),
     },
-    sponsors: textArray(sponsors, 500, 260),
-    contributors: textArray(contributors, 500, 260),
+    sponsors: textArray(sponsors, Infinity, 260),
+    contributors: textArray(contributors, Infinity, 260),
     updatedAt: String(row.updatedAt ?? ""),
   };
 }
