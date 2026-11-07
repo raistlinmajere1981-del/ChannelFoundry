@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const narrativeStore = require("./narrative-store.cjs");
+const narrativeOutline = require("./narrative-outline.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
 const visualCompletion = require("./visual-completion-store.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
@@ -227,7 +228,7 @@ function journalData(db, archive, assetMap, assetSourceMap) {
 
   const next = narrativeStore.buildInput(db);
   return {
-    journal: { sections },
+    journal: { sections, outline: narrativeOutline.publishedOutline(db, sections) },
     readiness: {
       narrativeSections: sections.length,
       narrativeChangesPending: Boolean(next.hasChanges),

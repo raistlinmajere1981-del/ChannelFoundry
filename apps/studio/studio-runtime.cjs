@@ -33,6 +33,9 @@ let universeWorkerController = null;
 function database() {
   if (!studioDatabase) {
     studioDatabase = openStudioDatabase(app.getPath("userData"));
+    const projects = require("./channel-projects.cjs");
+    const projectId = projects.activeProjectId();
+    if (projectId) projects.bindDatabaseProject(studioDatabase, projectId);
     youtubeCatalog.ensureSchema(studioDatabase);
     transcriptService.ensureSchema(studioDatabase);
     aiAnalysis.ensureSchema(studioDatabase);

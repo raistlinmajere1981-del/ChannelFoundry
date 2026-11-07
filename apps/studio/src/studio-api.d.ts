@@ -343,10 +343,12 @@ type StudioChannelProject = {
   webUrl: string;
   hostingProvider: string;
   deploymentEnabled: boolean;
+  narrator: StudioNarrativeNarratorProfile;
+  narratorMigrationError?: string;
   hasWeb: boolean;
 };
 type StudioChannelProjects = { activeId: string; projects: StudioChannelProject[] };
-type StudioChannelProjectInput = Pick<StudioChannelProject, "id" | "displayName" | "youtubeChannelUrl" | "youtubePlaylistUrl" | "webRepository" | "webUrl" | "hostingProvider">;
+type StudioChannelProjectInput = Pick<StudioChannelProject, "id" | "displayName" | "youtubeChannelUrl" | "youtubePlaylistUrl" | "webRepository" | "webUrl" | "hostingProvider"> & { narrator?: StudioNarrativeNarratorProfile };
 
 type StudioWebConnectionConfig = {
   url: string;
@@ -376,6 +378,7 @@ type StudioCommunitySession = {
 interface Window {
   channelFoundryStudio?: {
     channelProjects(): Promise<StudioChannelProjects>;
+    channelNarratorSources(input: { id: string }): Promise<StudioNarratorSourceEntity[]>;
     channelProjectCreate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
     channelProjectUpdate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;
     channelProjectSelect(input: { id: string }): Promise<{ changed: boolean; project: StudioChannelProject }>;

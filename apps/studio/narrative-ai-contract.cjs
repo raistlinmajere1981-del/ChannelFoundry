@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const narrativeStore = require("./narrative-store.cjs");
+const narrativeEvidence = require("./narrative-evidence.cjs");
 
 const CONTRACT_VERSION = 1;
 const FORBIDDEN_LAYOUT_KEYS = new Set([
@@ -130,6 +131,9 @@ function buildRequest(db, runId) {
   const sourceMap = narrativeStore.runSourceMap(db, runId);
   const allSources = [...sourceMap.values()].map(sourceDescriptor)
     .sort((a, b) => `${a.sourceType}:${a.sourceKey}`.localeCompare(`${b.sourceType}:${b.sourceKey}`));
+  const modernEvidence = narrativeEvidence.usesRecordEvidence(run.input?.evidencePolicy);
+  const { records, graphChanges } = narrativeEvidence.partitionChanges(run.input?.changes);
+  const { approvedRecords, relationContext } = narrativeEvidence.partitionSources(allSources);
   const videoIds = [];
   for (const source of sourceMap.values()) {
     for (const videoId of source.sourceVideoIds ?? []) {
@@ -153,16 +157,26 @@ function buildRequest(db, runId) {
       preservePublishedNarrativeMemory: true,
       inventionAllowed: false,
       physicalPaginationAllowed: false,
-      referenceRule: "reference.entityId yalnız allowedSources içindeki sourceType=node kayıtlarından biri olabilir ve aynı bölümün sourceKeys listesinde yer almalıdır.",
+      referenceRule: run.input?.evidencePolicy === narrativeEvidence.POLICY
+        ? "reference.entityId onaylı node kaynaklarından biri ve bölümün sourceKeys listesinde olmalı. Reference span yalnız cümlenin içindeki adı DEĞİŞTİRİR; paragraf sonunda isim/karakter listesi olarak eklenemez. narrator.sourceEntityKeys içindeki sahip karakter ID'lerine kendisini anlatan bağlantı verme; eşlenmemiş Anlatıcı adlı node otomatik sahip değildir."
+        : "reference.entityId onaylı node kaynaklarından biri ve bölümün sourceKeys listesinde olmalı. Reference span yalnız cümlenin içindeki adı DEĞİŞTİRİR; paragraf sonunda isim/karakter listesi olarak eklenemez. Anlatıcıya ayrı karakter bağlantısı verme.",
       revisionRule: "Mevcut bir bölümü değiştirirken baselineNarrative içindeki sectionId aynen kullanılmalıdır. Yeni bölüm için sectionId null gönderilir; stable kimliği Studio atar.",
     },
     input: {
       baselineNarrative: Array.isArray(run.input?.baselineNarrative) ? run.input.baselineNarrative : [],
-      changes: Array.isArray(run.input?.changes) ? run.input.changes : [],
+      changes: modernEvidence ? records : (Array.isArray(run.input?.changes) ? run.input.changes : []),
       removed: Array.isArray(run.input?.removed) ? run.input.removed : [],
-      contextSources: contextSources(sourceMap, run.input?.changes),
-      allowedSources: allSources,
-      sourceVideos: videoMetadata(db, videoIds),
+      contextSources: modernEvidence ? contextSources(sourceMap, records).filter((source) => source.sourceType === "node") : contextSources(sourceMap, run.input?.changes),
+      allowedSources: modernEvidence ? approvedRecords : allSources,
+      ...(modernEvidence ? {
+        evidencePolicy: run.input.evidencePolicy,
+        technicalGraphChanges: graphChanges,
+        relationContext,
+      } : {}),
+      sourceVideos: modernEvidence ? narrativeEvidence.sortedVideos(videoMetadata(db, videoIds)) : videoMetadata(db, videoIds),
+      // Old snapshotless runs stay deterministic too; never reread live settings.
+      narrator: run.input?.narrator ?? { displayName: "", mode: "neutral", editorialNote: "" },
+      ...(run.input?.evidencePolicy === narrativeEvidence.POLICY ? { narratorSourceEntities: run.input.narratorSourceEntities ?? [] } : {}),
     },
     responseContract: {
       contractVersion: CONTRACT_VERSION,
@@ -174,8 +188,9 @@ function buildRequest(db, runId) {
         blocks: [{
           type: "paragraph",
           spans: [
-            { type: "text", text: "" },
-            { type: "reference", entityId: "approved-entity-id", label: "" },
+            { type: "text", text: run.input?.evidencePolicy === narrativeEvidence.POLICY ? "Kaynakta " : "Mezna’da " },
+            { type: "reference", entityId: "approved-entity-id", label: "İbn Kahruf" },
+            { type: "text", text: run.input?.evidencePolicy === narrativeEvidence.POLICY ? " ile bir görüşmeden söz edildi." : " ile görüştüm." },
           ],
         }],
         media: [],
@@ -259,6 +274,9 @@ function normalizeResponse(db, runId, value) {
     const sourceKeys = textArray(raw.sourceKeys, 5000, 220);
     const unknownSources = sourceKeys.filter((key) => !sourceMap.has(key));
     if (unknownSources.length) throw new Error(`Hikâyeleştir yanıtı run girdisinde olmayan sourceKeys içeriyor: ${unknownSources.join(", ")}`);
+    if (narrativeEvidence.usesRecordEvidence(run.input?.evidencePolicy) && sourceKeys.some((key) => sourceMap.get(key)?.sourceType !== "node")) {
+      throw new Error("Hikâyeleştir anlatı kaynağı olarak teknik ilişki kaydı kullanamaz; section.sourceKeys yalnız onaylı Evren kayıtlarına işaret etmelidir.");
+    }
     if (!retire && !sourceKeys.length) throw new Error("Aktif Hikâyeleştir section'ı en az bir sourceKey içermelidir.");
 
     let order;

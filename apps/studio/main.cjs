@@ -101,32 +101,12 @@ function startStudio() {
     communityAdmin.configureCredentialStorage(app.getPath("userData"), safeStorage);
     ytDlpManager.configure(app.getPath("userData"), runtime.notifyYtDlpChanged);
     void communityAdmin.connectStored();
-    ipcMain.handle("studio:channel-projects", () => ({
-      activeId: channelProjects.activeProjectId(),
-      projects: channelProjects.listProjects(),
-    }));
-    ipcMain.handle("studio:channel-project-create", (_event, input) => {
-      const project = channelProjects.createProject(input);
-      runtime.refreshMainWindow();
-      return project;
-    });
-    ipcMain.handle("studio:channel-project-update", (_event, input) => {
-      const project = channelProjects.updateProject(input);
-      runtime.refreshMainWindow();
-      return project;
-    });
-    ipcMain.handle("studio:channel-project-select", (_event, input) => {
-      const project = channelProjects.readProject(input?.id);
-      if (project.id === channelProjects.activeProjectId()) return { changed: false, project };
-      if (runtime.workersBusy() || youtubeSyncIsRunning()) {
-        throw new Error("Devam eden AI veya YouTube işlemi bitmeden proje değiştirilemez.");
-      }
-      channelProjects.setActiveProject(project.id);
-      setTimeout(() => {
+    channelProjects.registerChannelProjectIpc(ipcMain, runtime, {
+      youtubeSyncIsRunning,
+      onSelect: () => setTimeout(() => {
         app.relaunch();
         app.quit();
-      }, 150);
-      return { changed: true, project };
+      }, 150),
     });
     registerStudioIpc();
     registerAnalysisEditorialIpc();

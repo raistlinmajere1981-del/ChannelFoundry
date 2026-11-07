@@ -13,6 +13,7 @@ async function invokeWithOutcome(channel, ...args) {
 
 contextBridge.exposeInMainWorld("channelFoundryStudio", {
   channelProjects: () => ipcRenderer.invoke("studio:channel-projects"),
+  channelNarratorSources: (input) => ipcRenderer.invoke("studio:channel-narrator-sources", input),
   channelProjectCreate: (input) => ipcRenderer.invoke("studio:channel-project-create", input),
   channelProjectUpdate: (input) => ipcRenderer.invoke("studio:channel-project-update", input),
   channelProjectSelect: (input) => ipcRenderer.invoke("studio:channel-project-select", input),
@@ -131,6 +132,11 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   narrativeGenerateDraft: (input) => ipcRenderer.invoke("studio:narrative-generate-draft", input),
   narrativeApply: (runId) => ipcRenderer.invoke("studio:narrative-apply", runId),
   narrativeDiscard: (runId) => ipcRenderer.invoke("studio:narrative-discard", runId),
+  narrativeOutlineSuggestions: () => ipcRenderer.invoke("studio:narrative-outline-suggestions"),
+  narrativeOutlineStatus: () => ipcRenderer.invoke("studio:narrative-outline-status"),
+  narrativeOutlineSaveSeries: (input) => ipcRenderer.invoke("studio:narrative-outline-series", input),
+  narrativeOutlineSaveChapter: (input) => ipcRenderer.invoke("studio:narrative-outline-chapter", input),
+  narrativeOutlinePlaceSection: (input) => ipcRenderer.invoke("studio:narrative-outline-place", input),
   visualCompletionStatus: () => ipcRenderer.invoke("studio:visual-completion-status"),
   visualCompletionSetSceneState: (input) => ipcRenderer.invoke("studio:visual-completion-set-scene-state", input),
   openAiWorkbench: () => ipcRenderer.invoke("studio:open-ai-workbench"),

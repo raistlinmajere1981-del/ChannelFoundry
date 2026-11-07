@@ -39,3 +39,136 @@
   .analysis-curation-actions{justify-content:flex-start;}
   .analysis-curation-actions>button{flex:1 1 auto;}
 }
+
+/*
+ * Ayıklama is a long-form editorial reading surface, not a miniature
+ * diagnostic table. Keep the actual source prose larger than status metadata.
+ * All sizes are based on the Appearance > Text setting.
+ */
+.analysis-curation-layout{
+  grid-template-columns:minmax(260px,28%) minmax(0,1fr);
+}
+.analysis-curation-items article.analysis-curation-reading-entry{
+  grid-template-columns:minmax(0,1fr) minmax(170px,210px);
+  align-items:start;
+  gap:clamp(12px,1.8vw,26px);
+  padding:18px clamp(15px,1.5vw,23px);
+}
+.analysis-curation-entry-main{min-width:0}
+.analysis-curation-entry-heading{display:grid;gap:6px}
+.analysis-curation-entry-decision{
+  display:grid;
+  align-content:start;
+  gap:10px;
+  min-width:0;
+  padding-left:14px;
+  border-left:1px solid var(--border-soft);
+}
+.analysis-curation-entry-decision>select{
+  min-height:var(--studio-control-height,38px);
+  text-overflow:ellipsis;
+}
+.analysis-curation-resolution{
+  display:grid;
+  gap:5px;
+  padding:10px 11px;
+  border:1px solid var(--border-soft);
+  border-radius:5px;
+  background:var(--surface-panel-soft);
+}
+.analysis-curation-resolution.needs-review{
+  border-color:var(--border-control);
+  background:var(--accent-soft);
+}
+.analysis-curation-resolution strong{
+  margin:0!important;
+  font-weight:650;
+}
+.analysis-curation-resolution span{
+  overflow-wrap:anywhere;
+  color:var(--text-muted);
+}
+.analysis-curation-workbench .analysis-curation-name-edit{
+  margin-top:16px;
+  grid-template-columns:minmax(75px,auto) minmax(0,1fr);
+}
+.analysis-curation-workbench .analysis-curation-name-edit input{
+  min-height:var(--studio-control-height,38px);
+}
+/* The shared a11y stylesheet uses !important. This more specific scope
+   intentionally restores the correct reading hierarchy inside Ayıklama. */
+html[data-studio-text-size] .studio-shell .analysis-curation-entry-heading small,
+html[data-studio-text-size] .studio-shell .analysis-curation-name-edit span{
+  font-size:max(12px,var(--studio-font-xs,11px))!important;
+  line-height:1.45;
+  color:var(--text-muted);
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-entry-heading strong{
+  font-size:max(18px,calc(var(--studio-font-reading,16px) + 2px))!important;
+  font-weight:650;
+  line-height:1.32;
+  overflow-wrap:anywhere;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-items article p.analysis-curation-entry-reading{
+  max-width:var(--studio-reading-measure,74ch);
+  margin:13px 0 0;
+  font-size:max(16px,calc(var(--studio-font-reading,16px) + 1px))!important;
+  line-height:var(--studio-reading-leading,1.7)!important;
+  letter-spacing:.004em;
+  color:var(--text-primary)!important;
+  overflow-wrap:anywhere;
+  text-wrap:pretty;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-resolution strong{
+  font-size:max(13px,var(--studio-font-sm,12px))!important;
+  color:var(--text-primary)!important;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-resolution span{
+  font-size:max(12px,var(--studio-font-sm,12px))!important;
+  line-height:1.55;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-name-edit em{
+  font-size:var(--studio-font-sm,12px)!important;
+  line-height:1.5;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-list button strong{
+  font-size:max(14px,var(--studio-font-body,14px))!important;
+  line-height:1.4;
+  white-space:normal;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-list button small,
+html[data-studio-text-size] .studio-shell .analysis-curation-list button em{
+  font-size:var(--studio-font-sm,12px)!important;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-auto-summary strong,
+html[data-studio-text-size] .studio-shell .analysis-curation-decision-summary span{
+  font-size:var(--studio-font-body,14px)!important;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-auto-summary p,
+html[data-studio-text-size] .studio-shell .analysis-curation-decision-summary p,
+html[data-studio-text-size] .studio-shell .analysis-curation-scroll>header p,
+html[data-studio-text-size] .studio-shell .analysis-curation-support>p{
+  font-size:var(--studio-font-sm,12px)!important;
+  line-height:1.55!important;
+}
+html[data-studio-text-size] .studio-shell .analysis-curation-detail> .analysis-curation-scroll h4{
+  font-size:max(19px,calc(var(--studio-font-reading,16px) + 1px))!important;
+}
+@media(max-width:1180px){
+  .analysis-curation-layout{grid-template-columns:1fr}
+  .analysis-curation-items article.analysis-curation-reading-entry{
+    grid-template-columns:minmax(0,1fr) minmax(160px,200px);
+  }
+}
+@media(max-width:720px){
+  .analysis-curation-items article.analysis-curation-reading-entry{grid-template-columns:1fr}
+  .analysis-curation-entry-decision{
+    border-left:0;
+    border-top:1px solid var(--border-soft);
+    padding:12px 0 0;
+  }
+}

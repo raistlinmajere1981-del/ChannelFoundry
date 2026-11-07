@@ -1,5 +1,6 @@
 const narrativeService = require("./narrative-service.cjs");
 const narrativeGeneration = require("./narrative-ai-generation.cjs");
+const narrativeOutline = require("./narrative-outline.cjs");
 const { registerVisualCompletionIpc } = require("./visual-completion-ipc.cjs");
 
 function registerNarrativeIpc(ipcMain, runtime) {
@@ -28,6 +29,12 @@ function registerNarrativeIpc(ipcMain, runtime) {
   }));
   ipcMain.handle("studio:narrative-apply", (_event, runId) => mutate(() => narrativeService.apply(db(), runId)));
   ipcMain.handle("studio:narrative-discard", (_event, runId) => mutate(() => narrativeService.discard(db(), runId)));
+  ipcMain.handle("studio:narrative-outline-status", () => narrativeOutline.status(db()));
+  ipcMain.handle("studio:narrative-outline-series", (_event, input) => mutate(() => narrativeOutline.saveSeries(db(), input)));
+  ipcMain.handle("studio:narrative-outline-chapter", (_event, input) => mutate(() => narrativeOutline.saveChapter(db(), input)));
+  ipcMain.handle("studio:narrative-outline-place", (_event, input) => mutate(() => narrativeOutline.placeSection(db(), input)));
+
+  ipcMain.handle("studio:narrative-outline-suggestions", () => narrativeOutline.suggestions(db()));
 
   // The deterministic narrative IPC verifier uses a minimal runtime without visual generation.
   // Real Studio runtime exposes generateVisualImage, so the next editorial stage registers there

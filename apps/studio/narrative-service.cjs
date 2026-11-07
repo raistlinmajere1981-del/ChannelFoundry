@@ -1,5 +1,7 @@
 const narrativeStore = require("./narrative-store.cjs");
 const aiContract = require("./narrative-ai-contract.cjs");
+const quality = require("./narrative-quality.cjs");
+const { deriveEvidenceLedger } = require("./narrative-evidence-ledger.cjs");
 
 function runDrafts(db, runId) {
   narrativeStore.ensureSchema(db);
@@ -15,7 +17,19 @@ function runDrafts(db, runId) {
       .find((entry) => entry.runId === Number(runId));
     if (revision) result.push(revision);
   }
-  return result.sort((a, b) => a.position - b.position || a.sectionKey.localeCompare(b.sectionKey));
+  const input = narrativeStore.getRun(db, runId)?.input ?? {};
+  const narrator = input.narrator ?? {};
+  const ownerKeys = new Set(narrator.sourceEntityKeys ?? []);
+  const sourceMap = narrativeStore.runSourceMap(db, runId);
+  const context = {
+    evidencePolicy: input.evidencePolicy,
+    narratorSourceEntities: input.narratorSourceEntities ?? [],
+    otherCharacterNames: [...sourceMap.values()]
+      .filter(source => source.sourceType === "node" && source.snapshot?.kind === "character" && !ownerKeys.has(source.sourceKey))
+      .map(source => source.snapshot.name),
+  };
+  return result.sort((a, b) => a.position - b.position || a.sectionKey.localeCompare(b.sectionKey))
+    .map((draft) => ({ ...draft, qualityNotes: quality.analyzeDraft(draft, narrator, context), evidenceLedger: deriveEvidenceLedger(sourceMap, draft.sourceKeys) }));
 }
 
 function latestWorkingRunId(db) {
@@ -41,6 +55,8 @@ function status(db) {
       hasChanges: next.hasChanges,
       baselineRunId: next.baselineRunId,
       changes: next.changes.length,
+      recordChanges: next.changes.filter((change) => change.sourceType === "node").length,
+      relationChanges: next.changes.filter((change) => change.sourceType === "relation").length,
       removed: next.removed.length,
     },
   };

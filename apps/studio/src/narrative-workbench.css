@@ -451,6 +451,47 @@
   color: #7a8591;
 }
 
+/* Frozen evidence stays separate from reader prose and wraps at narrow widths. */
+.narrative-workbench > *, .narrative-draft-card { min-width: 0; }
+html[data-studio-theme] .studio-shell .narrative-draft-card .narrative-evidence-ledger {
+  border-color: var(--border-soft);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+html[data-studio-theme] .studio-shell .narrative-draft-card .narrative-evidence-ledger > summary {
+  color: var(--text-primary);
+  font-size: var(--studio-font-body, 14px);
+  line-height: 1.5;
+  padding: 14px 0;
+}
+.narrative-evidence-ledger > summary:focus-visible {
+  outline: 2px solid var(--text-secondary, #aeb7c1);
+  outline-offset: 3px;
+}
+.narrative-ledger-content {
+  display: grid;
+  gap: 12px;
+  font-size: var(--studio-font-body, 14px);
+  line-height: 1.6;
+}
+.narrative-ledger-content p { margin: 6px 0; white-space: pre-wrap; }
+.narrative-ledger-content h4 { margin: 0; font-size: 1.1em; }
+.narrative-ledger-content code { font-size: .9em; }
+.narrative-ledger-node {
+  min-width: 0;
+  padding: clamp(10px, 2vw, 18px);
+  border: 1px solid var(--border-soft, #33383f);
+  background: var(--surface-panel-soft, #10151b);
+}
+.narrative-ledger-context {
+  padding: 10px 0;
+  color: var(--text-secondary, #aeb7c1);
+}
+.narrative-ledger-entries { margin: 6px 0 0; padding-left: 22px; }
+.narrative-ledger-entries > li { padding: 12px 0; border-top: 1px solid var(--border-soft, #33383f); }
+.narrative-ledger-videos { display: grid; gap: 6px; margin: 8px 0; padding-left: 18px; }
+.narrative-ledger-videos code { display: inline-block; max-width: 100%; vertical-align: top; }
+
 @media (max-width: 1180px) {
   .narrative-metrics,
   .narrative-run-meta {
@@ -480,4 +521,121 @@
   .narrative-gate > button {
     flex: 1 1 auto;
   }
+}
+
+/* Stage 4: natural-reading typography in both light and dark Studio themes. */
+html[data-studio-theme] .studio-shell .narrative-workbench :is(
+  .narrative-header, .narrative-gate, .narrative-provenance, .narrative-memory,
+  .narrative-next-stage, .narrative-draft-card
+){
+  background:var(--surface-panel)!important;
+  border-color:var(--border-soft)!important;
+  color:var(--text-primary)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench :is(
+  .narrative-header h2, .narrative-gate strong, .narrative-draft-card > header h3,
+  .narrative-next-stage strong, .narrative-section-head h3, .narrative-provenance h4,
+  .narrative-memory-list strong
+){color:var(--text-primary)!important}
+html[data-studio-theme] .studio-shell .narrative-workbench :is(
+  .narrative-header p, .narrative-gate p, .narrative-provenance p, .narrative-next-stage p,
+  .narrative-section-head > span
+){color:var(--text-secondary)!important}
+html[data-studio-text-size] .studio-shell .narrative-workbench p.narrative-body{
+  max-width:78ch;
+  margin:19px 0;
+  font-family:var(--font-display);
+  font-size:max(18px,calc(var(--studio-font-reading,16px) + 1px))!important;
+  line-height:var(--studio-reading-leading,1.75)!important;
+  color:var(--text-primary)!important;
+  letter-spacing:.002em;
+  white-space:pre-wrap;
+  text-wrap:pretty;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-draft-card > header h3{
+  font-size:max(21px,calc(var(--studio-font-reading,16px) + 3px))!important;
+  line-height:1.35;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-draft-card{
+  padding:clamp(16px,2vw,28px);
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-gate p{
+  max-width:85ch;
+  line-height:1.55!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-run-meta{
+  background:var(--border-soft)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-run-meta>div,
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-memory-list>div{
+  background:var(--surface-panel-soft)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-run-meta :is(strong,code,span),
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-metrics :is(strong,span),
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-draft-card > header > code,
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-draft-evidence>div>small,
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-none{
+  color:var(--text-secondary)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-chip-list>span,
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-source-videos>div{
+  background:var(--surface-panel-soft)!important;
+  border-color:var(--border-soft)!important;
+  color:var(--text-primary)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-chip-list>span :is(b,code){
+  color:var(--text-secondary)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-source-videos :is(strong,span,code){
+  color:var(--text-secondary)!important;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-source-videos strong,
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-chip-list.videos>span{
+  font-size:var(--studio-font-body)!important;
+  line-height:1.45;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-chip-list>span{
+  font-size:var(--studio-font-sm,12px)!important;
+  line-height:1.45;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-quality{
+  margin:16px 0 19px;
+  padding:14px 17px;
+  border-left:3px solid var(--state-warning);
+  border-top:1px solid var(--state-warning-border);
+  border-right:1px solid var(--state-warning-border);
+  border-bottom:1px solid var(--state-warning-border);
+  background:var(--state-warning-soft)!important;
+  color:var(--text-primary)!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-quality>strong{
+  display:block;
+  color:var(--text-primary)!important;
+  font-size:var(--studio-font-body);
+  font-weight:700;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-quality ul{
+  margin:9px 0 0;
+  padding-left:21px;
+}
+html[data-studio-text-size] .studio-shell .narrative-workbench .narrative-quality li{
+  margin:6px 0;
+  color:var(--text-primary)!important;
+  font-size:var(--studio-font-body)!important;
+  line-height:1.5!important;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-graph-note{
+  margin:0 0 10px;
+  color:var(--text-secondary)!important;
+  font-size:var(--studio-font-sm)!important;
+  line-height:1.5;
+}
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-draft-card summary,
+html[data-studio-theme] .studio-shell .narrative-workbench .narrative-memory-list p{
+  color:var(--text-secondary)!important;
+}
+@media(max-width:900px){
+  .narrative-provenance-grid,.narrative-draft-evidence{grid-template-columns:minmax(0,1fr)}
 }

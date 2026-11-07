@@ -5,6 +5,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const workspace = require("./universe-workspace.cjs");
 const narrative = require("./narrative-store.cjs");
+const outline = require("./narrative-outline.cjs");
 const visualCompletion = require("./visual-completion-store.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const aiAnalysis = require("./ai-analysis.cjs");
@@ -168,6 +169,11 @@ try {
   assert.equal(visualStatus.complete, true);
 
   const first = publicationV2.buildPublicationV2(db, { generatedAt: "2026-08-14T17:00:00.000Z" });
+  const editorDrafts = require("./narrative-service.cjs").runDrafts(db, run.id);
+  assert.ok(editorDrafts.length && editorDrafts.every(draft => draft.evidenceLedger), "Editor revisions derive an evidence ledger");
+  const afterEditorRead = publicationV2.buildPublicationV2(db, { generatedAt: "2026-08-14T17:00:00.000Z" });
+  assert.deepEqual(afterEditorRead.snapshot, first.snapshot, "Reading editor evidence cannot change publication content/fingerprint");
+  assert.equal(JSON.stringify(afterEditorRead.snapshot).includes('"evidenceLedger"'), false, "Editor ledger must never enter reader publication");
   const second = publicationV2.buildPublicationV2(db, { generatedAt: "2026-08-14T18:00:00.000Z" });
   assert.equal(first.snapshot.schemaVersion, 2);
   assert.equal(first.snapshot.publication.contentFingerprint, second.snapshot.publication.contentFingerprint, "generatedAt content fingerprint'i değiştirmemeli");
@@ -202,6 +208,16 @@ try {
   assert.ok(first.snapshot.assets.every((asset) => /^assets\/asset-.+-[a-f0-9]{12}\.(png|jpg|webp)$/.test(asset.url)), "Asset URL içerik hash'i taşımalı");
   assertNoPhysicalLayout(first.snapshot);
   assert.equal(JSON.stringify(first.snapshot).includes(root), false, "Publication v2 yerel dosya yolunu dışarı sızdırmamalı");
+
+  assert.deepEqual(first.snapshot.journal.outline.ungroupedSectionIds, ["section-first", "section-second"]);
+  const s = outline.saveSeries(db, { title: "Düğümlü Kitap" });
+  const c = outline.saveChapter(db, { seriesKey:s.key, title:"54. Davet", numberLabel:"54. Davet" });
+  outline.placeSection(db, {sectionKey:"section-first",chapterKey:c.key});
+  const withOutline = publicationV2.buildPublicationV2(db);
+  assert.deepEqual(withOutline.snapshot.journal.outline.series[0].chapters[0].sectionIds, ["section-first"]);
+  assert.deepEqual(withOutline.snapshot.journal.outline.ungroupedSectionIds, ["section-second"]);
+  assert.notEqual(first.snapshot.publication.contentFingerprint,withOutline.snapshot.publication.contentFingerprint,"İçindekiler değişikliği içerik hash'ine yansımalı");
+  assertNoPhysicalLayout(withOutline.snapshot);
 
   const originalFingerprint = first.snapshot.publication.contentFingerprint;
   const originalObjectAsset = first.snapshot.assets.find((asset) => asset.entityId === "object-stone");

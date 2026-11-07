@@ -37,8 +37,14 @@ const expectedChannels = [
   "studio:narrative-generate-draft",
   "studio:narrative-apply",
   "studio:narrative-discard",
+  "studio:narrative-outline-status",
+  "studio:narrative-outline-series",
+  "studio:narrative-outline-chapter",
+  "studio:narrative-outline-place",
+  "studio:narrative-outline-suggestions",
 ];
 assert.deepEqual([...handlers.keys()], expectedChannels);
+assert.equal(handlers.has("studio:narrative-outline-profile"), false, "Anlatıcı yalnız Kanal Ayarları üzerinden düzenlenmeli");
 const call = (channel, payload) => handlers.get(channel)?.({}, payload);
 
 const initial = call("studio:narrative-status");

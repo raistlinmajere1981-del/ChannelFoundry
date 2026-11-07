@@ -6,6 +6,7 @@ const { DatabaseSync } = require("node:sqlite");
 const workspace = require("./universe-workspace.cjs");
 const narrativeService = require("./narrative-service.cjs");
 const generation = require("./narrative-ai-generation.cjs");
+const projects = require("./channel-projects.cjs");
 
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-narrative-ai-"));
@@ -13,6 +14,9 @@ async function main() {
   const db = new DatabaseSync(databasePath);
   db.exec("PRAGMA foreign_keys = ON;");
   try {
+    const narrator = { displayName: "Ömer", mode: "source_bound_first_person", editorialNote: "Sade anlat.", sourceEntityKeys: [] };
+    projects.createProject({ id: "fixture", displayName: "Fixture", narrator }, root);
+    projects.bindDatabaseProject(db, "fixture", root);
     workspace.ensureSchema(db);
     db.prepare(`
       INSERT INTO universe_workspace_nodes (
@@ -52,6 +56,13 @@ async function main() {
         assert.match(messages[0].content, /Yalnız verilen frozen request/i);
         assert.match(messages[0].content, /Görsel Tamamlama ayrı bir aşamadır/i);
         assert.match(messages[0].content, /Fiziksel sayfa/i);
+        assert.match(messages[0].content, /video yayın tarihidir; olayın yaşandığı tarih değildir/);
+        assert.match(messages[0].content, /konuşanın kanal sahibi olduğuna dair kanıt yoksa/);
+        assert.match(messages[0].content, /Kişisel yorum yalnız kaynakta açıkça/);
+        assert.match(messages[0].content, /Anlatıcı adlı node mapped değilse/);
+        assert.deepEqual(JSON.parse(messages[1].content.slice("INPUT_JSON:\n".length)).input.narrator, narrator);
+        projects.updateProject({ id: "fixture", narrator: { displayName: "Deniz", mode: "neutral", editorialNote: "Yeni tercih." } }, root);
+        assert.deepEqual(narrativeService.buildRequest(db, prepared.run.id), prepared.request, "Devam eden AI çağrısında ayarlar frozen sözleşmeyi değiştirmemeli");
         assert.match(messages[1].content, /story-ai/);
         return { content: "bozuk-json", model: "fixture-primary-model", fallbackUsed: false };
       }
@@ -76,6 +87,30 @@ async function main() {
     assert.equal(generated.drafts[0].state, "draft");
     assert.equal(generated.drafts[0].entityReferences[0].entityId, "story-ai");
     assert.equal(narrativeService.status(db).counts.applied, 0, "AI taslağı kullanıcı onayı olmadan applied olmamalı");
+
+
+    // Well-formed JSON can still contain invalid references appended to prose.
+    // Reject it before saving and preserve the previous valid draft and model.
+    const detachedResponse = {
+      ...validResponse,
+      sections: [{
+        ...validResponse.sections[0],
+        blocks: [{ type: "paragraph", spans: [
+          { type: "text", text: "Kayıtlı Hikâye hakkında konuştum." },
+          { type: "reference", entityId: "story-ai", label: "Kayıtlı Hikâye" },
+          { type: "reference", entityId: "story-ai", label: "Kayıtlı Hikâye" },
+        ] }],
+      }],
+    };
+    await assert.rejects(
+      () => generation.generateDraft(root, db, { runId: prepared.run.id }, {
+        getConfig: fakeConfig,
+        chat: async () => ({ content: JSON.stringify(detachedResponse), model: "bad-reference-model", fallbackUsed: false }),
+      }),
+      /bağlantı doğrulaması/i,
+    );
+    assert.equal(narrativeService.getRun(db, prepared.run.id).drafts[0].body, "Kayda göre Kayıtlı Hikâye anlatının parçasıdır.");
+    assert.equal(narrativeService.getRun(db, prepared.run.id).run.model, "fixture-primary-model");
 
     await assert.rejects(
       () => generation.generateDraft(root, db, { runId: prepared.run.id }, {

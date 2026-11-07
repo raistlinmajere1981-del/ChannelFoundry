@@ -40,6 +40,8 @@ const prepared = narrativeService.prepare(db, { model: "contract-fixture" });
 assert.equal(prepared.run.state, "prepared");
 assert.equal(prepared.request.contractVersion, 1);
 assert.equal(prepared.request.rules.physicalPaginationAllowed, false);
+assert.equal(prepared.request.input.narrator.mode,"source_bound_first_person");
+assert.deepEqual(prepared.request.input.narrator,prepared.run.input.narrator,"Anlatıcı profili hazırlanmış AI turunda frozen tutulmalı");
 assert.equal(prepared.request.input.allowedSources.length, 2);
 assert.deepEqual(prepared.request.input.sourceVideos.map((item) => [item.videoId, item.publishedAt]), [
   ["video-010", "2024-02-10T10:00:00Z"],

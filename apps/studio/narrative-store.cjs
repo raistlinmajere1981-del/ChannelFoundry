@@ -1,4 +1,6 @@
 const crypto = require("node:crypto");
+const { POLICY: EVIDENCE_POLICY, usesRecordEvidence } = require("./narrative-evidence.cjs");
+const { inlineReferenceFindings } = require("./narrative-quality.cjs");
 const { listNodes, listRelations } = require("./universe-workspace-store.cjs");
 const { ensureSchema: ensureUniverseSchema, safeJson, textArray } = require("./universe-workspace-core.cjs");
 const {
@@ -359,12 +361,16 @@ function prepareRun(db, input = {}) {
   refreshStale(db);
   const built = buildInput(db);
   if (!built.hasChanges) throw new Error("Hikâyeleştir için yeni onaylı Evren değişikliği yok.");
+  const narrator = require("./channel-projects.cjs").narratorForDatabase(db);
+  const narratorSourceEntities = require("./narrator-source-identity.cjs").resolveSourceEntities(db, narrator.sourceEntityKeys);
+  const evidencePolicy = EVIDENCE_POLICY;
+  const frozenFingerprint = fingerprint({ inputFingerprint: built.inputFingerprint, narrator, narratorSourceEntities, evidencePolicy });
 
   const existing = db.prepare(`
     SELECT id FROM narrative_runs
     WHERE state='prepared' AND universe_fingerprint=? AND input_fingerprint=?
     ORDER BY id DESC LIMIT 1
-  `).get(built.universeFingerprint, built.inputFingerprint);
+  `).get(built.universeFingerprint, frozenFingerprint);
   if (existing) return getRun(db, existing.id);
 
   db.exec("BEGIN IMMEDIATE;");
@@ -372,11 +378,14 @@ function prepareRun(db, input = {}) {
     const info = db.prepare(`
       INSERT INTO narrative_runs (state, baseline_run_id, universe_fingerprint, input_fingerprint, input_json, model)
       VALUES ('prepared', ?, ?, ?, ?, ?)
-    `).run(built.baselineRunId, built.universeFingerprint, built.inputFingerprint, JSON.stringify({
+    `).run(built.baselineRunId, built.universeFingerprint, frozenFingerprint, JSON.stringify({
       baselineRunId: built.baselineRunId,
       baselineNarrative: built.baselineNarrative,
       changes: built.changes,
       removed: built.removed,
+      narrator,
+      narratorSourceEntities,
+      evidencePolicy,
     }), clean(input?.model, 200));
     const runId = Number(info.lastInsertRowid);
     const insert = db.prepare(`
@@ -461,6 +470,10 @@ function saveDraftSections(db, runId, sections) {
       if (unknown.length) throw new Error(`Anlatı bölümü bu çalışmanın onaylı Evren girdisinde olmayan kaynaklara bağlı: ${unknown.join(", ")}`);
       if (!sourceKeys.length && !retire) throw new Error("Aktif anlatı bölümü en az bir onaylı Evren kaynağına bağlanmalıdır.");
       const structured = structuredSection(entry, sourceMap, sourceKeys);
+      if (usesRecordEvidence(run.input?.evidencePolicy)) {
+        const blockers = inlineReferenceFindings(structured.blocks, run.input?.narrator, run.input?.evidencePolicy);
+        if (blockers.length) throw new Error("Hikâyeleştir bağlantı doğrulaması başarısız (" + title + "): " + blockers.map(note => note.message).join(" "));
+      }
 
       db.prepare("INSERT INTO narrative_sections (key) VALUES (?) ON CONFLICT(key) DO NOTHING").run(key);
       const revisionNo = Number(db.prepare("SELECT COALESCE(MAX(revision_no),0)+1 AS next FROM narrative_section_revisions WHERE section_key=?").get(key)?.next ?? 1);
@@ -508,10 +521,18 @@ function applyRun(db, runId) {
   if (run.state === "stale" || isRunStale(db, runId)) throw new Error("Evren değiştiği için stale Hikâyeleştir çalışması uygulanamaz.");
   if (run.state !== "prepared") throw new Error("Uygulanabilecek prepared Hikâyeleştir çalışması bulunamadı.");
   const drafts = db.prepare(`
-    SELECT id, section_key AS sectionKey, retire FROM narrative_section_revisions
+    SELECT id, section_key AS sectionKey, retire, blocks_json AS blocksJson FROM narrative_section_revisions
     WHERE run_id=? AND state='draft' ORDER BY position, id
   `).all(Number(runId));
   if (!drafts.length) throw new Error("Hikâyeleştir çalışmasını uygulamak için en az bir bölüm taslağı gerekli.");
+  // Previously saved modern drafts still require inline reference validation.
+  if (usesRecordEvidence(run.input?.evidencePolicy)) {
+    for (const draft of drafts) {
+      if (draft.retire) continue;
+      const blockers = inlineReferenceFindings(safeJson(draft.blocksJson, []), run.input?.narrator, run.input?.evidencePolicy);
+      if (blockers.length) throw new Error("Hikâyeleştir onayı engellendi: " + blockers.map(note => note.message).join(" "));
+    }
+  }
 
   db.exec("BEGIN IMMEDIATE;");
   try {

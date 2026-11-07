@@ -1,0 +1,10 @@
+# Yayın Atölyesi — Ayıklama okuma yüzeyi iyileştirmesi (2026-11-07)
+
+Kapsam: AI Atölyesi → 02 Ayıklama. Bu çalışma Evren Kitabı geliştirmelerinden bağımsız bir kullanılabilirlik düzeltmesidir; gerçek Studio verisi, AI editoryal karar sözleşmesi, Git geçmişi ve canlı yayınlar değiştirilmedi.
+
+- `apps/studio/src/AnalysisCurationWorkbench.tsx`: Gerçek kaynak ayrıntıları kartın ana okuma yüzünde, karar seçimi ve kısa çözümleme bilgisi sağdaki ayrı şeritte. Tekrarlanan uzun `resolution.reason` metni artık okuyucuya her kartta basılmıyor; backend gerekçesi/karar mantığı korunuyor. `Yeni kayıt` için `Eşleşme yok · ayrıntı sınırlı` gibi kısa bir durum notu var. Karar bağlama/hariç'e geçince durum etiketi de güncelleniyor.
+- `apps/studio/src/analysis-curation.css`: Temayla uyumlu semantik renkler; Görünüm → Metin ayarına bağlı büyük açıklama, okunabilir başlık, kısa durum notu, iki satırlık video başlığı ve daha ferah kart boşlukları. Büyük metin ayarında örnek ölçüm: başlık 20px, ana açıklama 19px (satır yüksekliği 34,2px), karar notu 14px.
+- Üçüncü dosya `apps/studio/tests/analysis-curation-reading.browser.mjs`: Üretim bileşenini salt sentetik verilerle gerçek Chromium içinde açarak açık/büyük ve koyu/rahat temayı, metin/karar ayrı yerleşimini, eksiksiz kaynak paragrafını ve kararın kaydedilebilmesini doğrular. Test hiçbir zaman gerçek SQLite veya yayın dosyasını açmaz.
+- Görsel kanıtlar: `artifacts/curation-reading/curation-reading-light-1640.png`, `curation-reading-dark-1366.png`.
+- Doğrulama: `npm run build:studio`, `node apps/studio/verify-analysis-editorial.cjs`, `node apps/studio/verify-fixed-viewport.cjs`, `node apps/studio/verify-studio-appearance.cjs`, `node apps/studio/tests/analysis-curation-reading.browser.mjs` ve `git diff --check` geçti.
+- Mevcut Studio verisi aktif kullanımda olduğundan eski `EVREN_JOURNAL_STAGE2` hash karşılaştırması artık DB/kanal ayarları için geçerli değil; bu çalışma yalnız UI kodu ve sentetik test dosyalarını değiştirdi. Çalışma ağacı korundu; **commit, push, deploy yapılmadı**.

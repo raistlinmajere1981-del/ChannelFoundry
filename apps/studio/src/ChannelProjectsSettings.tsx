@@ -3,10 +3,12 @@ import { useEffect, useState, type FormEvent } from "react";
 type ProjectInput = {
   id: string; displayName: string; youtubeChannelUrl: string; youtubePlaylistUrl: string;
   webRepository: string; webUrl: string; hostingProvider: string; deploymentEnabled: boolean;
+  narrator: StudioNarrativeNarratorProfile;
 };
 const empty = (): ProjectInput => ({
   id: "", displayName: "", youtubeChannelUrl: "", youtubePlaylistUrl: "",
   webRepository: "", webUrl: "", hostingProvider: "", deploymentEnabled: false,
+  narrator: { displayName: "", mode: "source_bound_first_person", editorialNote: "", sourceEntityKeys: [] },
 });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const normalized = (value: string) => value.trim().replace(/^https?:\/\/(?:www\.)?/, "").replace(/\/$/, "").toLowerCase();
@@ -29,6 +31,7 @@ export default function ChannelProjectsSettings() {
   const [webValidatedUrl, setWebValidatedUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [identitySources, setIdentitySources] = useState<{ id: string; sources: StudioNarratorSourceEntity[]; error: string; loading: boolean }>({ id: "", sources: [], error: "", loading: false });
   const load = async () => {
     if (!bridge) return;
     const [result, channel] = await Promise.all([bridge.channelProjects(), bridge.youtubeCatalogActive()]);
@@ -45,6 +48,7 @@ export default function ChannelProjectsSettings() {
       youtubePlaylistUrl: project.youtubePlaylistUrl || "", webRepository: project.webRepository,
       webUrl: project.webUrl, hostingProvider: project.hostingProvider,
       deploymentEnabled: Boolean(project.deploymentEnabled),
+      narrator: { ...project.narrator, sourceEntityKeys: [...(project.narrator.sourceEntityKeys ?? [])] },
     });
     setWebValidatedUrl(""); setError(""); setNotice("");
   };
@@ -54,11 +58,29 @@ export default function ChannelProjectsSettings() {
     }).catch((reason) => setError(message(reason)));
     return bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    if (!bridge || newProject || !editing || editing !== activeId) {
+      setIdentitySources({ id: "", sources: [], error: "", loading: false });
+      return;
+    }
+    setIdentitySources({ id: editing, sources: [], error: "", loading: true });
+    void bridge.channelNarratorSources({ id: editing }).then(sources => {
+      if (!cancelled) setIdentitySources({ id: editing, sources, error: "", loading: false });
+    }).catch(reason => {
+      if (!cancelled) setIdentitySources({ id: editing, sources: [], error: message(reason), loading: false });
+    });
+    return () => { cancelled = true; };
+  }, [editing, activeId, newProject, projects]);
   const update = (name: keyof ProjectInput, value: string) => {
     if (name === "webUrl") setWebValidatedUrl("");
     setForm((previous) => ({ ...previous, [name]: value,
       ...(name === "webUrl" && previous.webUrl !== value ? { deploymentEnabled: false } : {}),
     }));
+    setNotice(""); setError("");
+  };
+  const updateNarrator = (patch: Partial<StudioNarrativeNarratorProfile>) => {
+    setForm(previous => ({ ...previous, narrator: { ...previous.narrator, ...patch } }));
     setNotice(""); setError("");
   };
   const save = async (event: FormEvent) => {
@@ -110,6 +132,11 @@ export default function ChannelProjectsSettings() {
   const current = projects.find((project) => project.id === editing);
   const savedSource = current?.youtubeChannelUrl === form.youtubeChannelUrl && current?.youtubePlaylistUrl === form.youtubePlaylistUrl;
   const currentLinked = isLinked(current, catalog);
+  const identitiesReady = identitySources.id === editing && !identitySources.loading && !identitySources.error && editing === activeId;
+  const sourceOptions = identitiesReady ? identitySources.sources : [];
+  const selectedKeys = form.narrator.sourceEntityKeys ?? [];
+  const missingKeys = selectedKeys.filter(key => !sourceOptions.some(source => source.sourceKey === key));
+  const toggleIdentity = (key: string, checked: boolean) => updateNarrator({ sourceEntityKeys: checked ? [...selectedKeys, key] : selectedKeys.filter(value => value !== key) });
   return <section className="panel channel-projects-panel">
     <header className="project-compact-header">
       <h2>Kanal ve yayın</h2>
@@ -129,6 +156,37 @@ export default function ChannelProjectsSettings() {
           <label><span>Proje adı</span><input required disabled={Boolean(busy)} value={form.displayName} onChange={(event) => update("displayName", event.target.value)}/></label>
           <label><span>Kod</span><input required disabled={!newProject || Boolean(busy)} value={form.id} onChange={(event) => update("id", event.target.value.toLowerCase())}/></label>
         </div>
+        {current?.narratorMigrationError && <p className="project-inline-error" role="alert">{current.narratorMigrationError}</p>}
+        <fieldset className="project-field-group project-narrator" disabled={Boolean(busy) || Boolean(current?.narratorMigrationError)}>
+          <legend>Anlatıcı</legend>
+          <div className="project-fields-compact">
+            <label><span>Anlatıcının adı</span><input maxLength={160} value={form.narrator.displayName} onChange={event => updateNarrator({ displayName: event.target.value })} placeholder="Örn. Ömer" /></label>
+            <label><span>Anlatım perspektifi</span><select aria-label="Anlatım perspektifi" value={form.narrator.mode} onChange={event => updateNarrator({ mode: event.target.value as StudioNarrativeNarratorProfile["mode"] })}>
+              <option value="source_bound_first_person">Kaynaklara bağlı birinci şahıs anlatımı</option>
+              <option value="neutral">Tarafsız anlatım</option>
+            </select></label>
+          </div>
+          <p className="project-web-help">Görünen ad kimlik kanıtı değildir. Birinci şahıs eylemleri aşağıda açıkça eşlenen kaynak karakterlere dayanır.</p>
+          <fieldset className="project-narrator-identities">
+            <legend>Evren'deki anlatıcı kimlikleri</legend>
+            <p className="project-web-help">Bu kanalın onaylı karakterlerini açıkça bağla veya kaldır. İsim benzerliği eşleme yapmaz. Seçim yoksa yeni anlatılar üçüncü şahıs kaynaklı tarafsız anlatılır.</p>
+            {newProject ? <p className="project-web-help">Önce projeyi oluşturup kanalı aç.</p>
+              : editing !== activeId ? <p className="project-web-help">Kaynak kimliklerini doğrulamak ve seçmek için bu kanalı aç.</p>
+              : identitySources.loading || identitySources.id !== editing ? <p role="status">Karakterler yükleniyor…</p>
+              : identitySources.error ? <p className="project-inline-error" role="alert">{identitySources.error}</p>
+              : sourceOptions.length === 0 ? <p className="project-web-help">Bu kanalda onaylı karakter kaydı yok.</p> : null}
+            {sourceOptions.map(source => <label className="project-identity-option" key={source.sourceKey}>
+              <input type="checkbox" checked={selectedKeys.includes(source.sourceKey)} onChange={event => toggleIdentity(source.sourceKey, event.target.checked)} />
+              <span>{source.name || "Adsız kayıt"} <small>{selectedKeys.includes(source.sourceKey) ? "Eşlendi" : "Eşlenmedi"}</small><code>{source.sourceKey}</code></span>
+            </label>)}
+            {missingKeys.map(key => <div className="project-identity-missing" key={key}>
+              <span>{identitiesReady ? "Çözümlenemiyor: güncel onaylı karakter kaydı bulunamadı." : "Kaynak kimliği henüz doğrulanmadı."}<code>{key}</code></span>
+              <button type="button" className="secondary-button" onClick={() => toggleIdentity(key, false)}>Eşlemeyi kaldır</button>
+            </div>)}
+          </fieldset>
+          <label><span>Editoryal üslup notları</span><textarea aria-label="Editoryal üslup notları" rows={2} maxLength={1600} value={form.narrator.editorialNote} onChange={event => updateNarrator({ editorialNote: event.target.value })} placeholder="Kalıcı anlatım tercihleri" /></label>
+          <p className="project-web-help">Üslup notları kaynak doğruluğunu geçersiz kılamaz; kaynakta olmayan duygu, deneyim veya olay eklenemez. Kaydedilen tercihler sonraki Hikâyeleştir işlemlerinde kullanılır.</p>
+        </fieldset>
         <div className="project-field-group">
           <div className="project-group-heading"><h3>YouTube arşivi</h3>{editing === activeId && <span className={currentLinked ? "linked" : ""}>{currentLinked ? "Bağlı" : "Bekliyor"}</span>}</div>
           <label><span>Kanal URL</span><input type="url" disabled={Boolean(busy)} value={form.youtubeChannelUrl} onChange={(event) => { update("youtubeChannelUrl", event.target.value); setScope("channel"); setForm((previous) => ({...previous, youtubeChannelUrl: event.target.value, youtubePlaylistUrl: ""})); }} placeholder="https://www.youtube.com/@kanal"/></label>
@@ -150,7 +208,7 @@ export default function ChannelProjectsSettings() {
         </div>
         <div className="channel-projects-actions">
           <span>{error ? <b className="project-inline-error" role="alert">{error}</b> : notice}</span>
-          <button type="submit" className="primary-button" disabled={Boolean(busy) || !form.id.trim() || !form.displayName.trim()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
+          <button type="submit" className="primary-button" disabled={Boolean(busy) || Boolean(current?.narratorMigrationError) || !form.id.trim() || !form.displayName.trim()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
         </div>
       </form>}
     </div>

@@ -56,7 +56,7 @@ function entityListId(category:string){ return `analysis-curation-${category}-en
 function includeLabel(item:EditorialItem){ return item.resolution?.status === "existing" ? "Mevcut kayda katkı" : "Evrene aktar"; }
 function resolutionLabel(item:EditorialItem, decision:UniverseDecision){
   if(item.resolution?.status === "ambiguous") return "Eşleşme gerekli";
-  if(item.resolution?.status === "new") return "Yeni kayıt";
+  if(item.resolution?.status === "new") return decision === "include" ? "Yeni kayıt" : decision === "context" ? "Yalnız bağlam" : "Hariç";
   if(item.resolution?.status === "existing") return decision === "include" ? "Mevcut kayda katkı" : decision === "context" ? "Yalnız bağlam" : "Hariç";
   return "";
 }
@@ -251,7 +251,7 @@ export default function AnalysisCurationWorkbench(){
               <span><b>{resolutionCounts.contribution}</b> mevcut kayda katkı</span>
               <span><b>{resolutionCounts.newRecord}</b> yeni kayıt</span>
               <span><b>{resolutionCounts.review}</b> kontrol gerekli</span>
-              <p>{resolutionCounts.contextOnly} mevcut kayıt yalnız bağlam olarak geçiyor. Studio açık isim/lakap eşleşmelerini otomatik seçer; “kontrol gerekli” sıfırsa genellikle tek tek seçim yapmadan Ayıklamayı tamamlayabilirsin.</p>
+              <p>{resolutionCounts.contextOnly} yalnız bağlam · Belirsiz eşleşmeler aşağıda.</p>
             </div>}
 
             {(["character","location","object"] as const).map((category)=>{
@@ -263,7 +263,7 @@ export default function AnalysisCurationWorkbench(){
             {!universeLocked && <div className="analysis-curation-auto-summary">
               <div>
                 <strong>{resolutionCounts.review ? `${resolutionCounts.review} karar senden kontrol bekliyor` : "Otomatik kararlar hazır"}</strong>
-                <p>{resolutionCounts.review ? `${automaticCount} karar otomatik çözüldü; aşağıda yalnız belirsiz eşleşmeler gösteriliyor.` : `${automaticCount} karar otomatik çözüldü. Tek tek satırları açmadan Ayıklamayı tamamlayabilirsin.`}</p>
+                <p>{automaticCount} otomatik karar · {resolutionCounts.review ? "Yalnız kontrol gerekenler listeleniyor." : "İşlem tamamlanmaya hazır."}</p>
               </div>
               <button className="text-button" type="button" onClick={()=>setShowAllUniverseItems((current)=>!current)}>{showAllUniverseItems ? "Yalnız kontrol gerekenleri göster" : `Tüm kararları göster (${universeItems.length})`}</button>
             </div>}
@@ -275,12 +275,18 @@ export default function AnalysisCurationWorkbench(){
                 const changed=Boolean(override.trim() && normalized(override)!==normalized(item.label));
                 const resolution=item.resolution;
                 const candidateNames=resolution?.status==="ambiguous" ? resolution.candidates.map((candidate)=>candidate.name).join(", ") : "";
-                return <article key={item.key}>
-                  <div>
-                    <small>{categoryText(item.category)}</small>
-                    <strong>{item.label}</strong>
-                    {resolution && <p><b>{resolutionLabel(item,decision)}</b>{resolution.canonicalName ? ` → ${resolution.canonicalName}` : ""}. {resolution.reason}{candidateNames ? ` Adaylar: ${candidateNames}.` : ""}</p>}
-                    {item.detail && <p>{item.detail}</p>}
+                const resolutionHint=resolution?.status==="new"
+                  ? resolution.needsReview ? "Eşleşme yok · ayrıntı sınırlı" : "Eşleşme yok"
+                  : resolution?.status==="ambiguous"
+                    ? candidateNames ? `Adaylar: ${candidateNames}` : "Birden fazla eşleşme"
+                    : resolution?.canonicalName ? `Eşleşen: ${resolution.canonicalName}` : "";
+                return <article key={item.key} className="analysis-curation-reading-entry">
+                  <div className="analysis-curation-entry-main">
+                    <div className="analysis-curation-entry-heading">
+                      <small>{categoryText(item.category)}</small>
+                      <strong>{item.label}</strong>
+                    </div>
+                    {item.detail && <p className="analysis-curation-entry-reading">{item.detail}</p>}
                     {!universeLocked && canRename(item) && decision!=="exclude" && <label className="analysis-curation-name-edit">
                       <span>Kayıt adı</span>
                       <input
@@ -293,11 +299,17 @@ export default function AnalysisCurationWorkbench(){
                       {changed && <em>Çözümlemedeki ad: {item.label}</em>}
                     </label>}
                   </div>
-                  <select disabled={busy || review.state==="excluded" || universeLocked} value={decision} onChange={(event)=>setDecisions((current)=>({...current,[item.key]:event.target.value as UniverseDecision}))}>
-                    <option value="include">{includeLabel(item)}</option>
-                    <option value="context">Yalnız bağlam</option>
-                    <option value="exclude">Hariç tut</option>
-                  </select>
+                  <aside className="analysis-curation-entry-decision" aria-label={`${item.label} için karar ve eşleşme`}>
+                    <select aria-label={`${item.label} kararı`} disabled={busy || review.state==="excluded" || universeLocked} value={decision} onChange={(event)=>setDecisions((current)=>({...current,[item.key]:event.target.value as UniverseDecision}))}>
+                      <option value="include">{includeLabel(item)}</option>
+                      <option value="context">Yalnız bağlam</option>
+                      <option value="exclude">Hariç tut</option>
+                    </select>
+                    {resolution && <div className={`analysis-curation-resolution${resolution.needsReview ? " needs-review" : ""}`}>
+                      <strong>{resolutionLabel(item,decision)}</strong>
+                      {resolutionHint && <span>{resolutionHint}</span>}
+                    </div>}
+                  </aside>
                 </article>;
               })}
             </div> : !universeLocked && <div className="analysis-curation-auto-empty">Bu videoda elle çözmen gereken Evren eşleşmesi yok.</div>}
