@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { VefkReading } from "../../../channels/birdesengor/web/src/vefk/VefkReading.jsx";
 import VefkTimelineEditor from "./VefkTimelineEditor";
 import { changeDrawPlan, reconcileDrawPlan } from "./vefk-timeline-model";
 import { studioPenPose } from "./vefk-pen-pose";
@@ -71,6 +72,7 @@ export default function VefkWorkshop() {
   const inspectSource = useCallback(() => setRightOpen(true), []);
   const revealTraces = useCallback(() => setView("overlay"), []);
   const [pan, setPan] = useState(false);
+  const [readingOpen, setReadingOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [packageReady, setPackageReady] = useState(false);
   const [packageReadiness, setPackageReadiness] = useState<string>("");
@@ -352,7 +354,9 @@ export default function VefkWorkshop() {
     if (!working.geometry.paths.length) { setError("Kaydetmek için bir çizgi ekle."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      const canonical = await bridge.vefkGenerate(editorInput(working));
+      const input = editorInput(working);
+      input.provenance = { ...working.provenance, references: working.provenance.references.map(value => value.trim()).filter(Boolean) };
+      const canonical = await bridge.vefkGenerate(input);
       const updated = await bridge.vefkSaveDraft({
         document: canonical, sourceReview: sourceEvidence,
         expectedContentHash: record?.status === "draft"
@@ -738,6 +742,7 @@ export default function VefkWorkshop() {
       </aside>}
       <section className="vefk-center" aria-label="Vefk üretim alanı">
         <div className="vefk-toolbar" role="toolbar" aria-label="Çalışma yüzeyi araçları">
+          {!reviewing && working && <button type="button" className="vefk-button" aria-pressed={readingOpen} onClick={() => { setReadingOpen(!readingOpen); setTimelinePreview(false); }}>Okuma İçeriği</button>}
           <div className="vefk-view-switch" role="group" aria-label="Yüzey görünümü">{(["photo","overlay","svg"] as const).map(option => <button key={option} aria-pressed={view === option} className={view === option ? "active" : ""} disabled={!activeSourceId && option !== "svg" || !reviewing && sourceEvidence?.method === "grid" && option !== "svg"}
             onClick={() => setView(option)}>{option === "photo" ? "Fotoğraf" : option === "overlay" ? "Üst üste" : "SVG"}</button>)}</div>
           <div className="vefk-tool-group" ref={setToolbarHost} hidden={!reviewing}/>
@@ -747,7 +752,18 @@ export default function VefkWorkshop() {
           <div className="vefk-zoom"><button title="Görünümü taşı" aria-label="Görünümü taşı" aria-pressed={pan} className={pan ? "active" : ""} onClick={() => setPan(!pan)}>✥</button><button title="Görünüme sığdır" aria-label="Görünüme sığdır" onClick={fitArtboard}>⊞</button>
             <button title="Küçült" aria-label="Küçült" onClick={() => viewportRef.current?.zoom(-.25)}>−</button><span>{Math.round(zoom*100)}%</span><button title="Büyüt" aria-label="Büyüt" onClick={() => viewportRef.current?.zoom(.25)}>+</button></div>
         </div>
-        {!working && !activeSourceId ? <div className="vefk-start"><span className="vefk-start-symbol">▧</span><h3>Bir görselle başla.</h3><p>İncele, çizime dönüştür, yayına hazırla.</p><button className="vefk-button primary" onClick={() => void pickSource()}>Görsel ekle</button><button className="vefk-button" onClick={() => setNewOpen(true)}>Sıfırdan oluştur</button></div>
+        {readingOpen && working && !reviewing ? <section className="vefk-reading-editor" aria-label="Okuma İçeriği düzenleyicisi">
+          <div className="vefk-reading-fields">
+            <h3>Okuma İçeriği</h3>
+            <p>{locked ? "Bu revizyon kilitli. Düzenlemek için yeni revizyon aç." : "Kaydet, önizlemeyi doğrula, onayla ve site kataloğuna seç."}</p>
+            <label>Başlık<input aria-label="Başlık" maxLength={300} value={working.title} disabled={!canEdit} onChange={e => patchDocument({ title: e.target.value })}/></label>
+            <label>Açıklama<textarea aria-label="Açıklama" rows={8} maxLength={4000} value={working.description} disabled={!canEdit} onChange={e => patchDocument({ description: e.target.value })}/></label>
+            <label>Kaynaklar · her satıra bir kaynak<textarea aria-label="Kaynaklar · her satıra bir kaynak" rows={4} value={working.provenance.references.join("\n")} disabled={!canEdit} onChange={e => patchDocument({ provenance: { ...working.provenance, references: e.target.value.split("\n") } })}/></label>
+            <label>Yayın notları<textarea aria-label="Yayın notları" rows={4} maxLength={4000} value={working.provenance.notes} disabled={!canEdit} onChange={e => patchDocument({ provenance: { ...working.provenance, notes: e.target.value } })}/></label>
+            <label>İçerik dili<input aria-label="İçerik dili" maxLength={20} value={working.language} disabled={!canEdit} onChange={e => patchDocument({ language: e.target.value })}/></label>
+          </div>
+          <div className="vefk-reading-preview"><small>Site okuma önizlemesi</small><VefkReading document={working} /></div>
+        </section> : !working && !activeSourceId ? <div className="vefk-start"><span className="vefk-start-symbol">▧</span><h3>Bir görselle başla.</h3><p>İncele, çizime dönüştür, yayına hazırla.</p><button className="vefk-button primary" onClick={() => void pickSource()}>Görsel ekle</button><button className="vefk-button" onClick={() => setNewOpen(true)}>Sıfırdan oluştur</button></div>
           : <VefkViewport ref={viewportRef} aspect={reviewing ? sourceProgress?.aspect ?? 1 : stageWidth/stageHeight} pan={pan} onScale={setZoom} unframed={reviewing && sourceProgress?.preparing}>
             {activeSourceId && <div className="vefk-source-surface" hidden={!reviewing}><VefkSourceWorkbench key={`${activeSourceId}-${sourceVersion}`} ref={sourceRef} sourceId={activeSourceId} onStartDrawing={startSourceDraft} onDirtyChange={setSourceDirty} onProgress={setSourceProgress} onSourceLoaded={setSourceImage} inspector={inspectorHost} toolbar={toolbarHost} active={reviewing} showPhoto={view !== "svg"} showTraces={view !== "photo"} onRevealTraces={revealTraces} onInspect={inspectSource} onPrepareStart={() => {
                 if (!guardedLeave()) return false;
@@ -879,7 +895,7 @@ export default function VefkWorkshop() {
             </div>}
 
           {!selected && <div className="vefk-context-empty"><span>↖</span><p>Bir yol seç veya çizim aracı kullan.</p></div>}
-          <details className="vefk-advanced"><summary>Belge</summary><label>Ad<input value={working.title} disabled={!canEdit} onChange={e => patchDocument({ title: e.target.value })}/></label><label>Açıklama<textarea value={working.description} disabled={!canEdit} onChange={e => patchDocument({ description: e.target.value })}/></label><small>{kindLabels[working.construction.kind]}</small></details>
+
           <details className="vefk-advanced" open={Boolean(selected)}><summary>Yollar · {working.geometry.paths.length}</summary>
             <div className="vefk-layer-actions"><button title="Çizim sırasında önceye al" aria-label="Çizim sırasında önceye al" disabled={!selected || !canEdit} onClick={() => moveLayer(-1)}>↑</button><button title="Çizim sırasında sonraya al" aria-label="Çizim sırasında sonraya al" disabled={!selected || !canEdit} onClick={() => moveLayer(1)}>↓</button></div>
             <div className="vefk-layer-list">{orderedPaths.map((path,index) => <button key={path.id} className={selectedPath === path.id ? "current" : ""} onClick={() => { setSelectedPath(path.id); setMode("select"); }} title={path.id}><span>{index+1}</span><strong>{path.semanticValue ?? `Yol ${index+1}`}</strong></button>)}</div>

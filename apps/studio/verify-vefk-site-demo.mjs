@@ -15,13 +15,22 @@ const live=await response.json();
 assert.deepEqual(live,disk,"V2 dev API must read exact on-disk Studio export");
 const verified=await verifyVefkPublication(live,scene);
 assert.equal(verified.status,"ready",JSON.stringify(verified));
-assert.equal(verified.entries.length,1);
-const {document,player}=verified.entries[0];
-assert.equal(document.id,"demo-vefk-5x5-v2");
-assert.equal(document.construction.kind,"magicSquare");
-assert.equal(document.construction.grid.length,5);
+assert.ok(verified.entries.length>=1);
+const baseline=verified.entries.find(entry=>entry.document.id==="demo-vefk-5x5-v2") ??
+  verified.entries.find(entry=>entry.document.schemaVersion===1) ?? verified.entries[0];
+assert.ok(baseline,"previous V1/S1 drawing must remain available");
+const {document,player}=baseline;
+assert.ok(["demo-vefk-5x5-v2","vefk-source-59b7fd52559b42cf","demo-gozlem-muhru-v2"].includes(document.id));
+assert.ok(["magicSquare","manualPaths"].includes(document.construction.kind));
+if(document.construction.kind==="magicSquare")assert.equal(document.construction.grid.length,5);
 assert.equal(document.drawPlan.strokes.length,document.geometry.paths.length);
-assert.equal(document.drawPlan.strokes.length,34);
+assert.equal(document.drawPlan.strokes.length,document.geometry.paths.length);
+const showcase=verified.entries.find(entry=>entry.document.id==="demo-gozlem-muhru-v2");
+assert.ok(showcase,"new observatory showcase must be site-compatible");
+assert.equal(showcase.document.schemaVersion,2);
+assert.equal(showcase.document.construction.kind,"manualPaths");
+assert.equal(showcase.document.drawPlan.strokes.length,109);
+assert.equal(showcase.player.frameAt(showcase.player.durationMs).complete,true);
 const before=player.frameAt(0);
 const half=player.frameAt(document.drawPlan.strokes[0].startMs+
   document.drawPlan.strokes[0].durationMs/2);

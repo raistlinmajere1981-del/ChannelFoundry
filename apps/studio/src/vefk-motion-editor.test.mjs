@@ -214,7 +214,8 @@ test('S4c1 Workshop wires explicit opt-in through validation/history and version
   const workshop=read('VefkWorkshop.tsx'),dock=read('VefkTimelineEditor.tsx');
   assert.match(workshop,/!canEdit \|\| working.schemaVersion !== 1/);
   assert.match(workshop,/await bridge.vefkGenerate\(persistentMotionInput\(working, status\)\);\s+apply\(next\)/);
-  assert.match(workshop,/vefkGenerate\(editorInput\(working\)\)/);
+  assert.match(workshop,/const input = editorInput\(working\)/);
+  assert.match(workshop,/vefkGenerate\(input\)/);
   assert.match(workshop,/setHistory\(stack => \[\.\.\.stack.slice\(-39\), working\]\)/);
   assert.match(workshop,/setWorking\(history\[history.length - 1\]\)/);
   assert.match(workshop,/setWorking\(future\[future.length - 1\]\)/);

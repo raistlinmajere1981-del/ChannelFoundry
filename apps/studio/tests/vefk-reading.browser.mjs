@@ -1,0 +1,40 @@
+/** Actual Studio React and IPC, in-memory SQLite, scratch publication only. */
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+const require=createRequire(import.meta.url),repo=path.resolve(import.meta.dirname,'../../..'),studio=path.join(repo,'apps/studio');
+const {DatabaseSync}=require('node:sqlite'),{createServer}=require('vite');
+const {chromium}=createRequire(path.join(repo,'channels/birdesengor/web/package.json'))('playwright-core');
+const core=require('../vefk-core/index.cjs'),store=require('../vefk-store.cjs'),publisher=require('../vefk-publication.cjs'),publication=require('../publication-v2.cjs');
+const scratch=fs.mkdtempSync(path.join(os.tmpdir(),'vefk-reading-')),out=path.join(repo,'channels/birdesengor/web/artifacts/vefk-physical-use');fs.mkdirSync(out,{recursive:true});
+const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
+for(const name of ['universe-workspace','narrative-store','visual-completion-store','ai-analysis','youtube-catalog'])require(`../${name}.cjs`).ensureSchema(db);
+publisher.ensureSchema(db);
+const seed=core.createVefk({id:'physical-reading',title:'Okuma taslağı',kind:'magicSquare',parameters:{order:3},timing:{gridMs:240,glyphMs:600,gapMs:80,holdMs:200}});store.saveDraft(db,{document:seed});
+const handlers=new Map();require('../vefk-ipc.cjs').registerVefkIpc({handle:(name,fn)=>handlers.set(name,fn)},{database:()=>db,vefkUserDataPath:()=>scratch,refreshMainWindow(){}});
+const map={vefkList:'vefk-list',vefkGet:'vefk-get',vefkGenerate:'vefk-generate',vefkValidate:'vefk-validate',vefkRevisions:'vefk-revisions',vefkSaveDraft:'vefk-save-draft',vefkReview:'vefk-review',vefkSourceReviewInfo:'vefk-source-review-info',vefkCatalogList:'vefk-catalog-list',vefkCatalogSelect:'vefk-catalog-select',vefkPackageStatus:'vefk-package-status'};
+const methods=Object.fromEntries(Object.entries(map).map(([n,c])=>[n,input=>handlers.get(`studio:${c}`)({},input)]));methods.vefkSourceList=()=>[];
+let packaged;
+methods.exportPublicSnapshot=()=>{const exported=publisher.exportCatalog(db,scratch);packaged=publication.buildPublicationV2(db,{generatedAt:'2026-11-07T12:00:00.000Z'}).snapshot;fs.mkdirSync(path.join(scratch,'public-export/content'),{recursive:true});fs.writeFileSync(path.join(scratch,'public-export/content/publication.json'),JSON.stringify(packaged));return {...exported,readiness:{readyForTheme:false,narrativeSections:0,visualComplete:false,narrativeChangesPending:false}};};
+let browser,server,p;const errors=[];
+try{
+ fs.symlinkSync(path.join(repo,'node_modules'),path.join(scratch,'node_modules'));
+ fs.writeFileSync(path.join(scratch,'index.html'),'<html lang="tr"><div id="root"></div><script type="module" src="/entry.tsx"></script></html>');
+ fs.writeFileSync(path.join(scratch,'entry.tsx'),`import React from 'react';import{createRoot}from'react-dom/client';import VefkWorkshop from '/@fs/${studio}/src/VefkWorkshop.tsx';import '/@fs/${studio}/src/studio-theme-tokens.css';window.channelFoundryStudio=Object.fromEntries(${JSON.stringify(Object.keys(methods))}.map(name=>[name,(...args)=>window.__call(name,args)]));window.channelFoundryStudio.onDataChanged=()=>()=>{};document.body.style.margin='0';document.getElementById('root').style.height='100vh';createRoot(document.getElementById('root')).render(<VefkWorkshop/>);`);
+ server=await createServer({configFile:false,root:scratch,cacheDir:path.join(scratch,'.vite'),logLevel:'error',esbuild:{jsx:'automatic'},resolve:{dedupe:['react','react-dom']},server:{host:'127.0.0.1',port:0,fs:{allow:[repo,scratch]}}});await server.listen();
+ browser=await chromium.launch({executablePath:process.env.CHROME_PATH??path.join(os.homedir(),'.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome'),headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+ p=await browser.newPage({viewport:{width:1920,height:1080}});p.setDefaultTimeout(10000);p.on('pageerror',e=>errors.push(e.message));await p.exposeFunction('__call',(n,args)=>methods[n](...args));p.on('dialog',d=>d.accept());await p.goto(server.resolvedUrls.local[0]);
+ await p.locator('.vefk-document-row').filter({hasText:'Okuma taslağı'}).click();await p.getByRole('button',{name:'Okuma İçeriği',exact:true}).click();
+ const description='Kendi kâğıdına aktar. <img src=x onerror=alert(1)>\n'+('Satırları izleyerek sakin biçimde çiz.\n'.repeat(55));
+ await p.getByLabel('Başlık',{exact:true}).fill('Aktarım · Okuma içeriği');await p.getByLabel('Açıklama',{exact:true}).fill(description);await p.getByLabel('Kaynaklar · her satıra bir kaynak').fill('Kaynak A\nhttps://example.test/vefk');await p.getByLabel('Yayın notları',{exact:true}).fill('Yalnız yerel kabul denemesi.');
+ await p.getByRole('button',{name:'Kaydet',exact:true}).click();await p.getByRole('status').filter({hasText:/kaydedildi/}).waitFor();
+ assert.equal(store.getDocument(db,seed.id).document.description,description);assert.equal(await p.locator('.vefk-reading-preview img').count(),0);await p.screenshot({path:path.join(out,'studio-reading-1920.png')});
+ await p.getByRole('button',{name:'Okuma İçeriği',exact:true}).click();for(const name of ['Önizle →','Önizlemeyi doğrula →','Onayla →','Siteye hazırla →','Paketi hazırla →'])await p.getByRole('button',{name,exact:true}).click();
+ await p.getByRole('status').filter({hasText:'Yerel yayın paketi hazır'}).waitFor();assert.equal(packaged.vefkCatalog.entries[0].document.description,description);
+ const approved=store.getDocument(db,seed.id);assert.throws(()=>store.saveDraft(db,{document:approved.document}));
+ await p.getByRole('button',{name:'Okuma İçeriği',exact:true}).click();assert.equal(await p.getByLabel('Açıklama',{exact:true}).isDisabled(),true);assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(out,'studio-reading-publication.json'),JSON.stringify(packaged));
+ console.log('PASS Studio edit/save/check/approve/select/package, immutable lock, safe shared preview');
+}catch(error){if(p){await p.screenshot({path:path.join(out,'studio-failure.png')});console.error(await p.locator('body').innerText(),errors);}throw error;}finally{await browser?.close();await server?.close();db.close();fs.rmSync(scratch,{recursive:true,force:true});}

@@ -64,3 +64,10 @@ Efekt Atölyesi yalnız çok düşük yoğunluklu ortam ışığını yönetir. 
 DOC2 / karma katalog, üç eğri, M/Z alt yolları ve 32 kayıtlık mekanizma sınaması gerçek Studio core/store/review/approval/select/publish zinciriyle bellek SQLite içinde üretilir. Kullanıcı DB'si, yayın dosyası veya seçimi değiştirilmez. Test kayıtları site üretim dosyalarına eklenmez.
 
 Güncel görsel ve davranış belgesi: `channels/birdesengor/web/docs/PHYSICAL_VEFK.md`. Görseller/prompt'lar: `VEFK_ASSETS.md`. Kabul sonuçları: `VEFK_ACCEPTANCE.md`; Chromium kanıtları `web/artifacts/vefk-v2/` altında. Kanonik tüketici ve süreler yalnız testleri geçirmek için değiştirilmez. Commit, push ve canlı deploy son kullanıcı kabulünden sonraya bırakılmıştır.
+
+
+## Fiziksel kullanım katmanı — 7 Kasım 2026
+
+Web katalog çekmecesi yalnız doğrulanmış `entries` listesini, yayın sırasıyla gösterir. Adım/kare/hız/tekrar ve optik görünüm siteye ait geçici kullanım durumudur; belgeye veya yayına yazılmaz. `frameAt(t)` tek çizim/kalem otoritesidir. Hücre tekrarı diğer yolların başlangıçtaki kanonik görünürlüklerini aynı SVG üzerinde korur. `cell.rXcY.sN` yolları üst hücreyle gruplanır; hücre kimliği yoksa yol/adım kullanılır.
+
+Okuma içeriği mevcut `title`, `description`, `language`, `provenance.notes` ve `provenance.references` alanlarıdır. Studio Okuma İçeriği düzenleyicisi ve web aynı güvenli React metin sunumunu kullanır. Düzenleme taslak kaydetme / kontrol / onay / katalog seçimi / paket akışından geçer. Yeni schemaVersion, hash kapsamı istisnası veya onaylı revizyona doğrudan yazma yoktur. Açıklama değişince mevcut contentHash ve katalog fingerprint zinciri olağan biçimde yeniden üretilir.

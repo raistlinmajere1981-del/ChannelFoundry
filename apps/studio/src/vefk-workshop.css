@@ -135,3 +135,18 @@
 @media(max-width:760px){.vefk-library{position:absolute;left:0;top:0;bottom:0;width:210px;z-index:25;background:var(--surface-panel);box-shadow:12px 0 35px #0006}.vefk-layout,.vefk-workshop.no-inspector .vefk-layout{grid-template-columns:minmax(0,1fr)}.vefk-head{gap:8px;padding:9px}.vefk-head h2{font-size:19px}.vefk-state{display:none}.vefk-head-actions{gap:4px}.vefk-button{padding:8px}.vefk-next{min-width:130px}.vefk-flow-number{display:none}.vefk-flow strong{font-size:10px}.vefk-flow small{font-size:9px}.vefk-flow>button{padding:9px 3px}.vefk-toolbar{flex-wrap:wrap}.vefk-stage-foot>span:last-child{display:none}.vefk-create-methods{grid-template-columns:1fr}}
 .vefk-advanced>small,.vefk-advanced>button,.vefk-advanced>select{display:block;width:100%;margin-top:8px}
 .vefk-advanced>label,.vefk-advanced>.vefk-layer-actions,.vefk-advanced>.vefk-region-box-controls{margin-top:10px}
+
+.vefk-reading-editor { min-height:0; flex:1; display:grid; grid-template-columns:minmax(260px,1fr) minmax(280px,1fr); overflow:auto; gap:24px; padding:24px; }
+.vefk-reading-fields { display:flex; flex-direction:column; gap:16px; }
+.vefk-reading-fields h3,.vefk-reading-fields p { margin:0; }
+.vefk-reading-fields p { color:var(--text-secondary); font-size:13px; line-height:1.5; }
+.vefk-reading-fields label { display:flex; flex-direction:column; gap:7px; font-size:13px; }
+.vefk-reading-fields input,.vefk-reading-fields textarea { box-sizing:border-box; width:100%; color:var(--text-primary); background:var(--surface-input); border:1px solid var(--border-subtle); border-radius:4px; padding:10px; font:14px/1.5 var(--font-ui); }
+.vefk-reading-fields textarea { resize:vertical; }
+.vefk-reading-preview { background:#d8c294; padding:24px; color:#3d291c; align-self:start; }
+.vefk-reading-preview > small { color:#674d2c; }
+.vefk-reading-preview .vefk-reading-page { position:static; font:18px/1.6 Georgia,serif; overflow-wrap:anywhere; }
+.vefk-reading-preview .vefk-reading-page h3 { font-size:26px; }
+.vefk-reading-preview .vefk-reading-page p,.vefk-reading-preview .vefk-reading-page li { white-space:pre-wrap; }
+.vefk-reading-preview .vefk-reading-page h4 { border-bottom:1px solid #83634270; }
+@media(max-width:900px) { .vefk-reading-editor { grid-template-columns:1fr; } }
