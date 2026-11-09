@@ -74,8 +74,8 @@ assert.throws(() => universeMerge.cancelActive(db), /zaten 04 · İnceleme alan�
 assert.equal(db.prepare("SELECT COUNT(*) AS count FROM universe_merge_runs WHERE id=4").get().count, 1);
 
 const workbench = fs.readFileSync(path.join(__dirname, "src", "IncrementalUniverseWorkbench.tsx"), "utf8");
-assert.match(workbench, /Çalışmayı iptal et/, "03 · Evrene İşleme tamamlanmış veya başarısız sonucu iptal edebilmeli");
-assert.match(workbench, /ÜRETİLEN EVREN TASLAĞI/, "03 · Evrene İşleme gerçek sonuçları inceleme yüzeyi göstermeli");
+assert.match(workbench, /Bu turu iptal et/, "03 · Evrene İşleme tamamlanmış veya başarısız sonucu iptal edebilmeli");
+assert.match(workbench, /BİRLEŞTİRME SONUCU/, "03 · Evrene İşleme gerçek sonuçları inceleme yüzeyi göstermeli");
 assert.match(workbench, /Kaynak videolar/, "Sonuç ekranı kullanılan kaynakları göstermeli");
 assert.match(workbench, /resultCategories/, "Sonuç ekranı Hikâye, Muhatap, Olay, Mekân, Nesne ve Bağlantı türlerine ayrılmalı");
 

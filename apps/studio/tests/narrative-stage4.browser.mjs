@@ -51,11 +51,14 @@ try{
  assert.ok(values.size>=19,JSON.stringify(values));
  assert.ok(values.alerts.some(t=>t.includes("Yedi Kapı")));
  assert.ok(values.alerts.some(t=>t.includes("4 videoya")));
- assert.equal(await page.locator(".narrative-graph-note").count(),1);
+ await page.getByRole("tab",{name:/Kaynaklar/}).click();
+ assert.equal(await page.locator(".narrative-graph-note").count(),1,"Technical links belong only to source review");
+ assert.equal(await page.locator(".narrative-sources-view code").count(),0,"Source keys and video IDs must remain internal");
+ await page.getByRole("tab",{name:/Anlatı/}).click();
  await page.screenshot({path:path.join(out,"narrative-reading-light-1640.png"),fullPage:true});
  let promptText="";
  page.on("dialog",async dialog=>{promptText=dialog.message();await dialog.dismiss();});
- await page.getByRole("button",{name:"Onayla · 1"}).click();
+ await page.getByRole("button",{name:"Bölümleri onayla · 1"}).click();
  assert.match(promptText,/editoryal kontrol notu/u);
  await page.setViewportSize({width:1366,height:768});
  await page.evaluate(()=>{document.documentElement.dataset.studioTheme="dark";document.documentElement.dataset.studioTextSize="comfortable";});

@@ -1,3 +1,4 @@
+import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useState } from "react";
 import {
   formatExportDate,
@@ -181,6 +182,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       : lastLiveAt ? `Son canlı yayın · ${formatExportDate(lastLiveAt)}` : "Henüz canlı publication v2 yayını yapılmadı.");
 
   return <section className="publish-center">
+    <PublicationLanguageEditor/>
     <section className={`panel theme-publication-panel${ready ? " ready" : " waiting"}`}>
       <div className="theme-publication-head">
         <div>

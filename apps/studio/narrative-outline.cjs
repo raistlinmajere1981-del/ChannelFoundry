@@ -35,6 +35,10 @@ function ensureSchema(db) {
     ) STRICT;
     CREATE INDEX IF NOT EXISTS idx_narrative_section_chapters_chapter
       ON narrative_section_chapters(chapter_key, position, section_key);
+    CREATE TABLE IF NOT EXISTS narrative_independent_order (
+      section_key TEXT PRIMARY KEY REFERENCES narrative_sections(key) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0 CHECK(position>=0)
+    ) STRICT;
   `);
 }
 
@@ -109,8 +113,104 @@ function assignments(db) {
     FROM narrative_section_chapters ORDER BY chapter_key, position, section_key`).all();
 }
 
+// Only confirmed, active memories may appear in the editor's movable tree.
+// A separate rank is necessary for standalone memories: chapter assignments
+// cannot express their ordering, and the publication must retain it.
+function independentKeys(db) {
+  ensureSchema(db);
+  const assigned = new Set(assignments(db).map(item => item.sectionKey));
+  const ranks = new Map(db.prepare("SELECT section_key AS sectionKey, position FROM narrative_independent_order").all()
+    .map(item => [item.sectionKey, item.position]));
+  return narrativeStore.narrativeMemory(db)
+    .filter(section => !assigned.has(section.sectionKey))
+    .sort((a, b) => {
+      const aa = ranks.get(a.sectionKey), bb = ranks.get(b.sectionKey);
+      if (aa !== undefined && bb !== undefined) return aa - bb || a.sectionKey.localeCompare(b.sectionKey);
+      if (aa !== undefined) return -1;
+      if (bb !== undefined) return 1;
+      return a.position - b.position || a.sectionKey.localeCompare(b.sectionKey);
+    }).map(section => section.sectionKey);
+}
+
+function insertBefore(keys, key, beforeKey) {
+  const ordered = keys.filter(item => item !== key);
+  const index = beforeKey ? ordered.indexOf(beforeKey) : ordered.length;
+  if (index < 0) throw new Error("Hedef öğe, taşınacak grubun içinde değil.");
+  ordered.splice(index, 0, key);
+  return ordered;
+}
+
+// One complete drag/drop = one SQLite transaction. Never partially update
+// parent identities, chapter membership or independent reading order.
+function moveNode(db, input) {
+  ensureSchema(db);
+  const kind = clean(input?.kind, 20);
+  const key = clean(input?.key, 220);
+  const beforeKey = clean(input?.beforeKey, 220);
+  const parentKey = clean(input?.parentKey, 130);
+  if (!['series', 'chapter', 'section'].includes(kind) || !key) throw new Error("Taşınacak kayıt belirtilmedi.");
+  if (beforeKey === key) return status(db);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    if (kind === "series") {
+      const rows = seriesList(db);
+      if (!rows.some(item => item.key === key)) throw new Error("Dizi bulunamadı.");
+      insertBefore(rows.map(item => item.key), key, beforeKey).forEach((id, index) => {
+        db.prepare("UPDATE narrative_series SET position=? WHERE key=?").run(index, id);
+      });
+    } else if (kind === "chapter") {
+      const chapters = chapterList(db);
+      const selected = chapters.find(item => item.key === key);
+      if (!selected) throw new Error("Alt bölüm bulunamadı.");
+      if (!seriesList(db).some(item => item.key === parentKey)) throw new Error("Hedef dizi bulunamadı.");
+      const oldParent = selected.seriesKey;
+      const target = insertBefore(chapters.filter(item => item.seriesKey === parentKey).map(item => item.key), key, beforeKey);
+      const prior = oldParent === parentKey ? [] : chapters.filter(item => item.seriesKey === oldParent && item.key !== key).map(item => item.key);
+      target.forEach((id, index) => {
+        db.prepare("UPDATE narrative_chapters SET series_key=?, position=? WHERE key=?").run(parentKey, index, id);
+      });
+      prior.forEach((id, index) => {
+        db.prepare("UPDATE narrative_chapters SET position=? WHERE key=?").run(index, id);
+      });
+    } else {
+      const memories = narrativeStore.narrativeMemory(db);
+      if (!memories.some(item => item.sectionKey === key)) throw new Error("Yalnız aktif ve onaylı anı taşınabilir.");
+      const chapters = chapterList(db);
+      if (parentKey && !chapters.some(item => item.key === parentKey)) throw new Error("Hedef alt bölüm bulunamadı.");
+      const links = assignments(db);
+      const oldParent = links.find(item => item.sectionKey === key)?.chapterKey || "";
+      const groupKeys = chapterKey => chapterKey
+        ? links.filter(item => item.chapterKey === chapterKey).map(item => item.sectionKey)
+        : independentKeys(db);
+      const target = insertBefore(groupKeys(parentKey), key, beforeKey);
+      const prior = oldParent === parentKey ? [] : groupKeys(oldParent).filter(id => id !== key);
+      if (parentKey) {
+        db.prepare(`INSERT INTO narrative_section_chapters(section_key,chapter_key,position)
+          VALUES(?,?,0) ON CONFLICT(section_key) DO UPDATE SET chapter_key=excluded.chapter_key`).run(key, parentKey);
+        db.prepare("DELETE FROM narrative_independent_order WHERE section_key=?").run(key);
+      } else {
+        db.prepare("DELETE FROM narrative_section_chapters WHERE section_key=?").run(key);
+      }
+      const writeGroup = (group, keys) => {
+        if (group) keys.forEach((id, index) => db.prepare(
+          "UPDATE narrative_section_chapters SET position=? WHERE section_key=? AND chapter_key=?").run(index, id, group));
+        else keys.forEach((id, index) => db.prepare(`INSERT INTO narrative_independent_order(section_key,position)
+          VALUES(?,?) ON CONFLICT(section_key) DO UPDATE SET position=excluded.position`).run(id, index));
+      };
+      writeGroup(parentKey, target);
+      if (oldParent !== parentKey) writeGroup(oldParent, prior);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return status(db);
+}
+
 function status(db) {
-  return { profile: profile(db), series: seriesList(db), chapters: chapterList(db), assignments: assignments(db) };
+  return { profile: profile(db), series: seriesList(db), chapters: chapterList(db),
+    assignments: assignments(db), independentOrder: independentKeys(db) };
 }
 
 function publishedOutline(db, sections) {
@@ -132,8 +232,11 @@ function publishedOutline(db, sections) {
   return {
     narrator: { displayName: all.profile.displayName, mode: all.profile.mode },
     series,
-    ungroupedSectionIds: (Array.isArray(sections) ? sections : [])
-      .map((entry) => entry.sectionId).filter((id) => id && !grouped.has(id)),
+    ungroupedSectionIds: [
+      ...all.independentOrder.filter(id => allowed.has(id) && !grouped.has(id)),
+      ...(Array.isArray(sections) ? sections : []).map(entry => entry.sectionId)
+        .filter(id => id && !grouped.has(id) && !all.independentOrder.includes(id)),
+    ],
   };
 }
 
@@ -179,5 +282,5 @@ function suggestions(db) {
 
 module.exports = {
   ensureSchema, profile, seriesList, chapterList, saveSeries, saveChapter,
-  placeSection, assignments, status, publishedOutline, titleSuggestions, suggestions,
+  placeSection, assignments, independentKeys, moveNode, status, publishedOutline, titleSuggestions, suggestions,
 };

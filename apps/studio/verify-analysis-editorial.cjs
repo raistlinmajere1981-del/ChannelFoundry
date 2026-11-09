@@ -131,7 +131,9 @@ assert.match(workbench, /Tarih · Yeni → Eski/, "02 · Ayıklama yeni → eski
 assert.match(workbench, /Tarih · Eski → Yeni/, "02 · Ayıklama eski → yeni sıralamasını göstermeli");
 assert.match(workbench, /Ad · A → Z/, "02 · Ayıklama alfabetik sıralamayı göstermeli");
 assert.match(workbench, /Mevcut kayda katkı/, "02 · Ayıklama mevcut Evren kaydına katkıyı görünür kılmalı");
-assert.match(workbench, /kontrol bekliyor|kontrol gerekenleri/, "02 · Ayıklama yalnız belirsiz eşleşmeleri insan kararına bırakmalı");
+assert.match(workbench, /visibleUniverseItems=sortedDecisions\(universeItems,decisions\)/, "02 · Ayıklama bütün Evren kararlarını gizlemeden göstermeli");
+assert.match(workbench, /resolutionCounts\.review/, "02 · Belirsiz eşleşmelerin kontrol sayısını üst özette korumalı");
+assert.match(workbench, /chooseDecision\(item,value\)/, "02 · Kararlar odak koruyan yeniden sıralamaya bağlanmalı");
 
 db.close();
 console.log("analysis editorial entity resolution, sorting, selective curation and support separation ready");

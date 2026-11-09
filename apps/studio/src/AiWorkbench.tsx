@@ -92,7 +92,7 @@ export default function AiWorkbench({ pipelineError = null }: { pipelineError?: 
     </nav>
     <div className="ai-stage-content">
       <Suspense fallback={<div className="panel universe-empty"><span>{mode === "visuals" ? "06 · GÖRSEL TAMAMLAMA" : "05 · HİKÂYELEŞTİR"}</span><h3>Çalışma alanı hazırlanıyor…</h3></div>}>
-        {mode === "videos" ? <VideoAnalysisWorkbench/> : mode === "curation" ? <AnalysisCurationWorkbench/> : mode === "universe" ? <IncrementalUniverseWorkbench/> : mode === "review" ? <EditorialReviewWorkspace initialMode={reviewMode} onReadyForUniverse={() => setMode("universe")}/> : mode === "narrative" ? <NarrativeWorkbench/> : <VisualCompletionWorkbench/>}
+        {mode === "videos" ? <VideoAnalysisWorkbench/> : mode === "curation" ? <AnalysisCurationWorkbench/> : mode === "universe" ? <IncrementalUniverseWorkbench onOpenReview={openReview}/> : mode === "review" ? <EditorialReviewWorkspace initialMode={reviewMode} onReadyForUniverse={() => setMode("universe")}/> : mode === "narrative" ? <NarrativeWorkbench/> : <VisualCompletionWorkbench/>}
       </Suspense>
     </div>
   </div></AiWorkbenchStatusProvider>;

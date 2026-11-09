@@ -76,15 +76,6 @@ export default function VisualCompletionWorkbench() {
   };
 
   return <div className="visual-completion-workbench">
-    <header className="panel visual-completion-header">
-      <div>
-        <small>06 · GÖRSEL TAMAMLAMA</small>
-        <h2>Onaylı anlatının görsel katmanını tamamla</h2>
-        <p>Sahne görselleri anlatı revizyonundan ayrı tutulur. Karakter, mekân ve nesne görselleri ortak arşiv profillerini kullanır; fiziksel sayfa yerleşimini tema belirler.</p>
-      </div>
-      <span className={`visual-completion-state${status?.complete ? " complete" : ""}`}>{status?.complete ? "SAHNE KARARLARI TAMAM" : "GÖRSEL KARARI BEKLİYOR"}</span>
-    </header>
-
     <section className="visual-completion-metrics">
       <div className="panel"><small>SAHNE HAZIR</small><strong>{number(status?.counts.sceneReady ?? 0)}</strong><span>Görsel dosyası</span></div>
       <div className="panel"><small>GÖRSELSİZ</small><strong>{number(status?.counts.sceneSkipped ?? 0)}</strong><span>Açık editoryal karar</span></div>
@@ -95,11 +86,6 @@ export default function VisualCompletionWorkbench() {
     {!status?.sections.length ? <section className="panel visual-completion-gate empty">
       <div><small>ONAYLI ANLATI BEKLENİYOR</small><strong>Önce 05 · Hikâyeleştir aşamasında en az bir bölüm onaylanmalı.</strong><p>Görsel Tamamlama yalnız yaşayan anlatı belleğinin güncel onaylı revizyonları için slot oluşturur.</p></div>
     </section> : <>
-      <section className={`panel visual-completion-gate${status.complete ? " complete" : " pending"}`}>
-        <div><small>SAHNE KARARI</small><strong>{status.complete ? "Bütün aktif bölümler için görsel kararı var." : `${number(status.counts.scenePending)} bölüm sahne kararı bekliyor.`}</strong><p>Bir bölüm için görsel üretebilir, manuel dosya ekleyebilir veya bilinçli olarak görselsiz bırakabilirsin. Anlatı revize edilirse yeni revizyon yeni bir sahne slotu alır.</p></div>
-        <span>Publication v2’ye semantik asset olarak aktarılacak</span>
-      </section>
-
       <div className="visual-completion-layout">
         <aside className="panel visual-completion-index">
           <div className="visual-completion-index-head"><small>ANLATI SAHNELERİ</small><strong>{number(status.sections.length)} bölüm</strong></div>
@@ -110,7 +96,7 @@ export default function VisualCompletionWorkbench() {
           <div className="visual-completion-index-head entity-head"><small>ARŞİV REFERANSLARI</small><strong>{number(status.entities.length)}</strong></div>
           {status.entities.length ? <div className="visual-completion-list entities">{status.entities.map((entry) => <button key={entry.profileKey} className={`${selection?.type === "entity" && selection.key === entry.profileKey ? "active " : ""}${entry.hasImage ? "ready" : "pending"}`} onClick={() => setSelection({ type: "entity", key: entry.profileKey })}>
             <span className="visual-completion-kind">{entityKindLabel(entry.kind).slice(0, 2).toUpperCase()}</span><div><strong>{entry.label}</strong><small>{entityKindLabel(entry.kind)} · {number(entry.sectionKeys.length)} bölüm</small></div><i>{entry.hasImage ? "Hazır" : "Opsiyonel"}</i>
-          </button>)}</div> : <p className="visual-completion-none">Anlatıda inline entity referansı yok.</p>}
+          </button>)}</div> : <p className="visual-completion-none">Bu anlatıya bağlı arşiv görseli bulunmuyor.</p>}
         </aside>
 
         <main className="visual-completion-detail">

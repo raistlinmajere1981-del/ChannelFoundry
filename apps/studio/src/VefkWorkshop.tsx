@@ -1,3 +1,4 @@
+import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { VefkReading } from "../../../channels/birdesengor/web/src/vefk/VefkReading.jsx";
 import VefkTimelineEditor from "./VefkTimelineEditor";
@@ -900,6 +901,7 @@ export default function VefkWorkshop() {
             <div className="vefk-layer-actions"><button title="Çizim sırasında önceye al" aria-label="Çizim sırasında önceye al" disabled={!selected || !canEdit} onClick={() => moveLayer(-1)}>↑</button><button title="Çizim sırasında sonraya al" aria-label="Çizim sırasında sonraya al" disabled={!selected || !canEdit} onClick={() => moveLayer(1)}>↓</button></div>
             <div className="vefk-layer-list">{orderedPaths.map((path,index) => <button key={path.id} className={selectedPath === path.id ? "current" : ""} onClick={() => { setSelectedPath(path.id); setMode("select"); }} title={path.id}><span>{index+1}</span><strong>{path.semanticValue ?? `Yol ${index+1}`}</strong></button>)}</div>
           </details>
+          <PublicationLanguageEditor key={working.id} kind="vefk" id={working.id}/>
           <details className="vefk-advanced"><summary>Teknik ayrıntılar</summary><small>{working.id}</small><small>{record?.contentHash}</small><small>Belge v{working.schemaVersion}</small></details>
           <details className="vefk-advanced"><summary>Görünüm</summary><label className="vefk-check"><input type="checkbox" checked={snap} onChange={e => setSnap(e.target.checked)}/>Izgaraya yapış</label><label className="vefk-check"><input type="checkbox" checked={guides} onChange={e => setGuides(e.target.checked)}/>Kılavuzlar</label></details>
           <details className="vefk-advanced" open={previewOpen || status === "checked" || selectionMatches}><summary>Yayın hazırlığı</summary>

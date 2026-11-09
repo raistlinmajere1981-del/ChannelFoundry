@@ -15,6 +15,9 @@ function universeLocked(db, videoId) {
   if (!tableExists(db, "universe_ingest_sources")) return false;
   const id = String(videoId ?? "").trim();
   if (!id) return false;
+  // A new source revision reopens curation. Previously processed universe records
+  // remain intact and the ingest fingerprint detects the changed source later.
+  if(tableExists(db,'ai_analysis_editorial_reviews') && db.prepare("SELECT state FROM ai_analysis_editorial_reviews WHERE provider='youtube' AND external_id=?").get(id)?.state==='pending')return false;
   return Boolean(db.prepare(`
     SELECT 1 AS ok
     FROM universe_ingest_sources
@@ -44,32 +47,26 @@ function enqueue(db, input) {
   const ids = [...new Set((Array.isArray(input?.videoIds) ? input.videoIds : [])
     .map((value) => String(value ?? "").trim())
     .filter(Boolean))];
-  const locked = ids.filter((id) => universeLocked(db, id));
-  const available = ids.filter((id) => !locked.includes(id));
-  if (!available.length && locked.length) {
-    throw new Error("Seçilen video Evrene daha önce işlendiği için yeniden çözümlenemez. Evren kaydını doğrudan düzenle veya tam Evren yeniden oluşturma akışını kullan.");
-  }
-  const result = legacy.enqueue(db, { ...input, videoIds: available });
-  return {
-    ...result,
-    requested: ids.length,
-    skipped: Number(result.skipped ?? 0) + locked.length,
-    locked: locked.length,
-  };
+  return legacy.enqueue(db,{...input,videoIds:ids});
 }
 
 function complete(db, videoId, model, analysis) {
   ensureSchema(db);
   const id = String(videoId ?? "").trim();
-  if (universeLocked(db, id)) {
-    throw new Error("Bu video Evrene daha önce işlendiği için çözümleme sonucu artık değiştirilemez. Evren kaydını doğrudan düzenle veya tam Evren yeniden oluşturma akışını kullan.");
-  }
   legacy.complete(db, id, model, analysis);
   db.prepare(`UPDATE source_ai_analyses SET sponsors_json=?, contributors_json=?, updated_at=CURRENT_TIMESTAMP WHERE provider='youtube' AND external_id=?`).run(
     JSON.stringify(Array.isArray(analysis?.sponsors) ? analysis.sponsors : []),
     JSON.stringify(Array.isArray(analysis?.contributors) ? analysis.contributors : []),
     id,
   );
+  const languages = require('./publication-languages.cjs');
+  const context = legacy.sourceContext(db,id);
+  const sourceHash = languages.hash({videoId:id,language:context.language,transcript:context.transcript});
+  const {title,summary,config,...structured} = analysis;
+  const core = { ...structured, source:{videoId:id,url:context.url,language:context.language,sourceHash},
+    model:String(model||''), provider:String(config?.provider||''), analysisVersion:'source-core-2',promptVersion:'source-core-prompt-2' };
+  db.prepare("UPDATE source_ai_analyses SET core_json=?,source_hash=?,analysis_version=? WHERE provider='youtube' AND external_id=?")
+    .run(JSON.stringify(core),sourceHash,'source-core-2',id);
   editorial.resetReview(db, id);
   return getResult(db, id);
 }

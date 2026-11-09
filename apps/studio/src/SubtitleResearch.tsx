@@ -261,25 +261,34 @@ export default function SubtitleResearch() {
     catch (reason) { setError(`YouTube videosu açılamadı · ${errorText(reason)}`); }
   };
 
-  return <div className="subtitle-research-page">
+  return <div className={`subtitle-research-page subtitle-research-page--${searchType}`}>
     <section className="subtitle-search-panel panel">
       <div className="subtitle-mode-tabs">
-        <button type="button" className={searchType === "terms" ? "active" : ""} onClick={() => { setSearchType("terms"); setReport(null); }}>Terim Arama</button>
-        <button type="button" className={searchType === "relationship" ? "active" : ""} onClick={() => { setSearchType("relationship"); setReport(null); }}>İlişki Arama</button>
+        <div className="subtitle-tab-list">
+          <button type="button" className={searchType === "terms" ? "active" : ""} onClick={() => { setSearchType("terms"); setReport(null); }}>Terim Arama</button>
+          <button type="button" className={searchType === "relationship" ? "active" : ""} onClick={() => { setSearchType("relationship"); setReport(null); }}>İlişki Arama</button>
+        </div>
+        <div className="subtitle-presets" aria-label="Kayıtlı sorgu araçları">
+          <select aria-label="Kayıtlı sorgular" value={selectedPreset} onChange={(event) => loadPreset(event.target.value)}><option value="">Kayıtlı sorgular…</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
+          <button type="button" className="secondary-button" onClick={savePreset}>Sorguyu kaydet</button>
+          <button type="button" className="secondary-button" onClick={deletePreset} disabled={!selectedPreset}>Sil</button>
+        </div>
       </div>
-      <form className="subtitle-search-form-v3" onSubmit={submit}>
+      <form id="subtitle-research-form" className="subtitle-search-form-v3" onSubmit={submit}>
         {searchType === "terms" ? <TermBuilder terms={terms} draft={draftTerm} setDraft={setDraftTerm} addTerm={addTerm} removeTerm={(term) => setTerms((current) => current.filter((entry) => termKey(entry) !== termKey(term)))} onEnter={onEnter}/> :
           <div className="relation-builder">
+            <div className="relation-groups-rail" aria-label="Kavram grupları">
             {groups.map((group, index) => <div key={group.id} className="relation-group-card">
               <div className="relation-group-head"><span>{index ? "AND" : "GRUP"}</span><input value={group.label} onChange={(event) => setGroups((current) => current.map((entry) => entry.id === group.id ? { ...entry, label: event.target.value } : entry))}/>{groups.length > 2 && <button type="button" onClick={() => removeGroup(group.id)}>Kaldır</button>}</div>
               <div className="subtitle-term-input-row"><input value={groupDrafts[group.id] || ""} onChange={(event) => setGroupDrafts((current) => ({ ...current, [group.id]: event.target.value }))} onKeyDown={(event) => onEnter(event, () => addGroupTerm(group.id))} placeholder="Terim/ifade ekle…"/><button className="secondary-button" type="button" onClick={() => addGroupTerm(group.id)}>Ekle</button></div>
               <div className="subtitle-term-chips relation-chips">{group.terms.map((term, termIndex) => <span key={termKey(term)} className="relation-chip-wrap">{termIndex > 0 && <em>OR</em>}<button type="button" onClick={() => setGroups((current) => current.map((entry) => entry.id === group.id ? { ...entry, terms: entry.terms.filter((item) => termKey(item) !== termKey(term)) } : entry))}>{term}<b>×</b></button></span>)}{!group.terms.length && <small>Bu grupta en az bir terim olmalı.</small>}</div>
             </div>)}
             <button type="button" className="secondary-button relation-add-group" onClick={addGroup} disabled={groups.length >= MAX_GROUPS}>+ Kavram grubu ekle</button>
+            </div>
             <div className="relation-exclude"><label><span>Hariç tut (NOT)</span><div className="subtitle-term-input-row"><input value={excludeDraft} onChange={(event) => setExcludeDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addExclude)} placeholder="Bu bağlamlarda varsa sonucu çıkar…"/><button className="secondary-button" type="button" onClick={() => addExclude()}>Ekle</button></div></label><div className="subtitle-term-chips">{excludeTerms.map((term) => <button type="button" key={termKey(term)} onClick={() => setExcludeTerms((current) => current.filter((entry) => termKey(entry) !== termKey(term)))}>{term}<b>×</b></button>)}</div></div>
           </div>}
 
-        <details className="subtitle-advanced-filters"><summary>Filtreler{dateFrom || dateTo ? " · Tarih seçili" : ""}</summary>
+        <div className="subtitle-advanced-filters" role="group" aria-label="Arama filtreleri"><div className="subtitle-filters-heading">Filtreler{dateFrom || dateTo ? " · Tarih seçili" : ""}</div>
         <div className="subtitle-control-grid">
           <label><span>Kanal</span><select value={channelId} onChange={(event) => setChannelId(event.target.value)}><option value="">Tüm kanallar</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title || channel.handle || channel.id}</option>)}</select></label>
           {searchType === "terms" && <label><span>Çoklu arama</span><select value={searchMode} onChange={(event) => setSearchMode(event.target.value as SearchMode)}><option value="independent">Bağımsız · herhangi biri</option><option value="all-in-video">Aynı videoda · hepsi</option></select></label>}
@@ -288,12 +297,9 @@ export default function SubtitleResearch() {
           <label><span>Sırala</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="date">Tarih · yeni önce</option><option value="occurrences">{searchType === "relationship" ? "İlişki · çok önce" : "Kullanım · çok önce"}</option>{searchType === "relationship" && <option value="distance">Mesafe · yakın önce</option>}</select></label>
           <label><span>Başlangıç</span><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}/></label>
           <label><span>Bitiş</span><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}/></label>
+          <button className="primary-button subtitle-search-submit" type="submit" disabled={busy || !analysis}>{busy ? "Taranıyor…" : searchType === "relationship" ? "İlişkileri tara" : "Altyazılarda ara"}</button>
         </div>
 
-        </details>
-        <div className="subtitle-search-actions">
-          <div className="subtitle-presets"><select value={selectedPreset} onChange={(event) => loadPreset(event.target.value)}><option value="">Kayıtlı sorgular…</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select><button type="button" className="secondary-button" onClick={savePreset}>Sorguyu kaydet</button><button type="button" className="secondary-button" onClick={deletePreset} disabled={!selectedPreset}>Sil</button></div>
-          <button className="primary-button" type="submit" disabled={busy || !analysis}>{busy ? "Taranıyor…" : searchType === "relationship" ? "İlişkileri tara" : "Altyazılarda ara"}</button>
         </div>
       </form>
       {error && <div className="subtitle-search-error" role="alert">{error}</div>}

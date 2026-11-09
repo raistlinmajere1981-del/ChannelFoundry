@@ -30,6 +30,10 @@ const namedVisual = object({
 });
 
 const ANALYSIS_OUTPUT_SCHEMA = object({
+  concepts: textArray,
+  subtopics: textArray,
+  narrativeStructure: textArray,
+  evidence: array(object({ id: text, startSeconds: {type: 'number'}, endSeconds: {type: 'number'}, excerpt: text, topic: text })),
   title: text,
   summary: text,
   topics: textArray,

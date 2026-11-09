@@ -578,7 +578,7 @@ export default function VideoArchive() {
         <div className={`catalog-rows${catalogView === "grid" ? " grid-view" : ""}`}>
           {visible.map((video) => <article className={`catalog-row ${selected.has(video.videoId) ? "selected" : ""}`} key={video.videoId}>
             <span className="catalog-check"><input type="checkbox" disabled={video.hasTranscript || video.subtitleIgnored || Boolean(busy)} checked={selected.has(video.videoId)} onChange={() => toggleSelected(video.videoId)}/></span>
-            <div className="catalog-video-main"><img src={video.thumbnailUrl} alt=""/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); void openYoutubeVideo(video); }}>{video.title}</a><small>{video.videoId}{video.thumbnailCached ? " · thumbnail yerelde" : ""}</small></div></div>
+            <div className="catalog-video-main"><img src={video.thumbnailUrl} alt=""/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); void openYoutubeVideo(video); }}>{video.title}</a></div></div>
             <span className="catalog-date">{formatDate(video.publishedAt)}</span>
             <span className="catalog-duration">{formatDuration(video.durationSeconds)}</span>
             <span className={`catalog-subtitle-state ${video.subtitleIgnored ? "catalog-state" : video.subtitleStatus === "manual" ? "catalog-state good" : video.subtitleStatus === "automatic" ? "catalog-state pending" : "catalog-state"}`} title={[...video.subtitleLanguages, ...video.automaticCaptionLanguages].join(", ")}>{subtitleLabel(video)}</span>

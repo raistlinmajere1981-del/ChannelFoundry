@@ -80,7 +80,7 @@ function repairMessages(raw) {
 }
 
 async function analyzeTranscript(userDataPath, input) {
-  const transcript = baseContent.compactTranscript(input?.transcript, 48000);
+  const transcript = baseContent.compactTranscript(input?.transcript, 1_500_000);
   if (!transcript) throw new Error("AI analizi için arşivlenmiş transkript gerekli.");
   const title = String(input?.title ?? "").trim().slice(0, 400);
   const publishedAt = String(input?.publishedAt ?? "").trim().slice(0, 32);
@@ -90,7 +90,8 @@ async function analyzeTranscript(userDataPath, input) {
     {
       role: "system",
       content: [
-        "Channel Foundry Studio için kanalın kaynak videosunu yapılandıran editoryal çözümleme yardımcısısın.",
+        "Channel Foundry Studio için dil bağımsız, yeniden kullanılabilir yapılandırılmış kaynak çözümleme üret. Yayın çevirisi üretme. title ve summary yalnız Studio editörünün kaynak notlarıdır; yayın metni değildir.",
+        "concepts, subtopics, narrativeStructure dizilerini ve evidence:[{id,startSeconds,endSeconds,excerpt,topic}] kaynak referanslarını üret. Zaman bilinmiyorsa 0 kullan; zaman uydurma. Alıntılar kaynakta birebir bulunmalı. Özel adları ve Arapça sembolleri koru.",
         "Doğruluk veya güvenilirlik değerlendirmesi yapma; yalnız verilen transkript ve metadata'yı kullan.",
         "Çıktıyı iki zihinsel sınıfa ayır: EVREN MALZEMESİ ve KANAL DESTEK KAYITLARI.",
         "EVREN MALZEMESİ: title, summary, topics, storyBeats, storyHints, characters, locations, objects, scenes ve coverVisual.",
@@ -145,6 +146,13 @@ async function analyzeTranscript(userDataPath, input) {
   });
 
   return {
+    analysisVersion: 'source-core-2',
+    promptVersion: 'source-core-prompt-2',
+    sourceVersion: require('./publication-languages.cjs').hash({videoId:input.videoId,language:input.language,transcript:input.transcript}),
+    concepts: stringArray(parsed.concepts, 50, 500),
+    subtopics: stringArray(parsed.subtopics, 50, 500),
+    narrativeStructure: stringArray(parsed.narrativeStructure, 50, 1000),
+    evidence: (Array.isArray(parsed.evidence)?parsed.evidence:[]).filter(e => typeof e.excerpt==='string' && String(input.transcript).includes(e.excerpt) && Number.isFinite(e.startSeconds) && e.startSeconds>=0 && e.endSeconds>=e.startSeconds).map((e,i)=>({id:`ref-${i+1}`,startSeconds:e.startSeconds,endSeconds:e.endSeconds,excerpt:e.excerpt,topic:String(e.topic||'')})),
     title: String(parsed.title ?? title).trim().slice(0, 300) || title,
     summary: String(parsed.summary ?? "").trim().slice(0, 12000),
     topics: stringArray(parsed.topics, 8, 140),

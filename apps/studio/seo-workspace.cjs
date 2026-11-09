@@ -1,117 +1,32 @@
 "use strict";
-const fs = require("node:fs");
-const path = require("node:path");
-const crypto = require("node:crypto");
-const aiClient = require("./ai-client.cjs");
-const { activeProject } = require("./channel-projects.cjs");
-
-const limit = (value, n) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, n);
-const safeId = value => String(value ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 120);
-const supportedKinds = new Set(["section", "video", "vefk"]);
-function storePath(userDataPath) {
-  const project = safeId(activeProject()?.id || "default");
-  return path.join(userDataPath, "seo-workspaces", project + ".json");
+const fs=require('node:fs'),path=require('node:path');
+const aiClient=require('./ai-client.cjs'),{activeProject}=require('./channel-projects.cjs');
+const {LANGUAGES,language,hash}=require('./publication-languages.cjs');
+const limit=(v,n)=>String(v??'').replace(/\s+/g,' ').trim().slice(0,n);
+const safeId=v=>String(v??'').replace(/[^a-zA-Z0-9_.:-]/g,'').slice(0,120);
+const prefixes={section:'/evren/bolum/',video:'/kamera/video/',vefk:'/vefk/'};
+function storePath(root){return path.join(root,'seo-workspaces',safeId(activeProject()?.id||'default')+'.json');}
+function load(root){try{const v=JSON.parse(fs.readFileSync(storePath(root),'utf8'));if(v.schemaVersion===2)return v;}catch{}return {schemaVersion:2,site:{tr:{},en:{}},items:{}};}
+function write(root,value){const file=storePath(root);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file+'.tmp',JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(file+'.tmp',file);}
+function prose(value){if(typeof value==='string')return value;if(!value||typeof value!=='object')return '';if(Array.isArray(value))return value.map(prose).join(' ');return ['text','label','title','description','summary','caption','notes'].map(k=>typeof value[k]==='string'?value[k]:'').concat(['blocks','spans','items'].map(k=>prose(value[k]))).filter(Boolean).join(' ');}
+function defaults(snapshot){const rows=[];
+ const add=(kind,id,locales)=>{for(const lang of LANGUAGES){const data=locales?.[lang];if(data?.status!=='approved')continue;const source=limit(kind==='section'?prose(data.blocks):kind==='video'?data.summary:[data.description,data.notes].filter(Boolean).join(' '),10000);if(!data.title||!source)continue;rows.push({kind,id:safeId(id),language:lang,title:limit(data.title,120),description:limit(source,180),source,sourceHash:hash(data),path:'/'+lang+prefixes[kind]+encodeURIComponent(safeId(id))});}};
+ for(const section of snapshot.journal?.sections??[])add('section',section.sectionId,section.locales);
+ for(const v of snapshot.youtubeAnalysis?.videos??[])if(!v.membersOnly&&v.publicationStatus==='published'&&v.analysisStatus==='complete')add('video',v.videoId,v.locales);
+ for(const v of snapshot.vefkCatalog?.entries??[])add('vefk',v.id,snapshot.vefkLanguages?.[v.id]);
+ return rows;
 }
-function load(userDataPath) {
-  try {
-    const value = JSON.parse(fs.readFileSync(storePath(userDataPath), "utf8"));
-    return value && value.schemaVersion === 1 ? value : { schemaVersion: 1, site: {}, items: {} };
-  } catch { return { schemaVersion: 1, site: {}, items: {} }; }
-}
-function write(userDataPath, config) {
-  const file = storePath(userDataPath);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
-  fs.renameSync(tmp, file);
-}
-function plainBlock(block) {
-  return limit([
-    block.text,
-    ...(block.spans ?? []).map(x => x.text ?? x.label ?? ""),
-    ...(block.items ?? []).flatMap(x => (x.spans ?? []).map(y => y.text ?? y.label ?? ""))
-  ].filter(Boolean).join(" "), 450);
-}
-function sourceText(section) {
-  return limit((section.blocks ?? []).map(plainBlock).filter(Boolean).join(" "), 8000);
-}
-function defaults(snapshot) {
-  const records = [];
-  for (const section of snapshot.journal?.sections ?? []) {
-    records.push({ kind: "section", id: safeId(section.sectionId), title: limit(section.title, 120),
-      description: limit(sourceText(section), 180), source: sourceText(section),
-      path: "/evren/bolum/" + encodeURIComponent(safeId(section.sectionId)) });
-  }
-  for (const video of snapshot.youtubeAnalysis?.videos ?? []) {
-    if (video.membersOnly || video.publicationStatus !== "published" || video.analysisStatus !== "complete") continue;
-    records.push({ kind: "video", id: safeId(video.videoId), title: limit(video.title, 120),
-      description: limit(video.summary, 180), source: limit(video.summary, 5000),
-      path: "/kamera/video/" + encodeURIComponent(video.videoId) });
-  }
-  for (const entry of snapshot.vefkCatalog?.entries ?? []) {
-    const id = safeId(entry.id ?? entry.documentId);
-    if (!id) continue;
-    const name = limit(entry.title ?? entry.name ?? "Vefk", 120);
-    records.push({ kind: "vefk", id, title: name,
-      description: limit(entry.description ?? name, 180), source: limit(entry.description ?? name, 3000),
-      path: "/vefk/" + encodeURIComponent(id) });
-  }
-  return records.filter(x => x.id);
-}
-function overview(userDataPath, snapshot) {
-  const stored = load(userDataPath);
-  const rows = defaults(snapshot).map(record => {
-    const saved = stored.items[record.kind + ":" + record.id] ?? {};
-    return {
-      ...record, title: limit(saved.title || record.title, 120),
-      description: limit(saved.description || record.description, 180),
-      override: Boolean(saved.title || saved.description),
-      needsReview: !saved.title || !saved.description || !record.description,
-    };
-  });
-  return { site: { title: limit(stored.site.title || "BirDeSenGör", 120),
-    description: limit(stored.site.description || "BirDeSenGör evreni, videolar, topluluk ve vefk arşivi.", 180),
-    image: limit(stored.site.image, 250) }, rows, draftCount: rows.filter(row => row.needsReview).length };
-}
-function update(userDataPath, input, snapshot) {
-  const stored = load(userDataPath);
-  if (input?.kind === "site") {
-    stored.site = { title: limit(input.title, 120), description: limit(input.description, 180),
-      image: limit(input.image, 250) };
-  } else {
-    const kind = String(input?.kind ?? "");
-    const id = safeId(input?.id);
-    if (!supportedKinds.has(kind) || !id || !defaults(snapshot).some(row => row.kind === kind && row.id === id)) {
-      throw new Error("SEO kaydı mevcut yayına ait değil.");
-    }
-    stored.items[kind + ":" + id] = { title: limit(input.title, 120), description: limit(input.description, 180) };
-  }
-  write(userDataPath, stored);
-  return overview(userDataPath, snapshot);
-}
-async function suggest(userDataPath, input, snapshot) {
-  const kind = String(input?.kind ?? "");
-  const id = safeId(input?.id);
-  const record = defaults(snapshot).find(row => row.kind === kind && row.id === id);
-  if (!record) throw new Error("SEO önerisi yalnız onaylı içerik için üretilebilir.");
-  const response = await aiClient.chat(userDataPath, [
-    { role: "system", content: "Sen Türkçe SEO başlığı ve açıklaması öneren bir editörsün. YALNIZCA verilen onaylı metni kullan; dış bilgi, sansasyon, yanlış iddia, anahtar kelime doldurma ekleme. Tek JSON döndür: {\"title\":\"...\",\"description\":\"...\"}. Başlık en fazla 65, açıklama en fazla 160 karakter olsun. Yalnız öneri üret; yayın kararı insandadır." },
-    { role: "user", content: JSON.stringify({ kind, title: record.title, source: record.source.slice(0, 6500) }) },
-  ], { json: true, maxTokens: 350, temperature: 0.25 });
-  const parsed = aiClient.parseAssistantJson(typeof response === "string" ? response : response.content);
-  return { title: limit(parsed.title, 120), description: limit(parsed.description, 180) };
-}
-function manifest(userDataPath, snapshot, webUrl) {
-  const data = overview(userDataPath, snapshot);
-  let baseUrl = "";
-  try { const url = new URL(webUrl); if (url.protocol === "https:") baseUrl = url.origin; } catch {}
-  const pages = data.rows.map(({ kind, id, path: route, title, description, source }) => ({
-    kind, id, path: route, title, description,
-    body: limit(source, 10000), contentHash: crypto.createHash("sha256").update(title + "\n" + description + "\n" + source).digest("hex"),
-  }));
-  return { schemaVersion: 1, publicationId: snapshot.publication.id,
-    contentFingerprint: snapshot.publication.contentFingerprint,
-    generatedAt: snapshot.publication.generatedAt,
-    baseUrl, site: data.site, pages };
-}
-module.exports = { overview, update, suggest, manifest, defaults, load };
+const key=r=>r.language+':'+r.kind+':'+r.id;
+function overview(root,snapshot){const stored=load(root);const rows=defaults(snapshot).map(record=>{const saved=stored.items[key(record)]||{};return {...record,title:saved.title||record.title,description:saved.description||record.description,override:Boolean(saved.title||saved.description),needsReview:saved.approvedHash!==record.sourceHash||!saved.title||!saved.description};});
+ const sites=Object.fromEntries(LANGUAGES.map(lang=>[lang,{title:stored.site[lang]?.title||'BirDeSenGör',description:stored.site[lang]?.description||(lang==='tr'?'BirDeSenGör evreni, videolar, topluluk ve vefk arşivi.':'The BirDeSenGör universe, videos, community and vefk archive.'),image:stored.site[lang]?.image||''}]));
+ return {site:sites.tr,sites,rows,draftCount:rows.filter(r=>r.needsReview).length};}
+function update(root,input,snapshot){const lang=language(input.language),stored=load(root);
+ if(input.kind==='site')stored.site[lang]={title:limit(input.title,120),description:limit(input.description,180),image:limit(input.image,250)};
+ else {const record=defaults(snapshot).find(r=>r.kind===input.kind&&r.id===input.id&&r.language===lang);if(!record)throw new Error('SEO kaydı bu dilde onaylı yayına ait değil.');if(input.approved===true&&input.sourceHash!==record.sourceHash)throw new Error('SEO kaynağı değişti. Güncel içeriği inceleyip yeniden onayla.');const title=limit(input.title,120),description=limit(input.description,180);if(input.approved&&(!title||!description))throw new Error('SEO başlığı ve açıklaması gerekli.');stored.items[key(record)]={title,description,approvedHash:input.approved===true?record.sourceHash:null};}
+ write(root,stored);return overview(root,snapshot);}
+async function suggest(root,input,snapshot){const lang=language(input.language),record=defaults(snapshot).find(r=>r.kind===input.kind&&r.id===input.id&&r.language===lang);if(!record)throw new Error('SEO önerisi yalnız bu dilde onaylı içerikten üretilebilir.');
+ const response=await aiClient.chat(root,[{role:'system',content:`${lang==='en'?'İngilizce':'Türkçe'} SEO başlığı ve açıklaması öner. Yalnız onaylı kaynağı kullan; yeni iddia ekleme. Özel adları, Arapça harfleri ve sembolleri koru. Yalnız JSON: {"title":"...","description":"..."}. Başlık 65, açıklama 160 karakteri aşmasın. Yayın kararı insandadır.`},{role:'user',content:JSON.stringify({title:record.title,source:record.source})}],{json:true,maxTokens:400,temperature:0.15});const data=aiClient.parseAssistantJson(typeof response==='string'?response:response.content);return {title:limit(data.title,120),description:limit(data.description,180)};}
+function manifest(root,snapshot,webUrl){const data=overview(root,snapshot);let baseUrl='';try{const url=new URL(webUrl);if(url.protocol==='https:')baseUrl=url.origin;}catch{}
+ const pages=data.rows.filter(r=>!r.needsReview).map(({kind,id,language,path:route,title,description,source,sourceHash})=>({kind,id,language,path:route,title,description,body:source,sourceHash,approved:true,contentHash:hash({title,description,source,language})}));
+ return {schemaVersion:2,publicationId:snapshot.publication.id,contentFingerprint:snapshot.publication.contentFingerprint,generatedAt:snapshot.publication.generatedAt,baseUrl,site:data.sites,pages};}
+module.exports={overview,update,suggest,manifest,defaults,load};

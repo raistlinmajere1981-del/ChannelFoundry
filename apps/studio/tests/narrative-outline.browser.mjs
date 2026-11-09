@@ -16,7 +16,7 @@ for(const [id,title] of [['v1','Düğümlü Kitap | 54. Davet — Birinci kayıt
 for(const id of ['v1','v2','v3'])db.prepare(`INSERT INTO universe_workspace_nodes(key,run_id,kind,name,summary,aliases_json,source_video_ids_json,payload_json,state) VALUES(?,1,'story',?,'Kaynak notu','[]',?,'{}','approved')`).run(id,id,JSON.stringify([id]));
 const run=store.prepareRun(db);store.saveDraftSections(db,run.id,[...['v1','v2'].map((id,i)=>({key:`section-${id}`,position:i,title:`Anı ${i+1}`,body:'Kaynakta aktarılan anı.',sourceKeys:[id]})),{key:'section-mixed',position:3,title:'Karma davet',body:'Birden fazla davetle ilişkili ayrıntı.',sourceKeys:['v1','v3']}]);store.applyRun(db,run.id);
 const memory=store.narrativeMemory(db),handlers=new Map();require('../narrative-ipc.cjs').registerNarrativeIpc({handle:(n,fn)=>handlers.set(n,fn)},{database:()=>db,refreshMainWindow(){}});
-const methods={narrativeOutlineStatus:'status',narrativeOutlineSuggestions:'suggestions',narrativeOutlineSaveSeries:'series',narrativeOutlineSaveChapter:'chapter',narrativeOutlinePlaceSection:'place'};
+const methods={narrativeOutlineStatus:'status',narrativeOutlineSuggestions:'suggestions',narrativeOutlineSaveSeries:'series',narrativeOutlineSaveChapter:'chapter',narrativeOutlinePlaceSection:'place',narrativeOutlineMove:'move'};
 let server,browser,p;const errors=[];
 try{
  fs.symlinkSync(path.join(repo,'node_modules'),path.join(scratch,'node_modules'));
@@ -28,7 +28,13 @@ try{
  await p.goto(server.resolvedUrls.local[0]);
  assert.equal(await p.getByLabel('Anlatıcının adı',{exact:true}).count(),0);
  assert.equal(await p.getByRole('button',{name:'Profili kaydet',exact:true}).count(),0);
- await p.getByText('Video başlıklarından bölüm önerileri',{exact:true}).click();await p.getByRole('button',{name:'Önerileri getir',exact:true}).click();
+ assert.equal(await p.getByText('GÜNLÜK DÜZENİ',{exact:true}).count(),0);
+ assert.equal(await p.getByText('Kitaptaki sıralama',{exact:true}).count(),0);
+ assert.equal(await p.getByText('Kitapta otomatik',{exact:true}).count(),0);
+ assert.equal(await p.getByText('Video başlıklarından bölüm önerileri',{exact:true}).count(),0);
+ assert.equal(await p.locator('.outline-help').count(),0);
+ await p.getByRole('button',{name:'Dizi ekle',exact:true}).waitFor();
+ await p.getByRole('button',{name:'Önerileri getir',exact:true}).click();
  await p.getByText('Düğümlü Kitap / 54. Davet',{exact:true}).waitFor();assert.equal(outline.seriesList(db).length,0);
  await p.getByRole('button',{name:'Düzenlemeye al',exact:true}).first().click();
  assert.equal(await p.getByLabel('Dizi adı',{exact:true}).inputValue(),'Düğümlü Kitap');
@@ -42,8 +48,24 @@ try{
  assert.equal(outline.assignments(db).length,2,'Karma davet yanlış bölüme otomatik bağlanmamalı');assert.equal(outline.seriesList(db)[0].position,3);assert.equal(outline.chapterList(db)[0].position,54);
  await p.getByLabel('Bölüm adı',{exact:true}).fill('Düzenlenen başlık');await p.getByRole('button',{name:'Alt bölümü kaydet',exact:true}).click();
  await p.waitForTimeout(120);assert.equal(outline.chapterList(db)[0].position,54);
- const order=p.getByRole('spinbutton',{name:'Anı 2 için bölüm içi sıra',exact:true});await order.fill('7');await order.blur();await p.waitForTimeout(120);
- assert.equal(outline.assignments(db).find(a=>a.sectionKey==='section-v2').position,7);
+ assert.equal(await p.locator('[data-outline-node="series"]').count(),1);
+ assert.equal(await p.locator('[data-outline-node="chapter"]').count(),1);
+ assert.equal(await p.locator('[data-outline-node="section"]').count(),3);
+ const handle=id=>p.locator(`[data-outline-key="${id}"] .outline-drag-handle`);
+ // Native drag must persist in SQLite and update the tree without a reload.
+ await handle('section-v2').dragTo(p.locator('[data-outline-key="section-v1"]'));
+ await p.waitForFunction(()=>[...document.querySelectorAll('.outline-node-depth-2 [data-outline-node="section"]')].slice(0,2)
+   .map(node=>node.dataset.outlineKey).join(',')==='section-v2,section-v1');
+ assert.deepEqual(outline.assignments(db).map(a=>a.sectionKey),['section-v2','section-v1']);
+ // Chapter -> independent and independent -> chapter use the same atomic move.
+ await handle('section-v1').dragTo(p.locator('.outline-independent-group > strong'));
+ await p.waitForFunction(()=>document.querySelector('.outline-independent-group [data-outline-key="section-v1"]')!==null);
+ assert.equal(outline.assignments(db).length,1);
+ const chapterDrop=p.locator('[data-outline-node="chapter"]').locator('xpath=..').locator('.outline-tree-children').first();
+ await handle('section-v1').dragTo(chapterDrop);
+ await p.waitForFunction(()=>document.querySelector('.outline-independent-group [data-outline-key="section-v1"]')===null);
+ assert.equal(outline.assignments(db).length,2);
+ assert.ok(outline.publishedOutline(db,memory.map(m=>({sectionId:m.sectionKey}))).series.length===1);
  await p.screenshot({path:path.join(out,'studio-editorial-1366.png')});
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'studio-editorial-verification.json'),JSON.stringify({series:outline.seriesList(db),chapters:outline.chapterList(db),assignments:outline.assignments(db),realDatabaseOpened:false,errors},null,2));
  console.log('PASS actual Studio React/IPC: title suggestions, two source videos, explicit approval, series/chapter/section ordering; disposable SQLite');

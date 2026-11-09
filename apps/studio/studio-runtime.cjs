@@ -40,6 +40,7 @@ function database() {
     youtubeCatalog.ensureSchema(studioDatabase);
     transcriptService.ensureSchema(studioDatabase);
     aiAnalysis.ensureSchema(studioDatabase);
+    require('./publication-languages.cjs').resetInterrupted(studioDatabase);
     universeMerge.ensureSchema(studioDatabase);
     universeWorkspace.ensureSchema(studioDatabase);
     visualProfiles.ensureSchema(studioDatabase, app.getPath("userData"));
@@ -198,6 +199,16 @@ async function processAnalysisQueue() {
           break;
         }
         aiAnalysis.complete(database(), job.videoId, result.config?.model ?? config.model, result);
+        const languageStore=require('./publication-languages.cjs');
+        const video=languageStore.videoSources(database()).find(v=>v.videoId===job.videoId);
+        if(video) {
+          languageStore.sync(database(),{youtubeAnalysis:{videos:[video]}});
+          for(const language of languageStore.LANGUAGES) {
+            if(controller.signal.aborted) break;
+            try { await languageStore.generate(database(),app.getPath('userData'),{kind:'video',id:job.videoId,language,signal:controller.signal}); }
+            catch(error) { aiActivity.note(activitySession.id,`${language==='tr'?'Türkçe':'İngilizce'} yayın metni üretilemedi; temel çözümleme korundu.`,{stage:'Dil çıktısı',tone:'error'}); }
+          }
+        }
         aiActivity.finishSession(activitySession.id, {
           state: "done",
           model: result.config?.model ?? config.model,

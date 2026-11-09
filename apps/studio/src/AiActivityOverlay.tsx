@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+type LogView = "all" | "request" | "response" | "status";
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -86,9 +88,9 @@ function SessionButton({ session, active, onClick }: { session: StudioAiActivity
   </button>;
 }
 
-function StatusEvent({ event }: { event: StudioAiActivityEvent }) {
+function StatusEvent({ event, step }: { event: StudioAiActivityEvent; step: number }) {
   return <article className={`ai-log-event status ${event.tone || "info"}`}>
-    <i className="ai-log-event-dot"/>
+    <i className="ai-log-event-dot" aria-hidden="true">{step}</i>
     <div className="ai-log-event-body">
       <header><strong>{event.label || "İşlem durumu"}</strong><time dateTime={event.at}>{clock(event.at)}</time></header>
       {event.message && <p>{event.message}</p>}
@@ -96,22 +98,24 @@ function StatusEvent({ event }: { event: StudioAiActivityEvent }) {
   </article>;
 }
 
-function RequestEvent({ event }: { event: StudioAiActivityEvent }) {
+function RequestEvent({ event, step }: { event: StudioAiActivityEvent; step: number }) {
   return <article className="ai-log-event request">
-    <i className="ai-log-event-dot"/>
+    <i className="ai-log-event-dot" aria-hidden="true">{step}</i>
     <div className="ai-log-event-body">
       <header><div><small>MODELE GÖNDERİLEN İSTEK</small><strong>{event.label || "AI isteği"}</strong></div><time dateTime={event.at}>{clock(event.at)}</time></header>
       <div className="ai-log-event-meta">
         <span>{attemptLabel(event.attempt)}</span>
         {event.provider && <span>{event.provider}</span>}
         {event.model && <code>{event.model}</code>}
-        {event.settings?.maxTokens != null && <span>En çok {event.settings.maxTokens} token</span>}
-        {event.settings?.temperature != null && <span>Sıcaklık {event.settings.temperature}</span>}
-        {event.settings?.reasoningEffort && <span>Reasoning {event.settings.reasoningEffort}</span>}
-        {event.settings?.json && <span>JSON</span>}
       </div>
       <details>
-        <summary>Gönderilen mesajları göster <b>{event.messages?.length ?? 0}</b></summary>
+        <summary>İstek metni ve model ayarları <b>{event.messages?.length ?? 0} mesaj</b></summary>
+        <div className="ai-log-event-meta">
+          {event.settings?.maxTokens != null && <span>En çok {event.settings.maxTokens} token</span>}
+          {event.settings?.temperature != null && <span>Sıcaklık {event.settings.temperature}</span>}
+          {event.settings?.reasoningEffort && <span>Reasoning {event.settings.reasoningEffort}</span>}
+          {event.settings?.json && <span>JSON</span>}
+        </div>
         <div className="ai-log-messages">{(event.messages ?? []).map((message, index) => <section key={`${event.id}:message:${index}`}>
           <div><strong>{roleLabel(message.role)}</strong><span>{message.characters.toLocaleString("tr-TR")} karakter{message.truncated ? " · görünüm kısaltıldı" : ""}</span></div>
           <Content value={message.content}/>
@@ -121,10 +125,10 @@ function RequestEvent({ event }: { event: StudioAiActivityEvent }) {
   </article>;
 }
 
-function ResponseEvent({ event, latest }: { event: StudioAiActivityEvent; latest: boolean }) {
-  const [expanded, setExpanded] = useState(latest);
+function ResponseEvent({ event, step }: { event: StudioAiActivityEvent; step: number }) {
+  const [expanded, setExpanded] = useState(false);
   return <article className="ai-log-event response">
-    <i className="ai-log-event-dot"/>
+    <i className="ai-log-event-dot" aria-hidden="true">{step}</i>
     <div className="ai-log-event-body">
       <header><div><small>MODEL CEVABI</small><strong>{event.label || "Yanıt alındı"}</strong></div><time dateTime={event.at}>{clock(event.at)}</time></header>
       <div className="ai-log-event-meta">
@@ -135,16 +139,16 @@ function ResponseEvent({ event, latest }: { event: StudioAiActivityEvent; latest
         {event.truncated && <span>Görünüm kısaltıldı</span>}
       </div>
       <details open={expanded} onToggle={(toggleEvent) => setExpanded(toggleEvent.currentTarget.open)}>
-        <summary>Model cevabını {expanded ? "gizle" : "göster"}</summary>
+        <summary>Yanıt metnini {expanded ? "gizle" : "göster"}</summary>
         <Content value={event.content || ""}/>
       </details>
     </div>
   </article>;
 }
 
-function ErrorEvent({ event }: { event: StudioAiActivityEvent }) {
+function ErrorEvent({ event, step }: { event: StudioAiActivityEvent; step: number }) {
   return <article className="ai-log-event error">
-    <i className="ai-log-event-dot"/>
+    <i className="ai-log-event-dot" aria-hidden="true">{step}</i>
     <div className="ai-log-event-body">
       <header><div><small>ÇAĞRI HATASI</small><strong>{event.label || "AI isteği başarısız"}</strong></div><time dateTime={event.at}>{clock(event.at)}</time></header>
       <div className="ai-log-event-meta">{event.code && <code>{event.code}</code>}{event.durationMs != null && <span>{duration(event.durationMs)}</span>}</div>
@@ -153,11 +157,11 @@ function ErrorEvent({ event }: { event: StudioAiActivityEvent }) {
   </article>;
 }
 
-function Event({ event, latestResponseId }: { event: StudioAiActivityEvent; latestResponseId: string }) {
-  if (event.type === "request") return <RequestEvent event={event}/>;
-  if (event.type === "response") return <ResponseEvent event={event} latest={event.id === latestResponseId}/>;
-  if (event.type === "error") return <ErrorEvent event={event}/>;
-  return <StatusEvent event={event}/>;
+function Event({ event, step }: { event: StudioAiActivityEvent; step: number }) {
+  if (event.type === "request") return <RequestEvent event={event} step={step}/>;
+  if (event.type === "response") return <ResponseEvent event={event} step={step}/>;
+  if (event.type === "error") return <ErrorEvent event={event} step={step}/>;
+  return <StatusEvent event={event} step={step}/>;
 }
 
 export default function AiActivityOverlay({ open, onClose, initialSnapshot }: Props) {
@@ -165,6 +169,7 @@ export default function AiActivityOverlay({ open, onClose, initialSnapshot }: Pr
   const closeButton = useRef<HTMLButtonElement>(null);
   const [snapshot, setSnapshot] = useState<StudioAiActivitySnapshot | null>(initialSnapshot);
   const [selectedId, setSelectedId] = useState("");
+  const [view, setView] = useState<LogView>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -221,14 +226,16 @@ export default function AiActivityOverlay({ open, onClose, initialSnapshot }: Pr
   const sessions = snapshot?.sessions ?? [];
   const selected = snapshot?.selectedSession;
   const events = selected?.events ?? [];
-  const latestResponseId = [...events].reverse().find((event) => event.type === "response")?.id ?? "";
+  const filteredEvents = events.map((event, index) => ({ event, step: index + 1 })).filter(({ event }) => view === "all" || (view === "status" ? event.type === "status" || event.type === "error" : event.type === view));
+  const requests = events.filter((event) => event.type === "request").length;
+  const responses = events.filter((event) => event.type === "response").length;
 
   return createPortal(<div className="ai-log-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="ai-log-overlay" role="dialog" aria-modal="true" aria-labelledby="ai-log-title">
       <header className="ai-log-head">
         <div>
-          <small>CANLI AI ÇALIŞMA GÜNLÜĞÜ</small>
-          <h2 id="ai-log-title">İstekler, mesajlar ve model cevapları</h2>
+          <small>AI ATÖLYESİ</small>
+          <h2 id="ai-log-title">Çalışma günlüğü</h2>
         </div>
         <div className="ai-log-head-state">
           {snapshot?.activeSessionId && <span><i/>Canlı güncelleniyor</span>}
@@ -261,16 +268,25 @@ export default function AiActivityOverlay({ open, onClose, initialSnapshot }: Pr
 
             <section className="ai-log-run-metrics" aria-label="AI çalışma ölçümleri">
               <span><b>{selected.requestCount}</b> istek</span>
-              <span><b>{selected.responseCount}</b> cevap</span>
-              <span className={selected.errorCount ? "error" : ""}><b>{selected.errorCount}</b> çağrı hatası</span>
-              <span><b>{duration(selected.durationMs)}</b> toplam süre</span>
+              <span><b>{selected.responseCount}</b> yanıt</span>
+              <span className={selected.errorCount ? "error" : ""}><b>{selected.errorCount}</b> hata</span>
+              <span><b>{duration(selected.durationMs)}</b> süre</span>
+              {selected.state === "running" && selected.requestCount > selected.responseCount + selected.errorCount && <span className="ai-log-awaiting"><i/>Model yanıtı bekleniyor</span>}
             </section>
+            <nav className="ai-log-filters" aria-label="Günlük olay filtreleri">
+              <strong>İşlem akışı <span>{events.length} olay</span></strong>
+              <div>
+                {([["all","Tümü",events.length],["request","İstekler",requests],["response","Yanıtlar",responses],["status","Durumlar",events.length - requests - responses]] as const).map(([key,label,count]) =>
+                  <button type="button" key={key} className={view === key ? "active" : ""} aria-pressed={view === key} onClick={() => setView(key)}>{label} <span>{count}</span></button>
+                )}
+              </div>
+            </nav>
 
             {selected.omittedEventCount > 0 && <div className="ai-log-omitted">Günlük boyut sınırı nedeniyle en eski {selected.omittedEventCount} olay görünümden çıkarıldı.</div>}
             {error && <div className="ai-log-load-error">Canlı günlük yenilenemedi: {error}</div>}
             <section className="ai-log-timeline" aria-live="polite">
-              {events.map((event) => <Event key={event.id} event={event} latestResponseId={latestResponseId}/>) }
-              {!events.length && <div className="ai-log-empty-detail">{loading ? "Çalışma ayrıntıları yükleniyor…" : "Bu çalışma için henüz günlük olayı yok."}</div>}
+              {filteredEvents.map(({ event, step }) => <Event key={event.id} event={event} step={step}/>)}
+              {!filteredEvents.length && <div className="ai-log-empty-detail">{loading ? "Çalışma ayrıntıları yükleniyor…" : events.length ? "Bu filtrede henüz olay yok." : "Bu çalışma için henüz günlük olayı yok."}</div>}
             </section>
           </> : <div className="ai-log-empty-detail large">{loading ? "AI çalışma günlüğü yükleniyor…" : "Ayrıntılarını görmek için soldan bir çalışma seç."}{error && <small>{error}</small>}</div>}
         </main>

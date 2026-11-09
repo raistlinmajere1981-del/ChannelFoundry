@@ -382,3 +382,79 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* Compact Stage 06 counters — the first and only status row above scene editing. */
+.ai-stage-content .visual-completion-workbench{
+  grid-template-rows:max-content minmax(0,1fr);
+  align-content:start;
+  gap:9px;
+}
+.ai-stage-content .visual-completion-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:0;
+  min-width:0;
+  border:1px solid var(--border-soft);
+  border-radius:5px;
+  overflow:hidden;
+  background:var(--surface-panel);
+}
+.ai-stage-content .visual-completion-metrics>.panel{
+  box-sizing:border-box;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-rows:auto auto;
+  align-items:center;
+  column-gap:10px;
+  row-gap:2px;
+  min-width:0;
+  min-height:54px;
+  margin:0;
+  padding:7px 12px;
+  border:0;
+  border-radius:0;
+  background:var(--surface-panel);
+  box-shadow:none;
+}
+.ai-stage-content .visual-completion-metrics>.panel + .panel{
+  border-left:1px solid var(--border-soft);
+}
+.ai-stage-content .visual-completion-metrics small{
+  grid-column:1;
+  grid-row:1;
+  margin:0;
+  color:var(--text-primary);
+  font:700 10px/1.25 var(--font-ui);
+  letter-spacing:.035em;
+}
+.ai-stage-content .visual-completion-metrics strong{
+  grid-column:2;
+  grid-row:1 / 3;
+  justify-self:end;
+  margin:0;
+  color:var(--accent-strong);
+  font:600 22px/1.1 var(--font-display);
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.ai-stage-content .visual-completion-metrics span{
+  grid-column:1;
+  grid-row:2;
+  min-width:0;
+  margin:0;
+  color:var(--text-secondary);
+  font:11px/1.3 var(--font-ui);
+  overflow-wrap:anywhere;
+}
+@media(max-width:760px){
+  .ai-stage-content .visual-completion-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .ai-stage-content .visual-completion-metrics>.panel:nth-child(3){
+    border-left:0;
+  }
+  .ai-stage-content .visual-completion-metrics>.panel:nth-child(n+3){
+    border-top:1px solid var(--border-soft);
+  }
+}

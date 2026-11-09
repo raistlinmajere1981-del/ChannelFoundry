@@ -66,13 +66,13 @@ assert.equal(supportSaved.universeLocked, true);
 assert.deepEqual(aiAnalysis.curatedResult(db, "video-a").sponsors.sort(), ["Manuel Sponsor", "Sponsor A"].sort());
 assert.deepEqual(aiAnalysis.curatedResult(db, "video-a").contributors, ["Katkı A"]);
 
-assert.throws(() => aiAnalysis.enqueue(db, { videoIds: ["video-a"], force: true }), /Evrene daha önce işlendiği için/);
-assert.throws(() => aiAnalysis.complete(db, "video-a", "test-model", {
-  title: "Değişmiş çözümleme",
-  summary: "Bu sonuç yazılmamalı",
-  topics: [], storyBeats: [], storyHints: [], coverVisual: {}, characters: [], locations: [], objects: [], scenes: [], sponsors: [], contributors: [],
-}), /çözümleme sonucu artık değiştirilemez/);
-assert.equal(aiAnalysis.getResult(db, "video-a").title, "Video A", "Kilitli kaynak çözümleme katmanında değişmemeli");
+require('./youtube-catalog.cjs').ensureSchema(db);
+require('./transcript-store.cjs').ensureSchema(db);
+db.exec("CREATE TABLE content_items(key TEXT PRIMARY KEY,title TEXT,summary TEXT,updated_at TEXT);CREATE TABLE content_sources(content_key TEXT,provider TEXT,external_id TEXT);INSERT INTO youtube_channels(id,url,title) VALUES('test-channel','https://www.youtube.com/@test','Test');INSERT INTO youtube_videos(video_id,channel_id,title,canonical_url,thumbnail_url) VALUES('video-a','test-channel','Video A','https://www.youtube.com/watch?v=video-a','');INSERT INTO source_transcripts(provider,external_id,source,language,text) VALUES('youtube','video-a','manual','tr','Yeni kaynak metni');");
+assert.equal(aiAnalysis.enqueue(db,{videoIds:['video-a'],force:true}).accepted,1);
+aiAnalysis.complete(db,'video-a','test-model',{title:'Yeni çözümleme',summary:'Yeni kaynak çözümlemesi',topics:[],storyBeats:[],storyHints:[],coverVisual:{},characters:[],locations:[],objects:[],scenes:[],sponsors:[],contributors:[]});
+assert.equal(aiAnalysis.getResult(db,'video-a').title,'Yeni çözümleme');
+assert.equal(aiAnalysis.editorialPackage(db,'video-a').universeLocked,false,'New source revisions reopen human review');
 
 db.close();
-console.log("Processed universe sources keep analysis and curation fixed while support records remain editable");
+console.log("Processed universe records stay intact; new source revisions reopen curation and invalidate publication variants");

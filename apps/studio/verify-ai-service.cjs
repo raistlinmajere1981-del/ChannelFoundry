@@ -131,7 +131,7 @@ global.fetch = async (url, options = {}) => {
   }
   const requestText = String(options.body || "");
   const isConnectivity = requestText.includes("connectivity test");
-  const isAnalysis = requestText.includes("kanalın anlatı arşivini yapılandıran");
+  const isAnalysis = requestText.includes("dil bağımsız, yeniden kullanılabilir yapılandırılmış kaynak çözümleme");
   const isRepair = requestText.includes("JSON onarım aracısın");
   const isPersistentNetworkFailure = requestText.includes("persistent network failure test");
   const isCertificateFailure = requestText.includes("certificate failure test");
@@ -228,8 +228,11 @@ global.fetch = async (url, options = {}) => {
       title: "Ham video başlığı",
       publishedAt: "2026-08-12",
       language: "tr",
-      transcript: "Bu, video çözümleme onarım akışını doğrulayan örnek transkripttir.",
+      transcript: "Bu, video çözümleme onarım akışını doğrulayan örnek transkripttir. " + "Arşivdeki kaynak metni. ".repeat(3000) + " KAYNAK_SONU",
     });
+    assert.equal(analysis.analysisVersion,"source-core-2");
+    assert.match(analysis.sourceVersion,/^[a-f0-9]{64}$/);
+    assert(requests.some(r=>r.body?.messages?.some(m=>m.role==="user"&&m.content.includes("KAYNAK_SONU"))),"Temel çözümleme arşivin sonunu sessizce kesmemeli.");
     assert.equal(analysis.title, analysisPayload.title);
     assert.equal(analysis.summary, analysisPayload.summary);
     assert.deepEqual(analysis.topics, analysisPayload.topics);
@@ -241,7 +244,7 @@ global.fetch = async (url, options = {}) => {
       JSON.parse(fs.readFileSync(path.join(directory, "ai-debug", analysisDebugFile), "utf8")).outcome,
       "repaired-locally-after-ai",
     );
-    assert.equal(requests.some((request) => request.body?.max_tokens === 6500), true);
+    assert.equal(requests.some((request) => request.body?.max_tokens === 7200), true);
     assert.equal(requests.some((request) => request.body?.max_tokens === 7000), true);
 
     const suggestion = await ai.suggestContent(directory, {
@@ -458,7 +461,7 @@ global.fetch = async (url, options = {}) => {
 
     let codexImageInvocation = null;
     const codexImage = await aiCli.requestImageGeneration(
-      { imageModel: "gpt-second", reasoningEffort: "xhigh", timeoutSeconds: 60 },
+      { imageModel: "gpt-second", imageReasoningEffort: "xhigh", timeoutSeconds: 60 },
       "Sisli bir ormanda eski taş kapı",
       {
         command: "/test/codex",
@@ -513,7 +516,7 @@ global.fetch = async (url, options = {}) => {
     aiCli.requestImageGeneration = async (imageConfig, prompt, options) => {
       generatedCodexPrompt = prompt;
       assert.equal(imageConfig.imageModel, "gpt-second");
-      assert.equal(imageConfig.reasoningEffort, "max");
+      assert.equal(imageConfig.imageReasoningEffort, "");
       assert.equal(options.size, "1024x1024");
       return {
         buffer: Buffer.from(tinyPngBase64, "base64"),

@@ -75,7 +75,32 @@ try {
   assert.equal(proposals[2].numberLabel,'55. Bölüm');
   assert.deepEqual(outline.suggestions(db),[],'Katalog yoksa öneri kayıtsız ve boş olmalı');
   assert.equal(outline.seriesList(db).length,1,'Öneriler kendiliğinden kaydedilmemeli');
-  console.log("PASS narrative outline: stable series/chapter ids, approved placement, publication filtering, narrator and no physical pages");
+
+  // Tree moves must be atomic across parent changes, sibling ranks and
+  // standalone memories; moving never edits approved prose or source keys.
+  const secondSeries = outline.saveSeries(db,{title:'Yedi Kapı',position:5});
+  const secondChapter = outline.saveChapter(db,{seriesKey:secondSeries.key,title:'Kapılar',position:0});
+  outline.moveNode(db,{kind:'series',key:secondSeries.key,beforeKey:series.key});
+  assert.equal(outline.seriesList(db)[0].key,secondSeries.key);
+  outline.moveNode(db,{kind:'chapter',key:chapter.key,parentKey:secondSeries.key,beforeKey:secondChapter.key});
+  assert.deepEqual(outline.chapterList(db).filter(ch=>ch.seriesKey===secondSeries.key).map(ch=>ch.key),[chapter.key,secondChapter.key]);
+  outline.moveNode(db,{kind:'chapter',key:chapter.key,parentKey:series.key});
+  outline.moveNode(db,{kind:'section',key:'section1',parentKey:secondChapter.key});
+  outline.moveNode(db,{kind:'section',key:'section2',parentKey:secondChapter.key,beforeKey:'section1'});
+  assert.deepEqual(outline.publishedOutline(db,sections).series.find(s=>s.key===secondSeries.key).chapters[0].sectionIds,
+    ['section2','section1'], 'Sürüklenen anılar yeni dizinin içinde sıralı yayınlanmalı');
+  outline.moveNode(db,{kind:'section',key:'section1',parentKey:null});
+  outline.moveNode(db,{kind:'section',key:'section2',parentKey:null,beforeKey:'section1'});
+  assert.deepEqual(outline.independentKeys(db),['section2','section1']);
+  assert.deepEqual(outline.publishedOutline(db,sections).ungroupedSectionIds,['section2','section1']);
+  assert.deepEqual(outline.assignments(db),[]);
+  const beforeInvalid = JSON.stringify(outline.status(db));
+  assert.throws(()=>outline.moveNode(db,{kind:'chapter',key:chapter.key,parentKey:'missing'}),/Hedef dizi/);
+  assert.throws(()=>outline.moveNode(db,{kind:'section',key:'section1',parentKey:'missing'}),/Hedef alt bölüm/);
+  assert.throws(()=>outline.moveNode(db,{kind:'series',key:series.key,beforeKey:'missing'}),/Hedef öğe/);
+  assert.equal(JSON.stringify(outline.status(db)),beforeInvalid,'Geçersiz hareket hiçbir sırayı kısmen değiştirmemeli');
+  assert.equal(narrativeStore.narrativeMemory(db).length,2,'Okuma ağacı onaylı anlatı içeriğine dokunmamalı');
+  console.log("PASS narrative outline: stable IDs, atomic tree moves, independent ordering, approved-only placement");
 } finally {
   db.close();
 }

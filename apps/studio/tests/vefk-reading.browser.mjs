@@ -17,7 +17,7 @@ const handlers=new Map();require('../vefk-ipc.cjs').registerVefkIpc({handle:(nam
 const map={vefkList:'vefk-list',vefkGet:'vefk-get',vefkGenerate:'vefk-generate',vefkValidate:'vefk-validate',vefkRevisions:'vefk-revisions',vefkSaveDraft:'vefk-save-draft',vefkReview:'vefk-review',vefkSourceReviewInfo:'vefk-source-review-info',vefkCatalogList:'vefk-catalog-list',vefkCatalogSelect:'vefk-catalog-select',vefkPackageStatus:'vefk-package-status'};
 const methods=Object.fromEntries(Object.entries(map).map(([n,c])=>[n,input=>handlers.get(`studio:${c}`)({},input)]));methods.vefkSourceList=()=>[];
 let packaged;
-methods.exportPublicSnapshot=()=>{const exported=publisher.exportCatalog(db,scratch);packaged=publication.buildPublicationV2(db,{generatedAt:'2026-11-07T12:00:00.000Z'}).snapshot;fs.mkdirSync(path.join(scratch,'public-export/content'),{recursive:true});fs.writeFileSync(path.join(scratch,'public-export/content/publication.json'),JSON.stringify(packaged));return {...exported,readiness:{readyForTheme:false,narrativeSections:0,visualComplete:false,narrativeChangesPending:false}};};
+methods.exportPublicSnapshot=()=>{require('./fixtures/approve-publication-text.cjs').approveFixtureText(db);const exported=publisher.exportCatalog(db,scratch);packaged=publication.buildPublicationV2(db,{generatedAt:'2026-11-07T12:00:00.000Z'}).snapshot;fs.mkdirSync(path.join(scratch,'public-export/content'),{recursive:true});fs.writeFileSync(path.join(scratch,'public-export/content/publication.json'),JSON.stringify(packaged));return {...exported,readiness:{readyForTheme:false,narrativeSections:0,visualComplete:false,narrativeChangesPending:false}};};
 let browser,server,p;const errors=[];
 try{
  fs.symlinkSync(path.join(repo,'node_modules'),path.join(scratch,'node_modules'));

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
-import VisualPromptCard from "./VisualPromptCard";
 import { useVideoSourceCatalog, videoSourceTitle } from "./video-source-labels";
 
 type KindFilter = "all" | StudioUniverseWorkspaceNode["kind"];
@@ -105,6 +104,7 @@ export default function AiEditorialReview() {
 
   const selectedDetails = selected ? details(selected) : [];
   const selectedVisual = selected ? mergedVisual(selected) : null;
+  const hasVisualDetails = Boolean(selectedVisual && (selectedVisual.description || selectedVisual.attributes.length || selectedVisual.atmosphere || selectedVisual.prompt || selectedVisual.negativePrompt));
   const contextGroups = selected ? [
     ["Hikâyeler", payloadArray(selected, "storyNames")],
     ["Muhataplar", payloadArray(selected, "characterNames")],
@@ -129,10 +129,19 @@ export default function AiEditorialReview() {
         {selected ? <>
           <header><div><small>{kindLabel[selected.kind].toUpperCase()} · {selected.sourceVideoIds.length} KAYNAK</small><h3>{selected.name}</h3>{selected.aliases.length > 0 && <p>{selected.aliases.join(" · ")}</p>}</div><div><span className={`ai-review-state ${selected.state}`}>{selected.state === "approved" ? "Onaylı" : "İnceleme bekliyor"}</span><button className={selected.state === "draft" ? "primary-button" : "secondary-button"} disabled={busy} onClick={() => void changeState([selected.key], selected.state === "draft" ? "approved" : "draft")}>{selected.state === "draft" ? "Onayla" : "Taslağa çek"}</button></div></header>
           <article className="ai-review-summary"><small>ÖZET</small><p>{selected.summary || "Özet bulunmuyor."}</p></article>
-          {selectedVisual && <section className="ai-review-visual-section"><small>GÖRSEL KİMLİK / ÜRETİM GİRDİSİ</small><p className="ai-review-visual-note">Burada yalnız biriken görsel bilgi kontrol edilir. Görsel üretimi ve dosya yönetimi 06 · Görsel Tamamlama aşamasındadır.</p><VisualPromptCard entityKey={selected.key} entityType={`universe-${selected.kind}`} source="universe-merge" title={selected.name} visual={selectedVisual}/></section>}
           {payloadArray(selected, "roles").length > 0 && <section><small>ROL / TÜR</small><div className="ai-review-chips">{payloadArray(selected, "roles").map((entry) => <span key={entry}>{entry}</span>)}</div></section>}
           {contextGroups.length > 0 && <section><small>BAĞLAM</small><div className="ai-review-context">{contextGroups.map(([label, values]) => <div key={label}><b>{label}</b>{values.map((entry) => <span key={entry}>{entry}</span>)}</div>)}</div></section>}
           {selectedDetails.length > 0 && <section><small>{selected.kind === "story" ? "AKIŞ" : "KAYNAKLI AYRINTILAR"}</small><ol className="ai-review-details">{selectedDetails.slice(0, 14).map((entry, index) => <li key={`${entry.text}:${index}`}><span>{String(index + 1).padStart(2, "0")}</span><div>{entry.text}<small>{entry.sources ? `${entry.sources} kaynak video` : "Kaynak etiketi yok"}</small></div></li>)}</ol></section>}
+          {hasVisualDetails && selectedVisual && <section className="ai-review-visual-section">
+            <small>GÖRSEL TANIM</small>
+            <div className="ai-review-visual-reading">
+              {selectedVisual.description && <p>{selectedVisual.description}</p>}
+              {selectedVisual.attributes.length>0 && <div className="ai-review-chips">{selectedVisual.attributes.map((attribute)=><span key={attribute}>{attribute}</span>)}</div>}
+              {selectedVisual.atmosphere && <p><strong>Atmosfer:</strong> {selectedVisual.atmosphere}</p>}
+              {selectedVisual.prompt && <div className="ai-review-visual-instruction"><strong>Görsel yönergesi</strong><p>{selectedVisual.prompt}</p></div>}
+              {selectedVisual.negativePrompt && <p className="ai-review-visual-negative"><strong>Kaçınılacak:</strong> {selectedVisual.negativePrompt}</p>}
+            </div>
+          </section>}
           <footer><div><small>KAYNAK VİDEOLAR</small><div className="ai-review-source-ids">{selected.sourceVideoIds.map((id) => <code key={id} title={`Video kimliği: ${id}`}>{videoSourceTitle(id, videoCatalog)}</code>)}</div></div><button className="text-button" onClick={() => void bridge.navigate(selected.kind === "character" ? "Muhataplar" : "Kayıt Dosyaları")}>Ayrıntılı editöre aç →</button></footer>
         </> : <div className="ai-review-detail-empty">İncelemek için bir evren adayı seç.</div>}
       </section>

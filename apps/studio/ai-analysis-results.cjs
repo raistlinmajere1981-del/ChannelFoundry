@@ -88,7 +88,10 @@ function getResult(db, videoId) {
            objects_json AS objectsJson, scenes_json AS scenesJson, updated_at AS updatedAt
     FROM source_ai_analyses WHERE provider = 'youtube' AND external_id = ?
   `).get(String(videoId ?? "").trim());
-  return rowToResult(row);
+  const result = rowToResult(row);
+  if (!result) return null;
+  const extra=db.prepare("SELECT core_json,source_hash,analysis_version FROM source_ai_analyses WHERE provider='youtube' AND external_id=?").get(String(videoId));
+  return {...result, core:safeJson(extra.core_json,{}),sourceVersion:extra.source_hash,analysisVersion:extra.analysis_version};
 }
 
 function list(db) {

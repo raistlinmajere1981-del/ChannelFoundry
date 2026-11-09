@@ -246,8 +246,10 @@ function buildPublicationV2(db, options = {}) {
   const assets = [...assetMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId));
   const youtubeAnalysis = { videos: aiAnalysis.publicVideoSummaries(db) };
   const support = supportPublic.publicationSupport(db, youtubeAnalysis.videos);
+  if (!options.sourceOnly) require('./channel-drawing.cjs').synchronize(db, youtubeAnalysis.videos.filter(video =>
+    Object.keys(require('./publication-languages.cjs').published(db, 'video', video.videoId)).length > 0));
   const vefkCatalog = vefkPublication.buildCatalog(db);
-  const logical = {
+  let logical = {
     schemaVersion: 2,
     journal: journalResult.journal,
     archive,
@@ -256,10 +258,12 @@ function buildPublicationV2(db, options = {}) {
     support,
     ...(vefkCatalog.entries.length ? { vefkCatalog } : {}),
   };
+  if (!options.sourceOnly) logical = require('./publication-languages.cjs').apply(db,logical);
   const contentFingerprint = fingerprint(logical);
   const generatedAt = clean(options.generatedAt, 80) || new Date().toISOString();
   const snapshot = {
     schemaVersion: 2,
+    ...(logical.languageVersion ? {languageVersion:logical.languageVersion,languages:logical.languages,vefkLanguages:logical.vefkLanguages} : {}),
     publication: {
       id: `pub-${contentFingerprint.slice(0, 24)}`,
       generatedAt,

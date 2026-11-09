@@ -342,7 +342,7 @@ function vefk_s6_document(stdClass $doc): void {
  */
 function vefk_s6_validate_publication(stdClass $raw): void {
     // Preserve existing V2 acceptance behavior when no Vefk catalog was sent.
-    if (!property_exists($raw,'vefkCatalog') || $raw->vefkCatalog === null) return;
+    if ((!property_exists($raw,'vefkCatalog') || $raw->vefkCatalog === null) && !property_exists($raw,'languageVersion')) return;
     vefk_s6_require(($raw->schemaVersion ?? null) === 2, 'Publication şeması geçersiz');
     $meta=vefk_s6_object($raw->publication ?? null,'publication metadata');
     vefk_s6_require(vefk_s6_hash($meta->contentFingerprint ?? null),
@@ -352,6 +352,7 @@ function vefk_s6_validate_publication(stdClass $raw): void {
         vefk_s6_require(property_exists($raw,$field),'Publication alanı eksik: '.$field);
         $meaning->{$field}=$raw->{$field};
     }
+    foreach(['languageVersion','languages','vefkLanguages'] as $field) if(property_exists($raw,$field)) $meaning->{$field}=$raw->{$field};
     if (property_exists($raw,'vefkCatalog') && $raw->vefkCatalog !== null) {
         $meaning->vefkCatalog=$raw->vefkCatalog;
     }

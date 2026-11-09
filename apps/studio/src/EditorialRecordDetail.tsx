@@ -1,3 +1,4 @@
+import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useState } from "react";
 import VisualProfileEditor from "./VisualProfileEditor";
 import { useVideoSourceCatalog, videoSourceTitle, videoSourceTitles } from "./video-source-labels";
@@ -158,6 +159,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
   };
 
   return <div className="record-detail-shell">
+    <PublicationLanguageEditor kind="entity" id={node.key}/>
     <header className="record-detail-head">
       <div className="record-detail-title"><small>{workspaceLabels[node.kind].toUpperCase()} · AI EVRENİ</small><h2>{node.name}</h2><div className="record-detail-facts"><span>{node.sourceVideoIds.length} kaynak</span><span>{related.length} ilişki</span><span>Güncelleme {formatDate(node.updatedAt)}</span></div></div>
       <div className="editor-actions"><button className="primary-button" disabled={busy} onClick={() => void save()}>{busy ? "Kaydediliyor…" : "Kaydet"}</button></div>

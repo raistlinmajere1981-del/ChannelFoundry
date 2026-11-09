@@ -8,6 +8,7 @@ type MaintenanceStatus = {
   preserved: CountMap;
   resetCount: number;
   active: boolean;
+  narratorLinks: number;
   activeRunId: number | null;
   blockedReason: string;
 };
@@ -15,6 +16,8 @@ type MaintenanceResetResult = {
   ok: true;
   backup: string;
   removed: CountMap;
+  narratorLinksCleared?: number;
+  narratorBackup?: string;
   after: MaintenanceStatus;
 };
 type MaintenanceBridge = NonNullable<Window["channelFoundryStudio"]> & {
@@ -57,7 +60,7 @@ export default function UniverseMaintenanceSettings() {
     try {
       const result = await bridge.universeMaintenanceReset({ confirmation });
       setStatus(result.after);
-      setMessage(`Evren çalışma alanı sıfırlandı. Yedek: ${result.backup}`);
+      setMessage(`Evren çalışma alanı sıfırlandı.${result.narratorLinksCleared ? ` ${result.narratorLinksCleared} eski anlatıcı kimliği eşlemesi temizlendi; anlatıcının adı ve üslup tercihleri korundu.` : ""} Yedek: ${result.backup}`);
       setConfirmation("");
       setOpen(false);
     } catch (reason) {
@@ -73,20 +76,21 @@ export default function UniverseMaintenanceSettings() {
     <h2>Evreni Baştan Oluştur</h2>
     <p className="universe-maintenance-copy">
       Çözümlemeleri, Ayıklama kararlarını, sponsor/katkı kayıtlarını, katalog ve altyazıları korur;
-      yalnız türetilmiş Evren çalışma alanını temizler.
+      türetilmiş Evren çalışma alanını ve silinen Evren'e bağlı eski anlatıcı kimliklerini temizler. Anlatıcının adı ve üslup tercihleri korunur.
     </p>
 
     <dl className="universe-maintenance-counts">
       <div><dt>Evren kayıtları</dt><dd>{status?.reset.universe_workspace_nodes ?? "—"}</dd></div>
       <div><dt>Evren bağlantıları</dt><dd>{status?.reset.universe_workspace_relations ?? "—"}</dd></div>
       <div><dt>İşlenmiş kaynak kilidi</dt><dd>{status?.reset.universe_ingest_sources ?? "—"}</dd></div>
+      <div><dt>Eski Evren'e bağlı anlatıcı kimlikleri</dt><dd>{status?.narratorLinks ?? "—"}</dd></div>
       <div><dt>Korunan çözümleme</dt><dd>{status?.preserved.source_ai_analyses ?? "—"}</dd></div>
       <div><dt>Korunan Ayıklama</dt><dd>{status?.preserved.ai_analysis_editorial_reviews ?? "—"}</dd></div>
     </dl>
 
     <div className="universe-maintenance-note">
       <strong>Canlı Web yayını değişmez.</strong>
-      <span>İşlemden önce otomatik SQLite yedeği oluşturulur. Sıfırlama sonrası işlenmiş kaynaklar yeniden Ayıklama ve Evrene İşleme akışına açılır.</span>
+      <span>İşlemden önce otomatik SQLite yedeği, kimlik bağlantısı varsa ayrıca kanal ayarlarının yedeği oluşturulur. Sıfırlama sonrası işlenmiş kaynaklar yeniden Ayıklama ve Evrene İşleme akışına açılır.</span>
     </div>
 
     {status?.active && <div className="universe-maintenance-warning">{status.blockedReason}</div>}

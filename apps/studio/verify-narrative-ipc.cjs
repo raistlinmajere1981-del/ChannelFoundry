@@ -41,6 +41,7 @@ const expectedChannels = [
   "studio:narrative-outline-series",
   "studio:narrative-outline-chapter",
   "studio:narrative-outline-place",
+  "studio:narrative-outline-move",
   "studio:narrative-outline-suggestions",
 ];
 assert.deepEqual([...handlers.keys()], expectedChannels);

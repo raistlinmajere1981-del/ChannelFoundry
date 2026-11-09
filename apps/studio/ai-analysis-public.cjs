@@ -32,29 +32,11 @@ function publicVideoSummaries(db) {
   // This is the camera's publication allowlist. Channel discovery never adds
   // records here; only completed analyses with a real summary enter a snapshot.
   if (!["source_ai_analyses", "ai_analysis_jobs", "ai_analysis_editorial_reviews", "youtube_videos"].every((name) => tableExists(db, name))) return [];
-  return db.prepare(`
-    SELECT a.external_id AS videoId, a.summary,
-           COALESCE(NULLIF(TRIM(y.title), ''), a.title) AS title,
-           y.thumbnail_url AS thumbnailUrl, y.published_at AS publishedAt,
-           y.duration_seconds AS durationSeconds, y.availability
-    FROM source_ai_analyses a
+  const allowed = new Set(db.prepare(`SELECT a.external_id FROM source_ai_analyses a
     JOIN ai_analysis_jobs j ON j.provider=a.provider AND j.external_id=a.external_id AND j.state='done'
-    LEFT JOIN ai_analysis_editorial_reviews e ON e.provider=a.provider AND e.external_id=a.external_id
-    LEFT JOIN youtube_videos y ON y.video_id=a.external_id
-    WHERE a.provider='youtube' AND TRIM(a.summary) <> ''
-      AND COALESCE(e.state, 'pending') <> 'excluded'
-    ORDER BY y.published_at DESC, a.external_id ASC
-  `).all().map((row) => ({
-    videoId: String(row.videoId ?? "").trim(),
-    title: String(row.title ?? "").trim(),
-    summary: String(row.summary ?? "").trim(),
-    thumbnailUrl: String(row.thumbnailUrl ?? "").trim(),
-    publishedAt: String(row.publishedAt ?? "").trim(),
-    durationSeconds: Number.isInteger(row.durationSeconds) && row.durationSeconds >= 0 ? row.durationSeconds : null,
-    membersOnly: ["subscriber_only", "premium_only", "needs_auth"].includes(row.availability),
-    analysisStatus: "complete",
-    publicationStatus: "published",
-  })).filter((entry) => /^[A-Za-z0-9_-]{11}$/.test(entry.videoId) && entry.title && entry.summary);
+    JOIN ai_analysis_editorial_reviews e ON e.provider=a.provider AND e.external_id=a.external_id AND e.state='curated'
+    WHERE a.provider='youtube'`).all().map(r=>r.external_id));
+  return require('./publication-languages.cjs').videoSources(db).filter(r=>allowed.has(r.videoId)&&/^[A-Za-z0-9_-]{11}$/.test(r.videoId)&&r.title.trim()&&r.summary.trim());
 }
 
 module.exports = {

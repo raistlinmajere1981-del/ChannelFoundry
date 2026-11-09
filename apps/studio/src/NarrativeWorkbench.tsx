@@ -1,7 +1,9 @@
+import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
 import "./narrative-workbench.css";
 import NarrativeOutlineWorkbench from "./NarrativeOutlineWorkbench";
+import "./narrative-stage-layout.css";
 
 type NarrativeBridge = NonNullable<typeof window.channelFoundryStudio> & StudioNarrativeBridge;
 type BusyAction = "" | "prepare" | "generate" | "apply" | "discard";
@@ -12,7 +14,7 @@ const clean = (value: unknown) => String(value ?? "").trim();
 
 function stateLabel(state: StudioNarrativeRunState | "") {
   if (state === "prepared") return "Editoryal incelemede";
-  if (state === "stale") return "Evren değişti · stale";
+  if (state === "stale") return "Evren değişti · yeniden hazırlanmalı";
   return "Anlatı güncel";
 }
 
@@ -20,27 +22,47 @@ function sourceLabel(source: StudioNarrativeSourceDescriptor | undefined, fallba
   return clean(source?.name) || clean(source?.label) || fallback;
 }
 
+function sourceKindLabel(kind: unknown) {
+  const labels: Record<string, string> = { story: "Hikâye", character: "Muhatap", location: "Mekân", object: "Nesne", detail: "Ayrıntı", event: "Olay", sequence: "Olay sırası" };
+  return labels[clean(kind).toLowerCase()] ?? "Evren kaydı";
+}
+
+function sourceChangeLabel(kind: unknown) {
+  const labels: Record<string, string> = { new: "Yeni", changed: "Güncellendi", removed: "Kaldırıldı", unchanged: "Değişmedi" };
+  return labels[clean(kind).toLowerCase()] ?? "Değişiklik";
+}
+
 function EvidenceDetails({ ledger, videos }: { ledger?: StudioNarrativeEvidenceLedger; videos: Map<string, { title: string }> }) {
-  const videoList = (ids: string[]) => ids.length ? <ul className="narrative-ledger-videos">{ids.map(id => <li key={id}><span>{videos.get(id)?.title || "Video başlığı yok"}</span> <code>{id}</code></li>)}</ul> : <p>Bu metin için özgül video eşlemesi yok.</p>;
-  return <details className="narrative-evidence-ledger">
-    <summary>Kaynak ayrıntılarını incele</summary>
+  const videoList = (ids: string[]) => ids.length
+    ? <ul className="narrative-ledger-videos">{ids.map(id => <li key={id}>{videos.get(id)?.title || "Başlığı bulunamayan video"}</li>)}</ul>
+    : <p>Bu ayrıntı için doğrudan eşleşen video belirtilmemiş.</p>;
+  return <section className="narrative-evidence-ledger">
     <div className="narrative-ledger-content">
-      <p>Frozen kaynak izi · {number(ledger?.recordCount ?? 0)} kayıt · {number(ledger?.videoCount ?? 0)} video. Bu iz, anlatının kesin doğruluk onayı değildir; ayrıntıları kaynakla karşılaştırmak içindir.</p>
+      <p className="narrative-ledger-intro">Çalışma hazırlanırken kaydedilen {number(ledger?.recordCount ?? 0)} Evren kaydı ve {number(ledger?.videoCount ?? 0)} video. Bu bilgiler, anlatıyı asıl kaynaklarla karşılaştırmak içindir; tek başına doğruluk onayı değildir.</p>
       {ledger?.nodes.map(node => <section className="narrative-ledger-node" key={node.sourceKey}>
-        <h4>{node.name || node.sourceKey}</h4><p className="narrative-ledger-identity">{node.kind || "Tür belirtilmemiş"} · <code>{node.sourceKey}</code></p>
-        <div className="narrative-ledger-context"><strong>Genel bağlam · özgül ayrıntı kanıtı değil</strong>
-          <p>{node.summary || "Genel özet bulunmuyor."}</p>
-          <p>Düğümün genel video listesi; her ayrıntının bu videoların hepsinde geçtiğini göstermez.</p>
-          {node.sourceVideoIds.length ? videoList(node.sourceVideoIds) : <p>Düğümün genel video listesi boş.</p>}
+        <header className="narrative-ledger-node-heading"><h4>{node.name || "Adsız Evren kaydı"}</h4><span>{sourceKindLabel(node.kind)}</span></header>
+        <div className="narrative-ledger-context">
+          <strong>Genel bağlam</strong>
+          <p>{node.summary || "Genel açıklama bulunmuyor."}</p>
+          {node.sourceVideoIds.length > 0 && <div className="narrative-ledger-related">
+            <strong>Kayıtla ilişkili videolar</strong>
+            <p>Bu liste, aşağıdaki her ayrıntının bütün videolarda geçtiği anlamına gelmez.</p>
+            {videoList(node.sourceVideoIds)}
+          </div>}
         </div>
-        {node.evidence.length ? <ol className="narrative-ledger-entries">{node.evidence.map((entry, index) => <li key={index}>
-          <strong>{entry.kind === "sequence" ? "Olay sırası" : "Kaynak ayrıntısı"}</strong><p className="narrative-ledger-text">{entry.text}</p>{videoList(entry.sourceVideoIds)}
-        </li>)}</ol> : <p>Özgül details/sequence metni yok; yalnız genel bağlam incelenebilir.</p>}
+        {node.evidence.length ? <div className="narrative-ledger-evidence">
+          <strong>Kaynakta geçen ayrıntılar</strong>
+          <ol className="narrative-ledger-entries">{node.evidence.map((entry, index) => <li key={index}>
+            <strong>{entry.kind === "sequence" ? "Olay sırası" : "Kaynak ayrıntısı"}</strong>
+            <p className="narrative-ledger-text">{entry.text}</p>
+            <div className="narrative-ledger-specific"><span>Bu ayrıntının kaynağı</span>{videoList(entry.sourceVideoIds)}</div>
+          </li>)}</ol>
+        </div> : <p>Bu kayıtta ayrı bir olay veya ayrıntı eşlemesi yok; yalnız genel bağlam incelenebilir.</p>}
       </section>)}
-      {!ledger?.nodes.length && <p>Bu taslağa ait kullanılabilir frozen düğüm kaydı bulunmuyor.</p>}
-      {!!ledger?.missingSourceKeys.length && <p>Frozen düğüm ayrıntısı bulunamayan kaynaklar: {ledger.missingSourceKeys.join(", ")}</p>}
+      {!ledger?.nodes.length && <p>Bu bölüme ait kaynak ayrıntısı bulunmuyor.</p>}
+      {!!ledger?.missingSourceKeys.length && <p className="narrative-source-warning">Bazı kaynak kayıtlarının ayrıntıları bu çalışma kopyasında bulunmuyor. Kaynaklarla karşılaştırılması gerekiyor.</p>}
     </div>
-  </details>;
+  </section>;
 }
 
 export default function NarrativeWorkbench() {
@@ -48,6 +70,9 @@ export default function NarrativeWorkbench() {
   const notify = useAiWorkbenchNotice();
   const [status, setStatus] = useState<StudioNarrativeStatus | null>(null);
   const [busy, setBusy] = useState<BusyAction>("");
+  const [activeView, setActiveView] = useState<"narrative"|"outline"|"languages"|"sources">("narrative");
+  const [languageKind, setLanguageKind] = useState<"section"|"outline">("section");
+  const [languagesVisited, setLanguagesVisited] = useState(false);
 
   const load = async () => {
     if (!bridge) return;
@@ -63,7 +88,6 @@ export default function NarrativeWorkbench() {
   const runState = working?.run.state ?? "";
   const drafts = working?.drafts ?? [];
   const request = working?.request ?? null;
-  const pendingChanges = (status?.next.changes ?? 0) + (status?.next.removed ?? 0);
   const allowedSources = request?.input.allowedSources ?? [];
   const sourceMap = useMemo(() => new Map(allowedSources.map((source) => [source.sourceKey, source])), [allowedSources]);
   const baselineIds = useMemo(() => new Set((request?.input.baselineNarrative ?? []).map((section) => section.sectionKey)), [request]);
@@ -86,7 +110,7 @@ export default function NarrativeWorkbench() {
     try {
       const result = await bridge.narrativePrepare();
       await load();
-      notify(`Hikâyeleştir çalışması #${result.run.id} frozen Evren girdisiyle hazırlandı.`, "success");
+      notify("Hikâyeleştir çalışması, Evren'in hazırlama anındaki sabit kaynaklarıyla oluşturuldu.", "success");
     } catch (error) { notify(errorText(error), "error"); }
     finally { setBusy(""); }
   };
@@ -128,68 +152,74 @@ export default function NarrativeWorkbench() {
   };
 
   return <div className="narrative-workbench">
-    <header className="panel narrative-header">
-      <div>
-        <small>05 · HİKÂYELEŞTİR</small>
-        <h2>Onaylı Evreni yaşayan anlatıya dönüştür</h2>
-        <p>Bu aşama yalnız onaylı Evren gerçeklerini kronolojik ve okunabilir bir günlük anlatısına çevirir. Görseller ve fiziksel kitap sayfaları burada üretilmez.</p>
+    <section className="panel narrative-control-panel">
+      <header className="narrative-header">
+        <div><small>05 · HİKÂYELEŞTİR</small><h2>Evren anlatısı</h2></div>
+        <div className="narrative-header-actions">
+          <span className={`narrative-state ${runState || "current"}`} title={runState === "stale" ? "Evren değişti. Önce eski taslağı kapatıp yeni bir çalışma hazırlamak gerekiyor." : undefined}>{stateLabel(runState)}</span>
+          {runState === "stale" ? (
+            <button type="button" className="danger-button" disabled={Boolean(busy)} onClick={() => void discard()}>{busy === "discard" ? "Kapatılıyor…" : "Eski taslağı kapat"}</button>
+          ) : working && runState === "prepared" && !drafts.length ? (
+            <button type="button" className="primary-button" disabled={Boolean(busy)} onClick={() => void generate()}>{busy === "generate" ? "Hikâyeleştiriliyor…" : "Anlatı taslağını üret"}</button>
+          ) : working && runState === "prepared" && drafts.length ? (
+            <>
+              <button type="button" className="secondary-button" disabled={Boolean(busy)} onClick={() => void discard()}>{busy === "discard" ? "Kapatılıyor…" : "Taslağı bırak"}</button>
+              <button type="button" className="primary-button" disabled={Boolean(busy || blockingCount)} title={blockingCount ? "Hatalı metin içi bağlantılar giderilmeden onaylanamaz." : qualityCount ? `${number(qualityCount)} editoryal kontrol notunu inceleyerek onayla.` : undefined} onClick={() => void apply()}>{blockingCount ? `Onay engellendi · ${number(blockingCount)} hata` : busy === "apply" ? "Onaylanıyor…" : `Bölümleri onayla · ${number(drafts.length)}`}</button>
+            </>
+          ) : status?.next.hasChanges ? (
+            <button type="button" className="primary-button" disabled={Boolean(busy)} onClick={() => void prepare()}>{busy === "prepare" ? "Hazırlanıyor…" : "Çalışmayı hazırla"}</button>
+          ) : null}
+        </div>
+      </header>
+      <div className="narrative-metrics" aria-label="Hikâyeleştirme sayıları">
+        <div><strong>{number(status?.next.changes ?? 0)}</strong><span>Yeni / değişen</span><small>{number(status?.next.recordChanges ?? 0)} kayıt · {number(status?.next.relationChanges ?? 0)} bağlantı</small></div>
+        <div><strong>{number(status?.next.removed ?? 0)}</strong><span>Kaldırılan</span><small>kaynak</small></div>
+        <div><strong>{number(status?.counts.activeSections ?? 0)}</strong><span>Onaylı anlatı</span><small>aktif bölüm</small></div>
+        <div><strong>{number(status?.counts.applied ?? 0)}</strong><span>Tamamlanan</span><small>onaylı çalışma</small></div>
       </div>
-      <span className={`narrative-state ${runState || "current"}`}>{stateLabel(runState)}</span>
-    </header>
-
-    <section className="narrative-metrics">
-      <div className="panel"><small>YENİ / DEĞİŞEN</small><strong>{number(status?.next.changes ?? 0)}</strong><span>{number(status?.next.recordChanges ?? 0)} kayıt · {number(status?.next.relationChanges ?? 0)} teknik bağlantı</span></div>
-      <div className="panel"><small>KALDIRILAN</small><strong>{number(status?.next.removed ?? 0)}</strong><span>Kaynak</span></div>
-      <div className="panel"><small>YAŞAYAN ANLATI</small><strong>{number(status?.counts.activeSections ?? 0)}</strong><span>Aktif bölüm</span></div>
-      <div className="panel"><small>ONAYLI TUR</small><strong>{number(status?.counts.applied ?? 0)}</strong><span>Uygulanmış çalışma</span></div>
     </section>
 
-    {runState === "stale" ? <section className="panel narrative-gate stale">
-      <div><small>EVREN DEĞİŞTİ</small><strong>Bu taslak artık onaylanamaz.</strong><p>Çalışma hazırlanırken kullanılan frozen Evren ile güncel approved Evren farklı. Eski taslak yalnız inceleme için tutuluyor; kapatıp yeni çalışma hazırlamalısın.</p></div>
-      <button className="danger-button" disabled={Boolean(busy)} onClick={() => void discard()}>{busy === "discard" ? "Kapatılıyor…" : "Stale çalışmayı kapat"}</button>
-    </section> : working && runState === "prepared" && !drafts.length ? <section className="panel narrative-gate ready">
-      <div><small>FROZEN GİRDİ HAZIR · #{working.run.id}</small><strong>AI yalnız bu onaylı Evren anlık görüntüsünü görecek.</strong><p>{number(request?.input.sourceVideos.length ?? 0)} kaynak video · {number(request?.input.allowedSources.length ?? 0)} izinli Evren kaydı. Üretim sonunda hiçbir şey otomatik onaylanmaz.</p></div>
-      <button className="primary-button" disabled={Boolean(busy)} onClick={() => void generate()}>{busy === "generate" ? "Hikâyeleştiriliyor…" : "AI taslağını üret"}</button>
-    </section> : working && runState === "prepared" && drafts.length ? <section className="panel narrative-gate review">
-      <div><small>EDİTORYAL KARAR · #{working.run.id}</small><strong>{number(drafts.length)} bölüm taslağı inceleme bekliyor.</strong><p>{blockingCount ? `${number(blockingCount)} metin içi bağlantı hatası nedeniyle onay kapalı. Eski taslakları inceleyebilir ve Vazgeç ile yeniden üretebilirsin. ` : qualityCount ? `${number(qualityCount)} otomatik editoryal kontrol notu var. ` : ""}Kaynakları ve birinci şahıs anlatımı değerlendir. Onay yaşayan belleği günceller; Vazgeç onaylı içeriği değiştirmez.</p></div>
-      <div className="narrative-gate-actions"><button className="secondary-button" disabled={Boolean(busy)} onClick={() => void discard()}>{busy === "discard" ? "Kapatılıyor…" : "Vazgeç"}</button><button className="primary-button" disabled={Boolean(busy || blockingCount)} title={blockingCount ? "Hatalı metin içi bağlantılar giderilmeden onaylanamaz." : undefined} onClick={() => void apply()}>{blockingCount ? `Onay engellendi · ${number(blockingCount)} hata` : busy === "apply" ? "Onaylanıyor…" : `Onayla · ${number(drafts.length)}`}</button></div>
-    </section> : status?.next.hasChanges ? <section className="panel narrative-gate ready">
-      <div><small>YENİ EVREN DEĞİŞİKLİĞİ</small><strong>{number(pendingChanges)} değişiklik · {number(status?.next.recordChanges ?? 0)} anlatı kaynağı.</strong><p>Hazırlama işlemi approved Evreni frozen bir çalışma girdisine dönüştürür. Sonraki Evren değişikliği bu çalışmayı otomatik stale yapar.</p></div>
-      <button className="primary-button" disabled={Boolean(busy)} onClick={() => void prepare()}>{busy === "prepare" ? "Hazırlanıyor…" : "Çalışmayı hazırla"}</button>
-    </section> : <section className="panel narrative-gate current">
-      <div><small>GÜNCEL</small><strong>Onaylı Evren ile yaşayan anlatı arasında bekleyen değişiklik yok.</strong><p>Yeni bir Evren kaydı veya revizyonu onaylandığında burada yeni Hikâyeleştir turu açılacak.</p></div>
-    </section>}
-
-    {working && <section className="panel narrative-run-meta">
-      <div><small>ÇALIŞMA</small><strong>#{working.run.id}</strong><span>{working.run.model || "Model henüz çalışmadı"}</span></div>
-      <div><small>BASELINE</small><strong>{working.run.baselineRunId ? `#${working.run.baselineRunId}` : "İlk anlatı"}</strong><span>{working.run.createdAt || "—"}</span></div>
-      <div><small>GİRDİ PARMAK İZİ</small><code>{working.run.inputFingerprint.slice(0, 16)}</code><span>Frozen input</span></div>
-      <div><small>EVREN PARMAK İZİ</small><code>{working.run.universeFingerprint.slice(0, 16)}</code><span>{working.run.state === "stale" ? "Artık güncel değil" : "Hazırlama anı"}</span></div>
-    </section>}
-
+    <nav className="narrative-view-tabs" role="tablist" aria-label="Hikâyeleştir çalışma alanları">
+      {([
+        ["narrative","Anlatı",drafts.length?drafts.length:memory.length],
+        ["outline","İçindekiler",memory.length],
+        ["languages","Çeviriler",null],
+        ["sources","Kaynaklar",sourceVideos.length],
+      ] as const).map(([view,label,count])=><button type="button" role="tab" key={view}
+        aria-selected={activeView===view} className={activeView===view?"active":""}
+        onClick={()=>{setActiveView(view);if(view==="languages")setLanguagesVisited(true);}}>{label}{count!==null&&<b>{number(count)}</b>}</button>)}
+    </nav>
+    <section className="narrative-view-body" role="tabpanel">
+      {activeView==="sources" && <div className="narrative-sources-view">
     {request && (changes.length > 0 || removed.length > 0 || sourceVideos.length > 0) && <section className="panel narrative-provenance">
-      <div className="narrative-section-head"><div><small>GİRDİ VE PROVENANCE</small><h3>Onaylı anlatı kaynakları</h3></div><span>{number(proseChanges.length)} Evren kaydı · {number(technicalGraphCount)} teknik bağlantı · {number(sourceVideos.length)} video</span></div>
+      <div className="narrative-section-head"><div><small>KAYNAK ÖZETİ</small><h3>Onaylı Evren bilgileri ve videolar</h3></div><span>{number(proseChanges.length)} kayıt · {number(sourceVideos.length)} video</span></div>
       <div className="narrative-provenance-grid">
-        <div><h4>Evren değişiklikleri</h4>{technicalGraphCount > 0 && <p className="narrative-graph-note">{number(technicalGraphCount)} teknik ilişki yalnız bağlantı verisi olarak tutuluyor; olay veya anı sayılmıyor.</p>}{proseChanges.length ? <div className="narrative-chip-list">{proseChanges.map((change, index) => { const key = clean(change.sourceKey); const source = sourceMap.get(key); return <span key={`${key}-${index}`}><b>{clean(change.changeKind) || "değişiklik"}</b>{sourceLabel(source, key || `Kaynak ${index + 1}`)}</span>; })}</div> : <p>Yeni/değişen kayıt yok.</p>}{removed.length > 0 && <div className="narrative-chip-list removed">{removed.map((entry) => <span key={`${entry.sourceType}:${entry.sourceKey}`}><b>removed</b>{entry.sourceKey}</span>)}</div>}</div>
-        <div><h4>Kaynak videolar</h4>{sourceVideos.length ? <div className="narrative-source-videos">{sourceVideos.map((video) => <div key={video.videoId}><strong>{video.title || video.videoId}</strong><span>{video.publishedAt || "Yayın tarihi yok"}</span><code>{video.videoId}</code></div>)}</div> : <p>Kaynak video metadata kaydı yok.</p>}</div>
+        <div><h4>Evren değişiklikleri</h4>{technicalGraphCount > 0 && <p className="narrative-graph-note">{number(technicalGraphCount)} kayıt ilişkisi anlatının kaynak bağlantısını korur; tek başına olay olarak anlatılmaz.</p>}{proseChanges.length ? <div className="narrative-chip-list">{proseChanges.map((change, index) => { const key = clean(change.sourceKey); const source = sourceMap.get(key); return <span key={`${key}-${index}`}><b>{sourceChangeLabel(change.changeKind)}</b>{sourceLabel(source, `Evren kaydı ${index + 1}`)}</span>; })}</div> : <p>Yeni/değişen kayıt yok.</p>}{removed.length > 0 && <div className="narrative-chip-list removed">{removed.map((entry) => <span key={`${entry.sourceType}:${entry.sourceKey}`}><b>Kaldırıldı</b>{sourceLabel(sourceMap.get(entry.sourceKey), "Önceki Evren kaydı")}</span>)}</div>}</div>
+        <div><h4>Kaynak videolar</h4>{sourceVideos.length ? <div className="narrative-source-videos">{sourceVideos.map((video) => <div key={video.videoId}><strong>{video.title || "Başlıksız video"}</strong><span>{video.publishedAt || "Yayın tarihi belirtilmemiş"}</span></div>)}</div> : <p>Henüz kaynak video bilgisi bulunmuyor.</p>}</div>
       </div>
     </section>}
 
+      {drafts.map(draft=><section key={draft.id} className="panel narrative-source-entry">
+        <div className="narrative-section-head"><div><small>ANLATI KAYNAKLARI · {number(draft.sourceVideoIds.length)} VİDEO</small><h3>{draft.title || "Başlıksız bölüm"}</h3></div></div>
+        <EvidenceDetails ledger={draft.evidenceLedger} videos={videoMap} />
+      </section>)}
+      {!working && <div className="narrative-reading-empty"><strong>Henüz çalışma kaynağı yok</strong><p>İlk çalışma hazırlandığında kaynak ayrıntıları burada görüntülenir.</p></div>}
+    </div>}
+    {activeView==="narrative" && <div className="narrative-reading-view">
+    {!drafts.length && !memory.length && <div className="narrative-reading-empty"><strong>Henüz anlatı bölümü bulunmuyor</strong><p>Üstteki düğmeyle kaynakları hazırlayıp anlatı taslaklarını üretebilirsin.</p></div>}
     {drafts.length > 0 && <section className="narrative-drafts">
-      <div className="narrative-section-head"><div><small>AI TASLAĞI</small><h3>Onay öncesi anlatı bölümleri</h3></div><span>Görsel yok · fiziksel sayfa yok</span></div>
+      <div className="narrative-section-head"><div><small>AI TASLAĞI</small><h3>Onay öncesi anlatı bölümleri</h3></div><span>{number(drafts.length)} bölüm</span></div>
       {drafts.map((draft) => <article key={draft.id} className={`panel narrative-draft-card${draft.retire ? " retired" : ""}`}>
-        <header><div><small>{baselineIds.has(draft.sectionKey) ? `REVİZYON · v${draft.revisionNo}` : "YENİ BÖLÜM"} · sıra {draft.position}</small><h3>{draft.retire ? `${draft.title || draft.sectionKey} · kaldırılacak` : draft.title}</h3></div><code>{draft.sectionKey}</code></header>
+        <header><div><small>{baselineIds.has(draft.sectionKey) ? `REVİZYON · ${draft.revisionNo}. sürüm` : "YENİ BÖLÜM"} · {number(draft.position + 1)}. sıra</small><h3>{draft.retire ? `${draft.title || "Başlıksız bölüm"} · kaldırılacak` : draft.title || "Başlıksız bölüm"}</h3></div></header>
         {draft.retire ? <p className="narrative-retire-copy">Bu bölüm yeni onayla yaşayan anlatıdan emekliye ayrılacak. Önceki yayınlanmış revizyon geçmişten silinmez.</p> : <p className="narrative-body">{draft.body}</p>}
         {(draft.qualityNotes?.length ?? 0) > 0 && <section className="narrative-quality" aria-label={`${draft.title} editoryal kontrol notları`}>
           <strong>Onay öncesi kontrol · {draft.qualityNotes?.length} not</strong>
           <ul>{draft.qualityNotes?.map((note) => <li key={note.code} className={`narrative-quality-${note.severity}`}>{note.message}</li>)}</ul>
         </section>}
         <div className="narrative-draft-evidence">
-          <div><small>EVREN REFERANSLARI</small>{draft.entityReferences.length ? <div className="narrative-chip-list refs">{draft.entityReferences.map((reference) => <span key={`${reference.entityId}:${reference.label}`}><b>{reference.kind}</b>{reference.label}<code>{reference.entityId}</code></span>)}</div> : <span className="narrative-none">Bu bölümde inline entity referansı yok.</span>}</div>
-          <div><small>KAYNAK VİDEOLAR · GENEL LİSTE</small>{draft.sourceVideoIds.length ? <div className="narrative-chip-list videos">{draft.sourceVideoIds.map((videoId) => <span key={videoId} title={videoId}>{videoMap.get(videoId)?.title || videoId}</span>)}</div> : <span className="narrative-none">Kaynak video yok.</span>}</div>
+          <div><small>EVREN REFERANSLARI</small>{draft.entityReferences.length ? <div className="narrative-chip-list refs">{draft.entityReferences.map((reference) => <span key={`${reference.entityId}:${reference.label}`}><b>{sourceKindLabel(reference.kind)}</b>{reference.label}</span>)}</div> : <span className="narrative-none">Bu bölümde metin içi Evren bağlantısı bulunmuyor.</span>}</div>
+          <div><small>KAYNAK VİDEOLAR · GENEL LİSTE</small>{draft.sourceVideoIds.length ? <div className="narrative-chip-list videos">{draft.sourceVideoIds.map((videoId) => <span key={videoId}>{videoMap.get(videoId)?.title || "Başlıksız video"}</span>)}</div> : <span className="narrative-none">Kaynak video yok.</span>}</div>
         </div>
-        <EvidenceDetails ledger={draft.evidenceLedger} videos={videoMap} />
-        <details><summary>Provenance source key’lerini göster</summary><div className="narrative-chip-list keys">{draft.sourceKeys.map((key) => <span key={key}>{sourceLabel(sourceMap.get(key), key)}<code>{key}</code></span>)}</div></details>
       </article>)}
     </section>}
 
@@ -198,8 +228,16 @@ export default function NarrativeWorkbench() {
       <div className="narrative-memory-list">{memory.map((section) => <div key={section.sectionKey}><span>{String(section.position).padStart(2, "0")}</span><div><strong>{section.title}</strong><p>{section.body}</p></div><small>v{section.revisionNo}</small></div>)}</div>
     </section>}
 
-    <NarrativeOutlineWorkbench memory={memory} />
-
-    <section className="panel narrative-next-stage"><small>SONRAKİ AŞAMA</small><strong>Görsel Tamamlama</strong><p>Onaylanmış anlatı bölümlerinin görsel ihtiyaçları daha sonra ayrı aşamada üretilecek. Tema; sayfa, spread, yerleşim ve kitap animasyonunu kendi rendering katmanında belirleyecek.</p></section>
+    </div>}
+    <div className="narrative-outline-view" hidden={activeView!=="outline"}><NarrativeOutlineWorkbench memory={memory}/></div>
+    {languagesVisited && <div className="narrative-languages-view" hidden={activeView!=="languages"}>
+      <div className="narrative-language-kind" role="tablist" aria-label="Yayın metni türü">
+        <button type="button" role="tab" aria-selected={languageKind==="section"} className={languageKind==="section"?"active":""} onClick={()=>setLanguageKind("section")}>Anlatı bölümleri</button>
+        <button type="button" role="tab" aria-selected={languageKind==="outline"} className={languageKind==="outline"?"active":""} onClick={()=>setLanguageKind("outline")}>İçindekiler</button>
+      </div>
+      <div hidden={languageKind!=="section"}><PublicationLanguageEditor embedded kind="section"/></div>
+      <div hidden={languageKind!=="outline"}><PublicationLanguageEditor embedded kind="outline"/></div>
+    </div>}
+    </section>
   </div>;
 }

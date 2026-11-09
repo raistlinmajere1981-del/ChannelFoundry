@@ -14,6 +14,10 @@ const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'narrative-evidence-browse
 const out = process.env.NARRATIVE_EVIDENCE_ARTIFACTS || fs.mkdtempSync(path.join(os.tmpdir(), 'narrative-evidence-artifacts-'));
 fs.mkdirSync(out, { recursive: true });
 const { db } = createFixture(scratch);
+const outlineStore = require('../narrative-outline.cjs');
+// Disposable fixture only: verify the second form row with an actual chapter.
+const testSeries=outlineStore.saveSeries(db,{title:'Deneme Dizisi',description:'Deneme açıklaması',position:0});
+outlineStore.saveChapter(db,{seriesKey:testSeries.key,title:'Deneme Bölümü',numberLabel:'1. Bölüm',position:0});
 const handlers = new Map();
 require('../narrative-ipc.cjs').registerNarrativeIpc({ handle: (name, fn) => handlers.set(name, fn) }, { database: () => db });
 const methods = { narrativeStatus: 'studio:narrative-status', narrativeOutlineStatus: 'studio:narrative-outline-status' };
@@ -39,63 +43,118 @@ try {
     assert.ok(Object.hasOwn(methods, name), 'Only read-only IPC is exposed');
     return handlers.get(methods[name])({});
   });
-  for (const width of [1920, 1366, 390]) for (const theme of ['light', 'dark']) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto(server.resolvedUrls.local[0], { waitUntil: 'networkidle' });
-    const cards = page.locator('.narrative-draft-card');
-    await cards.first().waitFor();
-    await page.evaluate(theme => { document.documentElement.dataset.studioTheme = theme; }, theme);
-    assert.equal(await cards.count(), 3);
-    const card = cards.first(), details = card.locator('.narrative-evidence-ledger'), toggle = details.locator('summary');
-    const body = await card.locator('.narrative-body').innerText();
-    assert.equal(body, permission);
-    assert.equal(await details.evaluate(node => node.open), false);
-    assert.equal(await details.locator('.narrative-ledger-content').isVisible(), false);
-    await toggle.click();
-    assert.equal(await details.evaluate(node => node.open), true);
-    const entry = details.locator('.narrative-ledger-entries > li').filter({ hasText: permission });
-    assert.equal(await entry.count(), 1);
-    assert.deepEqual(await entry.locator('code').allTextContents(), ['I8ec5jhbTH4']);
-    assert.ok((await entry.innerText()).includes('Mor Sıvı — Kaynak Video'));
-    assert.equal(await details.locator('.narrative-ledger-context code').count(), 4);
-    assert.ok((await details.innerText()).includes('Genel bağlam · özgül ayrıntı kanıtı değil'));
-    const unmapped = details.locator('.narrative-ledger-entries > li').filter({ hasText: 'Video eşlemesi olmayan ayrıntı.' });
-    assert.equal(await unmapped.locator('code').count(), 0);
-    assert.ok((await unmapped.innerText()).includes('özgül video eşlemesi yok'));
-    assert.equal((await details.innerText()).includes('TASLAĞA AİT OLMAYAN'), false);
-    assert.equal((await details.innerText()).includes('OLAY DEĞİLDİR'), false);
-    assert.equal(await card.locator('.narrative-body').innerText(), body);
-    const reading = await card.locator('.narrative-body').innerText();
-    for (const metadata of ['Genel bağlam', 'I8ec5jhbTH4', 'Kaynak Video', 'Frozen kaynak izi']) assert.equal(reading.includes(metadata), false);
-    const fallback = cards.nth(1).locator('.narrative-evidence-ledger');
-    await fallback.locator('summary').click();
-    assert.ok((await fallback.innerText()).includes('yalnız genel bağlam incelenebilir'));
-    assert.equal(await fallback.locator('.narrative-ledger-entries').count(), 0);
-    assert.equal(await fallback.locator('.narrative-ledger-node').count(), 1);
-    const layout = await details.evaluate(node => {
-      const content = node.querySelector('.narrative-ledger-text'), style = getComputedStyle(content);
-      const background = getComputedStyle(node.querySelector('.narrative-ledger-node')).backgroundColor;
-      const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
-      const a = luminance(style.color), b = luminance(background);
-      return { fontSize: parseFloat(style.fontSize), foreground: style.color, background, contrast: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), overflow: node.scrollWidth > node.clientWidth + 1, viewportOverflow: document.querySelector('.ai-stage-content').scrollWidth > innerWidth - 24 + 1 };
+  for (const width of [1920,1366,390]) for (const theme of ['light','dark']) {
+    await page.setViewportSize({width,height:900});
+    await page.goto(server.resolvedUrls.local[0],{waitUntil:'networkidle'});
+    await page.evaluate(theme=>{document.documentElement.dataset.studioTheme=theme},theme);
+    await page.getByRole('tab',{name:/Anlatı/}).waitFor();
+    assert.equal(await page.locator('.narrative-gate').count(),0,'Duplicated lower control row must be removed');
+    const headerLayout=await page.evaluate(()=>{
+      const header=document.querySelector('.narrative-header').getBoundingClientRect();
+      const actions=document.querySelector('.narrative-header-actions').getBoundingClientRect();
+      return {headerHeight:header.height,actionsRight:actions.right,headerRight:header.right,actionsTop:actions.top,headerTop:header.top,actionsBottom:actions.bottom,headerBottom:header.bottom,buttonCount:document.querySelectorAll('.narrative-header-actions button').length};
     });
-    assert.ok(layout.fontSize >= 14, JSON.stringify(layout));
-    assert.ok(layout.contrast >= 4.5, JSON.stringify(layout));
-    assert.equal(layout.overflow, false, JSON.stringify(layout));
-    assert.equal(layout.viewportOverflow, false, JSON.stringify(layout));
-    await details.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(out, `evidence-${theme}-${width}.png`), fullPage: true });
-    // Keyboard collapse/reopen/collapse; reader text must stay unchanged.
-    await toggle.focus(); await page.keyboard.press('Enter');
-    assert.equal(await details.evaluate(node => node.open), false);
-    await page.keyboard.press('Enter'); assert.equal(await details.evaluate(node => node.open), true);
-    await toggle.click(); assert.equal(await details.evaluate(node => node.open), false);
-    assert.equal(await card.locator('.narrative-body').innerText(), body);
-    results.push({ width, theme, ...layout });
+    assert(headerLayout.actionsRight<=headerLayout.headerRight+2 && headerLayout.actionsTop>=headerLayout.headerTop-2 && headerLayout.actionsBottom<=headerLayout.headerBottom+2,JSON.stringify(headerLayout));
+    assert(headerLayout.buttonCount>0,'Narrative phase action must stay in the header');
+    const cards=page.locator('.narrative-draft-card');
+    assert.equal(await cards.count(),3);
+    const body=await cards.first().locator('.narrative-body').innerText();
+    assert.equal(body,permission,'Narrative body must remain unchanged');
+    assert.equal(await page.getByText('Bu aşama yalnız onaylı Evren gerçeklerini').count(),0);
+    assert.equal(await page.getByText('Hazırlama işlemi approved Evreni').count(),0);
+    assert.equal(await page.locator('.narrative-next-stage').count(),0);
+    const controls=await page.evaluate(()=>{
+      const c=document.querySelector('.narrative-control-panel').getBoundingClientRect();
+      const shell=document.querySelector('.narrative-workbench');
+      const tabs=document.querySelector('.narrative-view-tabs').getBoundingClientRect();
+      return {height:c.height,tabs:tabs.height,outerScroll:shell.scrollHeight-shell.clientHeight,overflow:document.querySelector('.ai-stage-content').scrollWidth>innerWidth-24+1};
+    });
+    assert(controls.height<(width<780?370:230) && controls.tabs<=(width<520?90:48),JSON.stringify(controls));
+    assert(controls.outerScroll<=2 && !controls.overflow,JSON.stringify(controls));
+    const proseLayout=await cards.first().evaluate(card=>{
+      const paragraph=card.querySelector('.narrative-body');
+      const body=paragraph.getBoundingClientRect(), panel=card.getBoundingClientRect();
+      const reading=card.closest('.narrative-reading-view');
+      const cardStyle=getComputedStyle(card);
+      return {bodyWidth:body.width,cardWidth:panel.width,cardBackground:cardStyle.backgroundColor,areaBackground:getComputedStyle(reading).backgroundColor,cardBorderLeft:parseFloat(cardStyle.borderLeftWidth),technicalLabels:card.querySelectorAll('code').length};
+    });
+    assert(proseLayout.bodyWidth>proseLayout.cardWidth*.84 && proseLayout.cardBackground!==proseLayout.areaBackground && proseLayout.cardBorderLeft>=3 && proseLayout.technicalLabels===0,JSON.stringify({width,theme,proseLayout}));
+    await page.screenshot({path:path.join(out,'reading-'+theme+'-'+width+'.png')});
+    await page.getByRole('tab',{name:/Kaynaklar/}).click();
+    const ledgers=page.locator('.narrative-source-entry .narrative-evidence-ledger');
+    assert.equal(await ledgers.count(),3);
+    const evidence=ledgers.first();
+    await evidence.getByText('Genel bağlam',{exact:true}).first().waitFor();
+    const entry=evidence.locator('.narrative-ledger-entries>li').filter({hasText:permission});
+    assert.equal(await entry.count(),1);
+    assert.equal(await entry.locator('code').count(),0,'Raw video IDs must not be visible');
+    assert.equal(await entry.locator('.narrative-ledger-specific .narrative-ledger-videos li').count(),1,'Detail attribution must remain exact');
+    assert.ok((await entry.innerText()).includes('Mor Sıvı — Kaynak Video'));
+    assert.equal(await evidence.locator('.narrative-ledger-related .narrative-ledger-videos li').count(),4,'General video links must remain distinct from per-detail attribution');
+    assert.equal(await page.locator('.narrative-sources-view code').count(),0,'No raw record or video keys on sources view');
+    assert.equal(await page.getByText('Frozen',{exact:true}).count(),0);
+    assert.equal(await page.getByText('NEW',{exact:true}).count(),0);
+    assert(!(await page.locator('.narrative-sources-view').innerText()).includes('I8ec5jhbTH4'),'Video ID must not appear in visible text');
+    const unmapped=evidence.locator('.narrative-ledger-entries>li').filter({hasText:'Video eşlemesi olmayan ayrıntı.'});
+    assert.equal(await unmapped.locator('.narrative-ledger-specific .narrative-ledger-videos li').count(),0);
+    assert.ok((await unmapped.innerText()).includes('doğrudan eşleşen video belirtilmemiş'));
+    assert.ok((await ledgers.nth(1).innerText()).includes('yalnız genel bağlam incelenebilir'));
+    const measure=await evidence.evaluate(node=>{
+      const el=node.querySelector('.narrative-ledger-text'),sty=getComputedStyle(el);
+      const bg=getComputedStyle(node.querySelector('.narrative-ledger-node')).backgroundColor;
+      const l=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((t,v,i)=>t+v*[.2126,.7152,.0722][i],0);
+      return {fontSize:parseFloat(sty.fontSize),contrast:(Math.max(l(sty.color),l(bg))+.05)/(Math.min(l(sty.color),l(bg))+.05),overflow:node.scrollWidth>node.clientWidth+1};
+    });
+    assert(measure.fontSize>=14 && measure.contrast>=4.5 && !measure.overflow,JSON.stringify({width,theme,measure}));
+    assert.equal(await page.locator('.narrative-workbench details').count(),0,'Stage 05 must not have collapsible panels');
+    await page.screenshot({path:path.join(out,'sources-'+theme+'-'+width+'.png')});
+    await page.getByRole('tab',{name:/İçindekiler/}).click();
+    await page.locator('.narrative-outline-workspace').waitFor();
+    await page.getByRole('button',{name:'Önerileri getir'}).waitFor();
+    await page.getByRole('button',{name:'Dizi ekle'}).waitFor();
+    for(const obsolete of ['GÜNLÜK DÜZENİ','Kitaptaki sıralama','Kitapta otomatik','Video başlıklarından bölüm önerileri']) {
+      assert.equal(await page.getByText(obsolete,{exact:true}).count(),0,obsolete+' should be removed');
+    }
+    assert.equal(await page.locator('.narrative-outline details, .outline-help, .narrative-outline-intro').count(),0);
+    const outlineLayout=await page.locator('.narrative-outline').evaluate(root=>{
+      const rect=selector=>{const el=root.querySelector(selector);const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,scrollWidth:el.scrollWidth,clientWidth:el.clientWidth};};
+      return {
+        tree:rect('.narrative-outline-tree'),edit:rect('.narrative-outline-edit-pane'),
+        leftAction:rect('.narrative-outline-tree .outline-panel-toolbar button'),
+        rightAction:rect('.narrative-outline-edit-pane .outline-panel-toolbar button'),
+        description:rect('.outline-series-fields .outline-field-description'),
+        position:rect('.outline-series-fields .outline-field-position'),
+        save:rect('.outline-series-fields .outline-field-save'),
+        row:rect('.outline-series-fields .outline-edit-detail-row')
+      };
+    });
+    assert(outlineLayout.tree.scrollWidth<=outlineLayout.tree.clientWidth+2 && outlineLayout.edit.scrollWidth<=outlineLayout.edit.clientWidth+2,JSON.stringify({width,theme,outlineLayout}));
+    if(width>780){
+      assert(Math.abs(outlineLayout.tree.width-outlineLayout.edit.width)<5,'Both work panels must have matching width');
+      assert(Math.abs(outlineLayout.leftAction.y-outlineLayout.rightAction.y)<3,'Action buttons must share the same toolbar row');
+      assert(Math.abs(outlineLayout.description.y-outlineLayout.position.y)<3 && Math.abs(outlineLayout.position.bottom-outlineLayout.save.bottom)<3,'Series description / position / save must be on one row');
+      assert(outlineLayout.save.right<=outlineLayout.edit.right-5,'Save button must fit into right panel');
+    }
+    await page.locator('[data-outline-node="series"] .outline-node-title').first().click();
+    await page.getByLabel('Bölüm sırası',{exact:true}).waitFor();
+    const chapterLayout=await page.locator('.outline-chapter-fields .outline-edit-detail-row').evaluate(row=>{
+      const rect=sel=>{const r=row.querySelector(sel).getBoundingClientRect();return {y:r.y,bottom:r.bottom,right:r.right}};
+      return {label:rect('.outline-field-description'),order:rect('.outline-field-position'),save:rect('.outline-field-save'),scrollWidth:row.scrollWidth,clientWidth:row.clientWidth};
+    });
+    assert(chapterLayout.scrollWidth<=chapterLayout.clientWidth+2,JSON.stringify({width,theme,chapterLayout}));
+    if(width>780)assert(Math.abs(chapterLayout.label.y-chapterLayout.order.y)<3 && Math.abs(chapterLayout.order.bottom-chapterLayout.save.bottom)<3,'Chapter label/order/save must share a row');
+    assert.equal(await page.locator('.narrative-outline details').count(),0);
+    await page.screenshot({path:path.join(out,'outline-'+theme+'-'+width+'.png')});
+    await page.getByRole('tab',{name:'Çeviriler'}).click();
+    await page.getByRole('tab',{name:'İçindekiler'}).last().click();
+    assert.equal(await page.locator('.publication-language-editor.embedded:visible').count(),1);
+    assert.equal(await page.locator('.publication-language-editor summary').count(),0);
+    await page.screenshot({path:path.join(out,'translations-'+theme+'-'+width+'.png')});
+    results.push({width,theme,controls,measure});
   }
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(out, 'verification.json'), JSON.stringify({ results, errors, realDatabaseOpened: false }, null, 2));
-  console.log('PASS Stage4.3 React/IPC evidence ledger: 1920/1366/390 light/dark, collapsed by default, mouse/keyboard toggle, exact detail video IDs, summary fallback and reader separation. Artifacts:', out);
+  console.log('PASS Stage05 React/IPC: compact top bar, no disclosure panels, direct content tabs, safe evidence ledger, readable TR/EN and outline; 1920/1366/390 light/dark. Artifacts:', out);
 } catch (error) {
   if (page) await page.screenshot({ path: path.join(out, 'failure.png'), fullPage: true }).catch(() => {});
   console.error('Browser verification did not pass. Artifacts:', out);

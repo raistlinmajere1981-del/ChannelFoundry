@@ -276,7 +276,7 @@ function registerChannelProjectIpc(ipcMain, runtime, options = {}) {
 module.exports = {
   DEFAULT_ROOT, validateId, normalize, readProject, listProjects, activeProject,
   activeProjectId, setActiveProject, createProject, updateProject, activeDataRoot,
-  normalizeNarrator, bindDatabaseProject, narratorForDatabase,
+  normalizeNarrator, bindDatabaseProject, databaseProjectScope, narratorForDatabase,
   narratorSourcesForProject,
   registerChannelProjectIpc,
 };

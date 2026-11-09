@@ -126,7 +126,10 @@ try {
   assert.equal(status.entities[0].hasImage, true, "Global entity görseli anlatı revizyonları arasında yeniden kullanılmalı");
 
   const ui = fs.readFileSync(path.join(__dirname, "src", "VisualCompletionWorkbench.tsx"), "utf8");
-  assert.match(ui, /06 · GÖRSEL TAMAMLAMA/);
+  assert.doesNotMatch(ui, /06 · GÖRSEL TAMAMLAMA|Onaylı anlatının görsel katmanını tamamla|GÖRSEL KARARI BEKLİYOR|Publication v2’ye semantik asset olarak aktarılacak/);
+  assert.doesNotMatch(ui, /className="panel visual-completion-header"|className={`panel visual-completion-gate$/);
+  assert.match(ui, /className="visual-completion-metrics"/);
+  for (const label of ["SAHNE HAZIR", "GÖRSELSİZ", "BEKLİYOR", "ARŞİV GÖRSELİ"]) assert.ok(ui.includes(label), `Missing metric: ${label}`);
   assert.match(ui, /visualCompletionSetSceneState/);
   assert.match(ui, /VisualProfileEditor/);
   assert.match(ui, /1536x1024/);

@@ -172,3 +172,415 @@ html[data-studio-text-size] .studio-shell .analysis-curation-detail> .analysis-c
     padding:12px 0 0;
   }
 }
+
+/* Curation editor: independent reading cards, decisions below the text, semantic theme colors. */
+.analysis-curation-workbench .analysis-curation-scroll > header{
+  align-items:flex-start;
+  padding:16px 18px;
+  gap:16px;
+}
+.analysis-curation-workbench .analysis-curation-scroll>header h3{
+  font-size:clamp(18px,1.25vw,23px);
+  line-height:1.35;
+}
+.analysis-curation-workbench .analysis-curation-state{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  flex:0 0 auto;
+  min-height:31px;
+  padding:6px 11px;
+  border:1px solid var(--state-warning-border);
+  border-radius:5px;
+  background:var(--state-warning-soft);
+  color:var(--state-warning);
+  font-size:var(--studio-font-sm,12px);
+  font-weight:650;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.analysis-curation-workbench .analysis-curation-state i{
+  display:inline-block;
+  width:7px;
+  height:7px;
+  flex:0 0 auto;
+  border-radius:50%;
+  background:currentColor;
+}
+.analysis-curation-workbench .analysis-curation-state.curated{
+  border-color:var(--state-success-border);
+  background:var(--state-success-soft);
+  color:var(--state-success);
+}
+.analysis-curation-workbench .analysis-curation-state.excluded{
+  border-color:var(--state-danger-border);
+  background:var(--state-danger-soft);
+  color:var(--state-danger);
+}
+.analysis-curation-workbench .analysis-curation-scroll>section{
+  padding:16px 18px;
+}
+.analysis-curation-workbench .analysis-curation-decision-summary{
+  border:1px solid var(--border-soft)!important;
+  border-radius:5px;
+  background:var(--surface-panel-soft)!important;
+}
+.analysis-curation-workbench .analysis-curation-auto-summary{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 14px;
+  border:1px solid var(--state-success-border);
+  border-radius:5px;
+  background:var(--state-success-soft);
+}
+.analysis-curation-workbench .analysis-curation-auto-summary strong{
+  color:var(--text-primary)!important;
+  font-size:var(--studio-font-body,14px);
+  line-height:1.4;
+}
+.analysis-curation-workbench .analysis-curation-auto-summary p{
+  color:var(--text-secondary)!important;
+  font-size:var(--studio-font-sm,12px);
+  line-height:1.45;
+}
+.analysis-curation-workbench .analysis-curation-auto-summary .text-button{
+  min-height:32px;
+  padding:6px 9px;
+  border:1px solid var(--state-success-border);
+  border-radius:5px;
+  background:var(--surface-panel-soft);
+  color:var(--text-primary);
+  font-size:var(--studio-font-sm,12px);
+}
+.analysis-curation-workbench .analysis-curation-auto-summary .text-button:hover{
+  background:var(--surface-hover);
+}
+.analysis-curation-workbench .analysis-curation-auto-empty{
+  padding:15px;
+  border:1px dashed var(--border-control);
+  border-radius:5px;
+  background:var(--surface-panel-soft);
+  color:var(--text-secondary);
+  font-size:var(--studio-font-sm,12px);
+  line-height:1.5;
+}
+.analysis-curation-workbench .analysis-curation-items{
+  display:grid;
+  gap:12px;
+  border:0!important;
+  background:transparent!important;
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-reading-entry{
+  display:flex;
+  flex-direction:column;
+  gap:15px;
+  min-width:0;
+  padding:18px 20px;
+  border:1px solid var(--border-control);
+  border-radius:6px;
+  background:var(--surface-panel-soft)!important;
+  transition:border-color .14s ease,box-shadow .14s ease;
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-reading-entry:focus-within{
+  border-color:var(--accent-muted);
+  box-shadow:inset 3px 0 var(--accent);
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-reading-entry.needs-review{
+  border-color:var(--state-warning-border);
+}
+.analysis-curation-workbench .analysis-curation-entry-main{
+  width:100%;
+}
+.analysis-curation-workbench .analysis-curation-entry-decision{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+  min-width:0;
+  padding:12px 0 0;
+  border-left:0;
+  border-top:1px solid var(--border-soft);
+}
+.analysis-curation-workbench .analysis-curation-resolution{
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:6px 10px;
+  align-self:flex-start;
+  padding:6px 9px;
+  background:var(--surface-panel);
+  color:var(--text-secondary);
+}
+.analysis-curation-workbench .analysis-curation-resolution.needs-review{
+  background:var(--state-warning-soft);
+  border-color:var(--state-warning-border);
+}
+.analysis-curation-workbench .analysis-curation-choice-group{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.analysis-curation-workbench .analysis-curation-choice{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:36px;
+  padding:8px 13px;
+  border:1px solid var(--border-control);
+  border-radius:999px;
+  background:var(--surface-panel);
+  color:var(--text-secondary);
+  font:600 var(--studio-font-sm,12px)/1.25 var(--font-ui);
+  text-align:center;
+  cursor:pointer;
+  transition:background .14s ease,border-color .14s ease,color .14s ease;
+}
+.analysis-curation-workbench .analysis-curation-choice i{
+  width:7px;
+  height:7px;
+  flex:0 0 auto;
+  border:1px solid currentColor;
+  border-radius:50%;
+}
+.analysis-curation-workbench .analysis-curation-choice:not(:disabled):hover{
+  border-color:var(--accent-muted);
+  background:var(--surface-hover);
+  color:var(--text-primary);
+}
+.analysis-curation-workbench .analysis-curation-choice.include.active,
+.analysis-curation-workbench .analysis-curation-choice.confirm.active{
+  border-color:var(--state-success-border);
+  background:var(--state-success-soft);
+  color:var(--state-success);
+}
+.analysis-curation-workbench .analysis-curation-choice.context.active{
+  border-color:var(--state-warning-border);
+  background:var(--state-warning-soft);
+  color:var(--state-warning);
+}
+.analysis-curation-workbench .analysis-curation-choice.exclude.active{
+  border-color:var(--state-danger-border);
+  background:var(--state-danger-soft);
+  color:var(--state-danger);
+}
+.analysis-curation-workbench .analysis-curation-choice.active i{
+  background:currentColor;
+}
+.analysis-curation-workbench .analysis-curation-choice:focus-visible{
+  outline:2px solid var(--focus-ring);
+  outline-offset:2px;
+}
+.analysis-curation-workbench .analysis-curation-choice:disabled{
+  opacity:.7;
+  cursor:not-allowed;
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-support-entry{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:12px;
+  padding:12px 15px;
+  border:1px solid var(--border-control);
+  border-radius:6px;
+  background:var(--surface-panel-soft)!important;
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-support-entry:focus-within{
+  border-color:var(--accent-muted);
+  box-shadow:inset 3px 0 var(--accent);
+}
+.analysis-curation-workbench .analysis-curation-support-entry .analysis-curation-choice-group{
+  padding-top:9px;
+  border-top:1px solid var(--border-soft);
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-support-entry small{
+  color:var(--text-secondary);
+  font-size:max(11px,var(--studio-font-xs,11px));
+}
+.analysis-curation-workbench .analysis-curation-items article.analysis-curation-support-entry strong{
+  margin-top:4px;
+  font-size:max(13px,var(--studio-font-body,14px));
+  line-height:1.3;
+}
+.analysis-curation-workbench .analysis-curation-manual{
+  gap:12px;
+  margin-top:16px;
+}
+.analysis-curation-workbench .analysis-curation-manual label{
+  color:var(--text-primary);
+  font-size:max(12px,var(--studio-font-sm,12px));
+  font-weight:600;
+  line-height:1.45;
+}
+.analysis-curation-workbench .analysis-curation-manual textarea{
+  min-height:90px;
+  padding:10px;
+  border:1px solid var(--border-control);
+  border-radius:5px;
+  background:var(--surface-input);
+  color:var(--text-primary);
+  font:var(--studio-font-body,14px)/1.5 var(--font-ui);
+}
+.analysis-curation-workbench .analysis-curation-manual textarea::placeholder{
+  color:var(--text-muted);
+  opacity:1;
+}
+.analysis-curation-workbench .analysis-curation-actions{
+  background:var(--surface-panel-soft);
+  border-color:var(--border-soft);
+}
+.analysis-curation-workbench .analysis-curation-actions .text-button,
+.analysis-curation-workbench .analysis-curation-actions .secondary-button{
+  color:var(--text-primary);
+  font-size:var(--studio-font-body,14px);
+  border:1px solid var(--border-control);
+  background:var(--surface-panel);
+}
+.analysis-curation-workbench .analysis-curation-actions .text-button:not(:disabled):hover,
+.analysis-curation-workbench .analysis-curation-actions .secondary-button:not(:disabled):hover{
+  background:var(--surface-hover);
+  border-color:var(--accent-muted);
+}
+.analysis-curation-workbench .analysis-curation-actions .primary-button{
+  font-size:var(--studio-font-body,14px);
+  font-weight:650;
+}
+@media(max-width:850px){
+  .analysis-curation-workbench .analysis-curation-scroll>header{
+    flex-wrap:wrap;
+  }
+  .analysis-curation-workbench .analysis-curation-auto-summary{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}
+html[data-studio-motion="reduced"] .analysis-curation-choice,
+html[data-studio-motion="reduced"] .analysis-curation-reading-entry{
+  transition:none!important;
+}
+
+/* Theme fidelity for decision chips against shared button rules. */
+.studio-shell .analysis-curation-workbench .analysis-curation-choice:not(.active){
+  background:var(--surface-panel)!important;
+  border-color:var(--border-control)!important;
+  color:var(--text-primary)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-choice:not(.active):not(:disabled):hover{
+  background:var(--surface-hover)!important;
+  border-color:var(--accent-muted)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-choice.include.active,
+.studio-shell .analysis-curation-workbench .analysis-curation-choice.confirm.active{
+  background:var(--state-success-soft)!important;
+  border-color:var(--state-success-border)!important;
+  color:var(--state-success)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-choice.context.active{
+  background:var(--state-warning-soft)!important;
+  border-color:var(--state-warning-border)!important;
+  color:var(--state-warning)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-choice.exclude.active{
+  background:var(--state-danger-soft)!important;
+  border-color:var(--state-danger-border)!important;
+  color:var(--state-danger)!important;
+}
+
+/* The whole record echoes the active decision; all theme tones remain subtle. */
+.studio-shell .analysis-curation-workbench .analysis-curation-items article:is(.analysis-curation-reading-entry,.analysis-curation-support-entry).decision-include,
+.studio-shell .analysis-curation-workbench .analysis-curation-items article:is(.analysis-curation-reading-entry,.analysis-curation-support-entry).decision-confirm{
+  background:color-mix(in srgb,var(--state-success) 8%,var(--surface-panel-soft))!important;
+  border-color:var(--state-success-border)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-items article:is(.analysis-curation-reading-entry,.analysis-curation-support-entry).decision-context{
+  background:color-mix(in srgb,var(--state-warning) 8%,var(--surface-panel-soft))!important;
+  border-color:var(--state-warning-border)!important;
+}
+.studio-shell .analysis-curation-workbench .analysis-curation-items article:is(.analysis-curation-reading-entry,.analysis-curation-support-entry).decision-exclude{
+  background:color-mix(in srgb,var(--state-danger) 8%,var(--surface-panel-soft))!important;
+  border-color:var(--state-danger-border)!important;
+}
+
+/* The removed automatic-decision panels are condensed into the existing top strip. */
+.analysis-curation-workbench>.analysis-curation-summary{
+  display:flex;
+  align-items:stretch;
+  flex-wrap:nowrap;
+  gap:1px;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border-control) transparent;
+}
+.analysis-curation-workbench>.analysis-curation-summary>span{
+  display:inline-flex;
+  align-items:center;
+  flex:1 0 100px;
+  gap:7px;
+  min-width:95px;
+  padding:8px 10px;
+  white-space:nowrap;
+  font-size:max(10px,var(--studio-font-xs,10px));
+}
+.analysis-curation-workbench>.analysis-curation-summary>span>b{
+  font-size:clamp(16px,1.2vw,20px);
+  font-variant-numeric:tabular-nums;
+}
+.analysis-curation-workbench .analysis-curation-selected-summary{
+  display:flex;
+  flex:2 0 auto;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px;
+  min-width:max-content;
+  padding:4px 8px;
+  background:var(--surface-panel-soft);
+  border-left:1px solid var(--border-control);
+}
+.analysis-curation-workbench .analysis-curation-selected-summary>span{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 7px;
+  border:1px solid var(--border-soft);
+  border-radius:4px;
+  background:var(--surface-panel);
+  color:var(--text-secondary);
+  font:500 max(10px,var(--studio-font-xs,10px))/1.3 var(--font-ui);
+  white-space:nowrap;
+}
+.analysis-curation-workbench .analysis-curation-selected-summary b{
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+  color:var(--text-primary);
+}
+.analysis-curation-workbench .analysis-curation-selected-summary>span.attention,
+.analysis-curation-workbench .analysis-curation-selected-summary>span.context{
+  border-color:var(--state-warning-border);
+  color:var(--state-warning);
+}
+.analysis-curation-workbench .analysis-curation-selected-summary>span.include{
+  border-color:var(--state-success-border);
+  color:var(--state-success);
+}
+.analysis-curation-workbench .analysis-curation-selected-summary>span.exclude{
+  border-color:var(--state-danger-border);
+  color:var(--state-danger);
+}
+.analysis-curation-workbench .analysis-curation-items{
+  overflow-anchor:none;
+}
+/* During a long-distance reorder a lightweight copy leaves the old reading position.
+   It cannot receive clicks or keyboard focus; the actual card is already in its new slot. */
+.analysis-curation-moving-ghost{
+  box-shadow:0 8px 25px rgba(0,0,0,.12)!important;
+  contain:paint;
+}
+@media(prefers-reduced-motion:reduce){
+  .analysis-curation-moving-ghost{display:none!important}
+}

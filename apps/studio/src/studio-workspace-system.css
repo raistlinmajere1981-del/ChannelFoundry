@@ -196,35 +196,9 @@ html[data-studio-motion="reduced"] .studio-shell *::after{
  .ops-dashboard .ops-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 
-/* Advanced search controls are optional, not always-on scaffolding. */
-.subtitle-advanced-filters{
-  min-width:0;
-  border-top:1px solid var(--border-soft);
-}
-.subtitle-advanced-filters>summary{
-  display:inline-flex;
-  align-items:center;
-  min-height:34px;
-  gap:8px;
-  padding:7px 0;
-  color:var(--accent)!important;
-  font-size:var(--studio-font-sm)!important;
-  font-weight:600;
-  cursor:pointer;
-  list-style:none;
-}
-.subtitle-advanced-filters>summary::-webkit-details-marker{display:none}
-.subtitle-advanced-filters>summary:before{
-  content:"›";
-  display:inline-block;
-  transform:rotate(0);
-  transition:transform .15s ease;
-  font-size:17px;
-  line-height:1;
-}
-.subtitle-advanced-filters[open]>summary:before{transform:rotate(90deg)}
-.subtitle-advanced-filters .subtitle-control-grid{margin-top:9px;padding-bottom:5px}
-.subtitle-advanced-filters[open]{padding-bottom:9px}
+/* Research filters always remain visible; the controls share a fixed search sheet. */
+.subtitle-advanced-filters{min-width:0;border-top:1px solid var(--border-soft)}
+.subtitle-advanced-filters .subtitle-control-grid{margin:0;padding:0}
 .ai-production-workbench .ai-activity-copy strong{font-size:14px}
 .ai-production-workbench .ai-activity-model{width:min(205px,29vw);min-width:150px}
 .ai-production-workbench .ai-activity-progress:not(.active):not(:has(i[style*="100%"])){height:0!important;margin-top:0;overflow:hidden}

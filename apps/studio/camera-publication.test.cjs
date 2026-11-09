@@ -4,14 +4,16 @@ const { DatabaseSync } = require('node:sqlite');
 const { publicVideoSummaries } = require('./ai-analysis-public.cjs');
 function database() {
   const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE source_ai_analyses (provider TEXT, external_id TEXT, title TEXT, summary TEXT);
+  db.exec(`CREATE TABLE source_ai_analyses (provider TEXT, external_id TEXT, title TEXT, summary TEXT,core_json TEXT DEFAULT '{}',source_hash TEXT DEFAULT '');
+    CREATE TABLE source_transcripts(provider TEXT, external_id TEXT, text TEXT, language TEXT);
     CREATE TABLE ai_analysis_jobs (provider TEXT, external_id TEXT, state TEXT);
     CREATE TABLE ai_analysis_editorial_reviews (provider TEXT, external_id TEXT, state TEXT);
     CREATE TABLE youtube_videos (video_id TEXT, title TEXT, thumbnail_url TEXT, published_at TEXT, duration_seconds INTEGER, availability TEXT);`);
   return db;
 }
 function insert(db, id, {job='done', review='curated', summary='Completed analysis', title='Recorded title', duration=2490}={}) {
-  db.prepare('INSERT INTO source_ai_analyses VALUES (?,?,?,?)').run('youtube',id,title,summary);
+  db.prepare('INSERT INTO source_ai_analyses(provider,external_id,title,summary) VALUES (?,?,?,?)').run('youtube',id,title,summary);
+  db.prepare('INSERT INTO source_transcripts VALUES(?,?,?,?)').run('youtube',id,'Source transcript','tr');
   if(job) db.prepare('INSERT INTO ai_analysis_jobs VALUES (?,?,?)').run('youtube',id,job);
   if(review) db.prepare('INSERT INTO ai_analysis_editorial_reviews VALUES (?,?,?)').run('youtube',id,review);
   db.prepare('INSERT INTO youtube_videos VALUES (?,?,?,?,?,?)').run(id,title,`https://i.ytimg.com/vi/${id}/mqdefault.jpg`,'2026-10-29',duration,'public');

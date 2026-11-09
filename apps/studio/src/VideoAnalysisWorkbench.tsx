@@ -1,3 +1,4 @@
+import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
 import {
@@ -47,6 +48,13 @@ export default function VideoAnalysisWorkbench() {
   useEffect(() => {
     void load().catch((reason) => notify(errorText(reason), "error"));
     return bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
+  }, []);
+
+  // Direct terminal imports happen outside Electron IPC. Refresh when Studio regains focus.
+  useEffect(() => {
+    const refreshExternalChanges = () => { void load().catch((reason) => notify(errorText(reason), "error")); };
+    window.addEventListener("focus", refreshExternalChanges);
+    return () => window.removeEventListener("focus", refreshExternalChanges);
   }, []);
 
   useEffect(() => {
@@ -198,7 +206,7 @@ export default function VideoAnalysisWorkbench() {
         {listView === "grid" && <div className="ai-source-card-head"><label><input ref={selectPageRef} type="checkbox" aria-label="Bu sayfadaki videoları seç" disabled={!visible.length || busy} checked={pageSelected} onChange={togglePage}/><span>Bu sayfadaki videolar</span></label><button type="button" onClick={() => { setDateSortDirection((current) => current === "desc" ? "asc" : "desc"); setPage(1); }}>Tarih {dateSortDirection === "desc" ? "↓" : "↑"}</button></div>}
         <div className={`ai-source-rows${listView === "grid" ? " grid-view" : ""}`}>{visible.map((video) => <article key={video.videoId} className={activeVideoId === video.videoId ? "active" : ""} onClick={() => setActiveVideoId(video.videoId)}>
           <input type="checkbox" checked={selected.has(video.videoId)} onClick={(event) => event.stopPropagation()} onChange={() => toggle(video.videoId)}/>
-          <div className="ai-source-video-main"><img src={video.thumbnailUrl} alt="" loading="lazy"/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); event.stopPropagation(); void openYoutubeVideo(video); }}>{video.title}</a><small>{video.videoId}</small>{video.jobState === "error" && <em title={video.jobError}>{video.jobError}</em>}</div></div>
+          <div className="ai-source-video-main"><img src={video.thumbnailUrl} alt="" loading="lazy"/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); event.stopPropagation(); void openYoutubeVideo(video); }}>{video.title}</a>{video.jobState === "error" && <em title={video.jobError}>{video.jobError}</em>}</div></div>
           <span className="ai-source-date">{formatDate(video.publishedAt)}</span>
           {!video.hasAnalysis && !["waiting", "running"].includes(video.jobState)
             ? <button type="button" className="ai-analysis-row-action" disabled={busy || !config?.configured} title={config?.configured ? `“${video.title}” videosunu çözümle` : "AI yapılandırılmadı"} onClick={(event) => { event.stopPropagation(); void enqueueVideo(video); }}>{video.jobState === "error" ? "Tekrar çözümle" : "Çözümle"}</button>
@@ -208,6 +216,7 @@ export default function VideoAnalysisWorkbench() {
       </section>
 
       <section className="ai-review panel">
+        {activeVideoId && result && <PublicationLanguageEditor key={activeVideoId} kind="video" id={activeVideoId}/>}
         {activeVideo ? <>
           <div className="ai-review-head"><div><small>VİDEO ANLATI DOSYASI</small><h3>{activeVideo.title}</h3><p>{formatDate(activeVideo.publishedAt)} · {formatDuration(activeVideo.durationSeconds)}</p></div><span className={`analysis-state ${activeVideo.jobState || (activeVideo.hasAnalysis ? "done" : "idle")}`}>{stateLabel(activeVideo)}</span></div>
           {result ? <div className="ai-review-body">

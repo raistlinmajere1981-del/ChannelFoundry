@@ -16,16 +16,21 @@ try {
       {videoId:"LMNOPQRSTUV",title:"Özel video",summary:"Yayınlanamaz.",publicationStatus:"published",analysisStatus:"complete",membersOnly:true}]},
     vefkCatalog:{entries:[{id:"vefk-1",title:"Örnek vefk",description:"Vefk örnek çalışması",document:{id:"vefk-1"}}]},
   };
+  const status={status:'approved',sourceHash:'b'.repeat(64),revision:1};
+  for(const s of snapshot.journal.sections) s.locales={tr:{...status,title:s.title,blocks:s.blocks},en:{...status,title:'English chapter',blocks:[{type:'paragraph',text:'Approved English source.'}]}};
+  for(const v of snapshot.youtubeAnalysis.videos)v.locales={tr:{...status,title:v.title,summary:v.summary}};
+  snapshot.vefkLanguages={'vefk-1':{tr:{...status,title:'Örnek vefk',description:'Vefk örnek çalışması'}}};
   const original = seo.overview(temp,snapshot);
-  assert.equal(original.rows.length,3,"Yalnız yayımlanan içerikler SEO listesinde olmalı.");
+  assert.equal(original.rows.length,4,"Yalnız yayımlanan içerikler SEO listesinde olmalı.");
   assert(!original.rows.some(x=>x.id==="LMNOPQRSTUV"),"Özel video SEO'da olmamalı.");
-  seo.update(temp,{kind:"section",id:"book:chapter-1",title:"Özel başlık",description:"Editör onaylı açıklama."},snapshot);
+  seo.update(temp,{language:'tr',approved:true,sourceHash:seo.defaults(snapshot).find(r=>r.kind==='section'&&r.language==='tr').sourceHash,kind:"section",id:"book:chapter-1",title:"Özel başlık",description:"Editör onaylı açıklama."},snapshot);
+  assert.equal(seo.manifest(temp,snapshot,'https://example.org').pages.length,1,'Yalnız elle onaylı SEO manifestte olmalı');
   const manifest=seo.manifest(temp,snapshot,"https://example.org");
   assert.equal(manifest.contentFingerprint,snapshot.publication.contentFingerprint);
   assert.equal(manifest.pages[0].title,"Özel başlık");
-  assert.equal(manifest.pages[0].path,"/evren/bolum/book%3Achapter-1");
+  assert.equal(manifest.pages[0].path,"/tr/evren/bolum/book%3Achapter-1");
   assert(!JSON.stringify(manifest).includes("Yayınlanamaz."));
-  assert.throws(()=>seo.update(temp,{kind:"section",id:"unpublished",title:"X",description:"X"},snapshot));
+  assert.throws(()=>seo.update(temp,{language:'tr',approved:true,sourceHash:seo.defaults(snapshot).find(r=>r.kind==='section'&&r.language==='tr').sourceHash,kind:"section",id:"unpublished",title:"X",description:"X"},snapshot));
   assert(!!manifest.pages[0].contentHash);
   const env={...process.env,CHANNEL_FOUNDRY_SEO_FILE:path.join(temp,"seo-manifest.json")};
   const encoded=Buffer.from(JSON.stringify({manifest,snapshot}),"utf8").toString("base64");

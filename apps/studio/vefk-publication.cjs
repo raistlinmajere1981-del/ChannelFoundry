@@ -102,7 +102,13 @@ function select(db, input) {
 }
 
 function buildCatalog(db) {
-  const entries = selected(db).map(item => {
+  let selections = selected(db);
+  // The managed channel artwork stays first; all future Studio types are free.
+  if (selections.some(item => item.id === 'birdesengor-channel-drawing')) {
+    selections = selections.map(item => ({ ...item, sortOrder: item.id === 'birdesengor-channel-drawing' ? 0 : Math.max(1, item.sortOrder) }))
+      .sort((a,b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+  const entries = selections.map(item => {
     const record = store.getDocument(db, item.id, item.revision);
     if (!record || !["approved", "published"].includes(record.status) ||
         record.contentHash !== item.contentHash) {

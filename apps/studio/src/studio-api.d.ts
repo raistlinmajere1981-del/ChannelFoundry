@@ -340,11 +340,12 @@ type StudioWebsiteInsights = {
   contents: Array<{ area: string; contentKey: string; views: number }>;
 };
 type StudioSeoRow = {
-  kind: "section" | "video" | "vefk"; id: string; title: string; description: string;
-  source: string; path: string; override: boolean; needsReview: boolean;
+  kind: "section" | "video" | "vefk"; language:PublicationLanguage; id: string; title: string; description: string;
+  source: string; sourceHash:string; path: string; override: boolean; needsReview: boolean;
 };
 type StudioSeoOverview = {
   site: { title: string; description: string; image: string };
+  sites:Record<PublicationLanguage,{title:string;description:string;image:string}>;
   rows: StudioSeoRow[]; draftCount: number;
 };
 
@@ -514,9 +515,13 @@ interface Window {
     exportPublicSnapshot(): Promise<StudioPublicExportResult>;
     publishPublicSnapshot(): Promise<StudioPublicPublishResult>;
     analyticsSummary(days?: number): Promise<StudioWebsiteInsights>;
+    languagesOverview(): Promise<PublicationLanguageOverview>;
+    languagesGet(input:{kind:PublicationLanguageKind;id:string}): Promise<PublicationLanguagePack|null>;
+    languagesSave(input:{kind:PublicationLanguageKind;id:string;language:PublicationLanguage;data:LanguageData;sourceHash:string;revision:number;approved:boolean}): Promise<PublicationLanguagePack>;
+    languagesGenerate(input:{kind:PublicationLanguageKind;id:string;language:PublicationLanguage}): Promise<PublicationLanguagePack>;
     seoOverview(): Promise<StudioSeoOverview>;
-    seoSave(input: { kind: string; id?: string; title: string; description: string; image?: string }): Promise<StudioSeoOverview>;
-    seoSuggest(input: { kind: string; id: string }): Promise<{ title: string; description: string }>;
+    seoSave(input: { kind: string; language:PublicationLanguage; approved?:boolean; sourceHash?:string; id?: string; title: string; description: string; image?: string }): Promise<StudioSeoOverview>;
+    seoSuggest(input: { kind: string; language:PublicationLanguage; id: string }): Promise<{ title: string; description: string }>;
     getPublicationInfo(): Promise<StudioPublicationInfo | null>;
     showPublicExport(): Promise<boolean>;
     getDatabaseInfo(): Promise<StudioDatabaseInfo>;
@@ -531,3 +536,10 @@ interface Window {
     communitySetStatus(input: { userId: number; status: "active" | "suspended" }): Promise<{ ok: true; userId: number; status: "active" | "suspended" }>;
   };
 }
+
+type PublicationLanguage = "tr" | "en";
+type PublicationLanguageKind = "video" | "section" | "vefk" | "entity" | "outline";
+type LanguageData = Record<string, unknown>;
+type PublicationLanguageVariant = {language:PublicationLanguage;data:LanguageData;state:"draft"|"approved";stale:boolean;sourceHash:string;revision:number;approvedRevision:number;manual:boolean;model:string;promptVersion:string;candidate:LanguageData|null;jobState:string;error:string};
+type PublicationLanguagePack = {kind:PublicationLanguageKind;id:string;sourceHash:string;source:LanguageData;variants:Partial<Record<PublicationLanguage,PublicationLanguageVariant>>;flags?:Record<"ready"|"missing"|"pending"|"stale"|"errors",boolean>};
+type PublicationLanguageOverview = {rows:PublicationLanguagePack[];counts:Record<"ready"|"missing"|"pending"|"stale"|"errors",number>};

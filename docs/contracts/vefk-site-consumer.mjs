@@ -214,6 +214,7 @@ export async function readVefkPublication(raw, scene) {
   requireHash(raw.publication?.contentFingerprint, "Publication içerik hash'i");
   const snapshotMeaning = {
     schemaVersion: 2,
+    ...(raw.languageVersion ? {languageVersion:raw.languageVersion,languages:raw.languages,vefkLanguages:raw.vefkLanguages} : {}),
     journal: raw.journal,
     archive: raw.archive,
     assets: raw.assets,

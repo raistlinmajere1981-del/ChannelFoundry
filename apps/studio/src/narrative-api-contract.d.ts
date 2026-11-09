@@ -159,6 +159,7 @@ type StudioNarrativeOutlineStatus = {
   series: StudioNarrativeSeries[];
   chapters: StudioNarrativeChapter[];
   assignments: StudioNarrativePlacement[];
+  independentOrder: string[];
 };
 
 type StudioNarrativeBridge = {
@@ -175,4 +176,5 @@ type StudioNarrativeBridge = {
   narrativeOutlineSaveSeries(input: Partial<StudioNarrativeSeries> & { title: string }): Promise<StudioNarrativeSeries>;
   narrativeOutlineSaveChapter(input: Partial<StudioNarrativeChapter> & { title: string; seriesKey: string }): Promise<StudioNarrativeChapter>;
   narrativeOutlinePlaceSection(input: { sectionKey: string; chapterKey: string | null; position?: number }): Promise<{ sectionKey: string; chapterKey: string | null; position?: number }>;
+  narrativeOutlineMove(input: { kind: "series" | "chapter" | "section"; key: string; parentKey?: string | null; beforeKey?: string | null }): Promise<StudioNarrativeOutlineStatus>;
 };

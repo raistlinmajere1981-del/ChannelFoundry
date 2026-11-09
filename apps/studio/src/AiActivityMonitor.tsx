@@ -97,7 +97,7 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
             title: "Görsel üretimi çalışıyor",
             detail: `${activeSession?.subject || "Görsel"} · ${activeSession?.stage || "Görsel hazırlanıyor"}`,
             model: activeSessionModel || activeModel(config),
-            progress: 35,
+            progress: 0,
             active: true,
             completed: 0,
             total: 1,
@@ -136,7 +136,7 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
             title: running ? "Video çözümleme çalışıyor" : "Video çözümleme sırada",
             detail: running ? `${running.title} · ${stats.waiting} bekliyor` : `${stats.waiting} video bekliyor`,
             model: activeSessionKind === "analysis" ? activeSessionModel : activeModel(config),
-            progress: Math.max(2, Math.min(98, Math.round((completed / total) * 100))),
+            progress: Math.max(0, Math.min(100, Math.round((completed / total) * 100))),
             active: true,
             completed,
             total,
@@ -174,32 +174,26 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
           : snapshot.title;
   const detail = notice?.message || persistentError || snapshot.detail;
 
+  const indeterminate = snapshot.active && snapshot.mode !== "universe";
   return <><section className={`ai-activity panel ${tone}`} aria-label="AI Atölyesi durum ve mesaj alanı" onClick={openOverlay}>
     <div className="ai-activity-main">
       <div className="ai-activity-head">
         <div className="ai-activity-copy" role="status" aria-live="polite">
 
-          <strong><i className={snapshot.active ? "pulse" : ""}/>{title}{snapshot.active && <b>{snapshot.mode === "visual" ? "çalışıyor" : `${pct}%`}</b>}</strong>
-          {detail && <span className={notice?.tone ?? (persistentError ? "error" : "")}>{detail}</span>}
+          <strong><i className={snapshot.active ? "pulse" : ""}/>{title}{snapshot.active && <b>{snapshot.mode === "universe" ? `${pct}%` : snapshot.mode === "video" ? `${snapshot.completed}/${snapshot.total}` : ""}</b>}</strong>
+          {detail && <span title={detail} className={notice?.tone ?? (persistentError ? "error" : "")}>{detail}</span>}
         </div>
-        <button type="button" className="ai-activity-model" onClick={(event) => { event.stopPropagation(); openOverlay(); }} aria-haspopup="dialog" aria-expanded={overlayOpen} title="AI çalışma günlüğünü aç">
-          <span className="ai-activity-model-copy">
-            <span className="ai-activity-model-label">AI günlüğünü aç</span>
-            <small>{snapshot.model || "İstek ve cevap ayrıntıları"}</small>
-          </span>
-          <b aria-hidden="true">↗</b>
-        </button>
+        <div className="ai-activity-trailing">
+          {snapshot.active && <span className="ai-activity-progress-label">{snapshot.mode === "universe" ? `${snapshot.completed}/${snapshot.total} parça` : snapshot.mode === "video" ? `${snapshot.completed}/${snapshot.total} video` : "Görsel işleniyor"}</span>}
+          <button type="button" className="ai-activity-model" onClick={(event) => { event.stopPropagation(); openOverlay(); }} aria-haspopup="dialog" aria-expanded={overlayOpen} title={snapshot.model ? `AI günlüğü · ${snapshot.model}` : "AI çalışma günlüğünü aç"}>
+            <span className="ai-activity-model-label">Çalışma günlüğü</span><b aria-hidden="true">↗</b>
+          </button>
+        </div>
       </div>
 
-      <div className={`ai-activity-progress ${snapshot.active ? "active" : ""}`} role="progressbar" aria-label="AI işlem ilerlemesi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <i style={{ width: snapshot.active ? `${pct}%` : notice?.tone === "success" ? "100%" : "0%" }}/>
+      <div className={`ai-activity-progress ${snapshot.active ? "active" : ""} ${indeterminate ? "indeterminate" : ""}`} role="progressbar" aria-label="AI işlem ilerlemesi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : pct} aria-valuetext={indeterminate ? "İşlem sürüyor; kesin ilerleme yüzdesi bilinmiyor" : undefined}>
+        <i style={{ width: indeterminate ? "25%" : snapshot.active ? `${pct}%` : notice?.tone === "success" ? "100%" : "0%" }}/>
       </div>
-
-      {snapshot.active && <div className="ai-activity-counts">
-        <span><b>{snapshot.completed}</b> tamamlandı</span>
-        <span><b>{Math.max(0, snapshot.total - snapshot.completed)}</b> kalan</span>
-        {snapshot.errors > 0 && <span className="error"><b>{snapshot.errors}</b> hata</span>}
-      </div>}
     </div>
 
     {(summary.errors > 0 || summary.queue > 0 || summary.review > 0 || summary.approved > 0) &&

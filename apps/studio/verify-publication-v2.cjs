@@ -38,6 +38,7 @@ narrative.ensureSchema(db);
 visualCompletion.ensureSchema(db);
 aiAnalysis.ensureSchema(db);
 youtubeCatalog.ensureSchema(db);
+require('./transcript-store.cjs').ensureSchema(db);
 
 try {
   db.prepare(`
@@ -63,6 +64,8 @@ try {
       '[]', '[]', '[]', '{}', '[]', '[]', '[]', '[]', ?, ?
     )
   `).run(JSON.stringify(["Defter Sponsoru"]), JSON.stringify(["Araştırma Katkısı"]));
+  db.prepare("INSERT INTO source_transcripts(provider,external_id,source,language,text) VALUES('youtube','support0001','manual','tr','Fixture transkript')").run();
+  db.prepare("UPDATE source_ai_analyses SET source_hash=? WHERE external_id='support0001'").run(require('./publication-languages.cjs').hash({videoId:'support0001',language:'tr',transcript:'Fixture transkript'}));
   db.prepare("INSERT INTO ai_analysis_jobs(provider, external_id, state) VALUES('youtube', 'support0001', 'done')").run();
   const supportPackage = aiAnalysis.editorialPackage(db, "support0001");
   const supportDecisions = Object.fromEntries(supportPackage.items.map((item) => [item.key, item.decision]));
@@ -168,6 +171,14 @@ try {
   });
   assert.equal(visualStatus.complete, true);
 
+  db.exec("INSERT OR REPLACE INTO ai_analysis_editorial_reviews(provider,external_id,state) SELECT provider,external_id,'curated' FROM source_ai_analyses;");
+  const languages=require('./publication-languages.cjs');
+  const sourceSnapshot=publicationV2.buildPublicationV2(db,{sourceOnly:true}).snapshot;
+  languages.sync(db,sourceSnapshot);
+  for(const row of languages.records(sourceSnapshot)) {
+    const pack=languages.variants(db,row.kind,row.id);
+    languages.save(db,{kind:row.kind,id:row.id,language:'tr',data:pack.source,sourceHash:pack.sourceHash,revision:0,approved:true});
+  }
   const first = publicationV2.buildPublicationV2(db, { generatedAt: "2026-08-14T17:00:00.000Z" });
   const editorDrafts = require("./narrative-service.cjs").runDrafts(db, run.id);
   assert.ok(editorDrafts.length && editorDrafts.every(draft => draft.evidenceLedger), "Editor revisions derive an evidence ledger");
@@ -195,10 +206,10 @@ try {
   const sectionOne = first.snapshot.journal.sections.find((entry) => entry.sectionId === "section-first");
   const sectionTwo = first.snapshot.journal.sections.find((entry) => entry.sectionId === "section-second");
   assert.equal(sectionOne.order, 10, "order fiziksel sayfa değil semantik anlatı sırası olmalı");
-  assert.equal(sectionOne.media.length, 1);
-  assert.equal(sectionOne.media[0].role, "scene");
-  assert.equal(sectionTwo.media.length, 0, "Görselsiz bırakılan bölüm sahne media'sı yayınlamamalı");
-  assert.deepEqual(sectionOne.blocks[0].spans[1], { type: "reference", entityId: "object-stone", label: "Babil Taşı" });
+  assert.equal(sectionOne.locales.tr.media.length, 1);
+  assert.equal(sectionOne.locales.tr.media[0].role, "scene");
+  assert.equal(sectionTwo.locales.tr.media.length, 0, "Görselsiz bırakılan bölüm sahne media'sı yayınlamamalı");
+  assert.deepEqual(sectionOne.locales.tr.blocks[0].spans[1], { type: "reference", entityId: "object-stone", label: "Babil Taşı" });
 
   const stone = first.snapshot.archive.entities.find((entry) => entry.entityId === "object-stone");
   assert.ok(stone.visual.assetId, "Arşiv entity görseli stable assetId ile bağlanmalı");

@@ -156,7 +156,7 @@ html,body,#root{
 /* Dashboard: fixed overview, individual activity panes own the scroll. */
 .pipeline-content>.ops-dashboard{
   display:grid;
-  grid-template-rows:auto auto minmax(0,1fr);
+  grid-template-rows:auto auto auto minmax(0,1fr);
   gap:var(--studio-workspace-gap);
   overflow:hidden;
 }
@@ -213,18 +213,147 @@ html,body,#root{
   overflow-y:auto;
   overscroll-behavior:contain;
 }
-/* Research: filter composer stays bounded while results have their own region. */
+/* Research: compact term sheet, taller relation builder; only results scroll vertically. */
 .pipeline-content>.subtitle-research-page{
   display:grid;
-  grid-template-rows:auto minmax(0,1fr);
+  grid-template-rows:clamp(295px,29vh,315px) minmax(0,1fr);
   gap:var(--studio-workspace-gap);
   overflow:hidden;
 }
-.subtitle-research-page>.subtitle-search-panel{
+.pipeline-content>.subtitle-research-page--relationship{
+  grid-template-rows:clamp(435px,48vh,500px) minmax(0,1fr);
+}
+.pipeline-content .subtitle-research-page>.subtitle-search-panel{
+  position:relative;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:8px;
   min-height:0;
-  max-height:min(51vh,430px);
+  height:100%;
+  max-height:none;
+  overflow:hidden;
+  padding:10px 12px;
+}
+.subtitle-research-page .subtitle-mode-tabs{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  min-height:40px;
+  padding-bottom:0;
+}
+.subtitle-research-page .subtitle-tab-list{display:flex;align-items:center;gap:3px;align-self:stretch}
+.subtitle-research-page .subtitle-presets{display:flex;align-items:center;gap:6px;min-width:0;margin-left:auto}
+.subtitle-research-page .subtitle-presets select{width:220px;min-width:160px}
+.subtitle-research-page .subtitle-presets button{white-space:nowrap}
+.subtitle-research-page .subtitle-search-form-v3{
+  display:grid;
+  grid-template-rows:minmax(0,1fr) auto;
+  gap:8px;
+  min-height:0;
+  overflow:hidden;
+}
+.subtitle-research-page .subtitle-term-builder{
+  grid-template-rows:auto minmax(0,1fr);
+  align-content:start;
+  min-height:0;
+  width:100%;
+  max-width:740px;
+}
+.subtitle-research-page .subtitle-term-chips{
+  min-height:0;
+  max-height:100%;
   overflow-y:auto;
   overscroll-behavior:contain;
+  align-content:start;
+}
+.subtitle-research-page .relation-builder{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr) auto;
+  gap:7px;
+  min-height:0;
+  overflow:hidden;
+}
+.subtitle-research-page .relation-groups-rail{
+  display:flex;
+  align-items:stretch;
+  gap:8px;
+  min-height:0;
+  min-width:0;
+  padding-bottom:4px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  scrollbar-width:thin;
+}
+.subtitle-research-page .relation-group-card{
+  flex:0 0 clamp(285px,26vw,340px);
+  box-sizing:border-box;
+  min-width:0;
+  padding:8px;
+  gap:5px;
+  grid-template-rows:auto auto minmax(0,1fr);
+  overflow:hidden;
+}
+.subtitle-research-page .relation-group-head input{min-height:30px;height:30px;padding:4px 8px}
+.subtitle-research-page .relation-group-card .subtitle-term-input-row input,
+.subtitle-research-page .relation-group-card .subtitle-term-input-row button{min-height:32px;height:32px;padding:5px 8px}
+.subtitle-research-page .relation-group-card .relation-chips{min-height:0;overflow-y:auto;max-height:100%}
+.subtitle-research-page .relation-groups-rail>.relation-add-group{
+  align-self:center;
+  flex:0 0 145px;
+  white-space:normal;
+  padding:8px;
+}
+.subtitle-research-page .relation-exclude{
+  display:grid;
+  grid-template-columns:minmax(0,670px) minmax(150px,240px);
+  max-width:940px;
+  align-items:end;
+  gap:8px;
+  min-width:0;
+  padding:0;
+  border:0;
+}
+.subtitle-research-page .relation-exclude .subtitle-term-chips{max-height:52px}
+.subtitle-research-page .subtitle-advanced-filters{
+  display:grid;
+  gap:6px;
+  min-height:0;
+  padding:6px 0 0;
+  border-top:1px solid var(--border-soft);
+}
+.subtitle-research-page .subtitle-filters-heading{
+  font-size:10px;
+  font-weight:600;
+  line-height:14px;
+  color:var(--accent);
+}
+.pipeline-content .subtitle-research-page .subtitle-control-grid{
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:6px 9px;
+  align-items:end;
+}
+.subtitle-research-page .subtitle-search-submit{
+  grid-column:7;
+  grid-row:2;
+  justify-self:end;
+  align-self:end;
+  min-width:158px;
+  white-space:nowrap;
+}
+.subtitle-research-page .subtitle-control-grid label{gap:4px}
+.subtitle-research-page .subtitle-control-grid label>span{font-size:9px}
+.subtitle-research-page .subtitle-search-error{position:absolute;bottom:8px;left:12px;right:12px;z-index:3}
+@media(max-width:980px){
+  .pipeline-content>.subtitle-research-page{grid-template-rows:clamp(340px,40vh,390px) minmax(0,1fr)}
+  .pipeline-content>.subtitle-research-page--relationship{grid-template-rows:clamp(500px,63vh,550px) minmax(0,1fr)}
+  .pipeline-content .subtitle-research-page .subtitle-control-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .subtitle-research-page .subtitle-search-submit{grid-column:4;grid-row:3}
+  .subtitle-research-page .subtitle-presets select{width:150px}
+  .subtitle-research-page .relation-exclude{grid-template-columns:minmax(0,1fr)}
+  .subtitle-research-page .relation-exclude>.subtitle-term-chips{max-height:32px}
 }
 .subtitle-research-page>.subtitle-results-region{
   display:flex;
@@ -312,7 +441,7 @@ html,body,#root{
 .ai-stage-content .ai-review-empty{min-height:0;flex:1}
 .ai-stage-content .editorial-review-workspace{
   display:grid;
-  grid-template-rows:auto auto minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr);
   height:100%;
   min-height:0;
   overflow:hidden;

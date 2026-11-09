@@ -59,6 +59,10 @@ function ensureSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_ai_analysis_editorial_state ON ai_analysis_editorial_reviews(state, updated_at DESC);
   `);
 
+  ensureColumn(db, "source_ai_analyses", "core_json", "TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(db, "source_ai_analyses", "source_hash", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "source_ai_analyses", "analysis_version", "TEXT NOT NULL DEFAULT ''");
+  require('./publication-languages.cjs').ensureSchema(db);
   ensureColumn(db, "source_ai_analyses", "story_beats_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "source_ai_analyses", "story_hints_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "source_ai_analyses", "cover_visual_json", "TEXT NOT NULL DEFAULT '{}'");

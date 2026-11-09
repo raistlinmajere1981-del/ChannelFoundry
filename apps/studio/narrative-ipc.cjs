@@ -33,6 +33,7 @@ function registerNarrativeIpc(ipcMain, runtime) {
   ipcMain.handle("studio:narrative-outline-series", (_event, input) => mutate(() => narrativeOutline.saveSeries(db(), input)));
   ipcMain.handle("studio:narrative-outline-chapter", (_event, input) => mutate(() => narrativeOutline.saveChapter(db(), input)));
   ipcMain.handle("studio:narrative-outline-place", (_event, input) => mutate(() => narrativeOutline.placeSection(db(), input)));
+  ipcMain.handle("studio:narrative-outline-move", (_event, input) => mutate(() => narrativeOutline.moveNode(db(), input)));
 
   ipcMain.handle("studio:narrative-outline-suggestions", () => narrativeOutline.suggestions(db()));
 
