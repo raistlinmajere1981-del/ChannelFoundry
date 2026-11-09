@@ -11,6 +11,7 @@ const universeWorkspace = require("./universe-workspace.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const publicationV2 = require("./publication-v2.cjs");
+const seoWorkspace = require("./seo-workspace.cjs");
 const vefkStore = require("./vefk-store.cjs");
 const vefkSources = require("./vefk-sources.cjs");
 const vefkPreparations = require("./vefk-preparations.cjs");
@@ -120,7 +121,8 @@ async function publishPublicExport() {
     await communityAdmin.uploadPublicationAsset({ file, filename, sha256: asset.sha256 });
     uploadedAssets += 1;
   }
-  const live = await communityAdmin.publishPublication(snapshot);
+  const seo = seoWorkspace.manifest(app.getPath("userData"), snapshot, project.webUrl || "");
+  const live = await communityAdmin.publishPublication(snapshot, seo);
   writeSnapshotFile(liveBaselineFile(), snapshot);
   return { ...local, uploadedAssets, live };
 }

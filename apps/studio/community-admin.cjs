@@ -350,11 +350,15 @@ async function uploadPublicationAsset(input) {
   return payload;
 }
 
-async function publishPublication(publication) {
+async function analyticsSummary(days = 30) {
+  return authorizedRequest(studioEndpoint(), 'analytics_summary', { query: { days } });
+}
+
+async function publishPublication(publication, seo = null) {
   if (!publication || publication.schemaVersion !== 2) throw new Error("Publication v2 paketi hazırlanamadı.");
   const result = await authorizedRequest(studioEndpoint(), "publish", {
     method: "POST",
-    body: { publication },
+    body: { publication, ...(seo ? { seo } : {}) },
   });
 
   const response = await resilientFetch(publicationUrl(), { cache: "no-store" });
@@ -385,5 +389,6 @@ module.exports = {
   deletePost,
   uploadPublicationAsset,
   publishPublication,
+  analyticsSummary,
   resetConnection,
 };

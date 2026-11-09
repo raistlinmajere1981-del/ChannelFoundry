@@ -1,4 +1,6 @@
-type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Yayınlama";
+import SitePulse from "./SitePulse";
+
+type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Yayınlama" | "Ayarlar";
 type DashboardItem = StudioPersistedItem & { relatedCount: number };
 type ActionTone = "attention" | "active" | "review" | "ready" | "quiet";
 type EditorialStats = StudioAiAnalysisStats & { editorialPending?: number; curated?: number; excluded?: number };
@@ -119,7 +121,7 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
     <section className="panel ops-flow-panel"><div className="ops-section-head"><div><h3>Üretim hattı</h3></div>{(aiStats.errors > 0 || catalog.total > 0) && <span>{aiStats.errors ? `${aiStats.errors} AI hatası` : `${catalog.total} katalog videosu`}</span>}</div><div className="ops-flow">{pipeline.map((step) => <button key={step.label} className={step.state} onClick={() => onNavigate(step.target)}><span className="ops-flow-index">{step.index}</span><div><small>{step.label}</small><strong>{formatNumber(step.value)}</strong>{(step.value > 0 || step.state === "waiting" || step.state === "error") && <p>{step.note}</p>}</div><i aria-hidden="true"/></button>)}</div></section>
     <div className="ops-lower-grid">
       <section className="panel ops-tasks-panel"><div className="ops-section-head"><div><h3>Bekleyen işler</h3></div><span>{actions.length} durum</span></div><div className="ops-task-list">{actions.slice(0, 5).map((action, index) => <button key={`${action.label}:${index}`} className={action.tone} onClick={() => onNavigate(action.target)}><span className="ops-task-index">{String(index + 1).padStart(2, "0")}</span><div><strong>{action.label}</strong><small>{action.note}</small></div><b>{action.value ? formatNumber(action.value) : "✓"}</b><em>→</em></button>)}</div></section>
-      <section className="panel ops-recent-panel"><div className="ops-section-head"><div><h3>Evren kayıtları</h3></div><button onClick={() => onNavigate("Kayıt Dosyaları")}>Kayıtları aç →</button></div><div className="ops-recent-list">{recent.map((item) => <button key={item.key} onClick={() => onNavigate(item.target)}><span className="kind-badge">{item.badge}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div><span className={`ops-state ${item.stateClass}`}>{item.state}</span></button>)}{!recent.length && <div className="ops-empty">Henüz kayıt yok.</div>}</div></section>
+      <SitePulse onNavigate={onNavigate}/>
     </div>
 
   </div>;

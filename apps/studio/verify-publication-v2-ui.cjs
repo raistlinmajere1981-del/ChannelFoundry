@@ -37,7 +37,7 @@ assert.match(model, /sectionCount/, "Yayın modeli anlatı bölüm sayısını t
 assert.match(model, /assetCount/, "Yayın modeli publication asset sayısını taşımalı");
 
 assert.match(runtime, /uploadPublicationAsset/, "Studio canlı yayından önce publication asset'lerini yüklemeli");
-assert.match(runtime, /publishPublication\(snapshot\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
+assert.match(runtime, /publishPublication\(snapshot, seo\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
 assert.match(runtime, /readyForTheme/, "Runtime hazırlık kapısını UI'dan bağımsız olarak da zorunlu tutmalı");
 assert.match(runtime, /deploymentEnabled/, "Offline kanal canlı yayınını açıkça etkinleştirmeden engellemeli");
 assert.doesNotMatch(runtime, /publishVisualManifest|buildPublicSnapshot|preparePublicVisuals/, "Runtime legacy snapshot/visual-manifest hattını kullanmamalı");

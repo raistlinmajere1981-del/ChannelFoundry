@@ -333,6 +333,21 @@ type StudioPublicExportResult = { readiness?: { readyForTheme: boolean; narrativ
 type StudioLivePublication = { ok: true; published: true; generatedAt: string; itemCount: number; relationCount: number; bytes: number; sha256: string; verified: boolean; publicUrl: string; admin: { id: number; username: string } };
 type StudioPublicPublishResult = StudioPublicExportResult & { live: StudioLivePublication };
 type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number };
+type StudioWebsiteInsights = {
+  ok: true; anonymous: true; days: number; visits: number; activeSeconds: number;
+  areas: Array<{ area: string; opens: number; views: number; plays: number; completions: number; seconds: number }>;
+  daily: Array<{ day: string; visits: number; seconds: number }>;
+  contents: Array<{ area: string; contentKey: string; views: number }>;
+};
+type StudioSeoRow = {
+  kind: "section" | "video" | "vefk"; id: string; title: string; description: string;
+  source: string; path: string; override: boolean; needsReview: boolean;
+};
+type StudioSeoOverview = {
+  site: { title: string; description: string; image: string };
+  rows: StudioSeoRow[]; draftCount: number;
+};
+
 type StudioChannelProject = {
   id: string;
   displayName: string;
@@ -498,6 +513,10 @@ interface Window {
     webConnectionSave(input: { url: string; youtubeChannelUrl: string }): Promise<StudioWebConnectionConfig>;
     exportPublicSnapshot(): Promise<StudioPublicExportResult>;
     publishPublicSnapshot(): Promise<StudioPublicPublishResult>;
+    analyticsSummary(days?: number): Promise<StudioWebsiteInsights>;
+    seoOverview(): Promise<StudioSeoOverview>;
+    seoSave(input: { kind: string; id?: string; title: string; description: string; image?: string }): Promise<StudioSeoOverview>;
+    seoSuggest(input: { kind: string; id: string }): Promise<{ title: string; description: string }>;
     getPublicationInfo(): Promise<StudioPublicationInfo | null>;
     showPublicExport(): Promise<boolean>;
     getDatabaseInfo(): Promise<StudioDatabaseInfo>;

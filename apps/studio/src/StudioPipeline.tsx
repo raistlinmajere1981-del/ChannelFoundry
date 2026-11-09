@@ -4,6 +4,9 @@ import AiProviderSettings from "./AiProviderSettings";
 import CommunityAdminSettings from "./CommunityAdminSettings";
 import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
 import ChannelProjectsSettings from "./ChannelProjectsSettings";
+import WebsiteAnalytics from "./WebsiteAnalytics";
+import SeoSettings from "./SeoSettings";
+import "./site-insights.css";
 import StudioTopbar from "./StudioTopbar";
 import StudioIcon, { type StudioIconName } from "./StudioIcon";
 import { initialSidebarMode, saveSidebarMode, type StudioSidebarMode } from "./studio-shell";
@@ -257,15 +260,21 @@ function SectionLoading({ section }: { section: Section }) {
   return <div className="pipeline-loading"><span>{section}</span><strong>Çalışma alanı hazırlanıyor…</strong></div>;
 }
 
-type SettingsTab = "project" | "ai" | "community" | "data";
+type SettingsTab = "project" | "ai" | "community" | "data" | "analytics" | "seo";
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: "project", label: "Kanal ve yayın" },
   { id: "ai", label: "AI servisleri" },
   { id: "community", label: "Topluluk" },
   { id: "data", label: "Yerel veri" },
+  { id: "analytics", label: "Ziyaretçiler" },
+  { id: "seo", label: "SEO" },
 ];
 function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
-  const [tab, setTab] = useState<SettingsTab>("project");
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    const next = sessionStorage.getItem("studio:settings-tab");
+    sessionStorage.removeItem("studio:settings-tab");
+    return next === "analytics" || next === "seo" ? next : "project";
+  });
   const manualItemCount = Math.max(0, (databaseInfo?.itemCount ?? 0) - catalog.imported);
   return <div className="settings-page settings-compact">
     <nav className="studio-settings-tabs" aria-label="Ayarlar bölümleri">
@@ -273,6 +282,8 @@ function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: St
     </nav>
     <div className="studio-settings-surface">
       {tab === "project" && <ChannelProjectsSettings/>}
+      {tab === "analytics" && <WebsiteAnalytics/>}
+      {tab === "seo" && <SeoSettings/>}
       {tab === "ai" && <AiProviderSettings/>}
       {tab === "community" && <CommunityAdminSettings/>}
       {tab === "data" && <div className="studio-settings-data">
