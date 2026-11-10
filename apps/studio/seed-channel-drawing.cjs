@@ -19,6 +19,9 @@ function install() {
     db.prepare('VACUUM INTO ?').run(path.join(backup,'studio.sqlite'));
     const exportFolder=path.join(folder,'public-export');
     if(fs.existsSync(exportFolder))fs.cpSync(exportFolder,path.join(backup,'public-export'),{recursive:true});
+    // Use the owning Studio directory for portable visual-assets paths, just as
+    // the normal Studio runtime does. Keep unrelated journal images on export.
+    require('./visual-profiles.cjs').ensureSchema(db,folder);
     const languages=require('./publication-languages.cjs');
     const videos=require('./ai-analysis-public.cjs').publicVideoSummaries(db).filter(v=>Object.keys(languages.published(db,'video',v.videoId)).length);
     const result=drawing.synchronize(db,videos,{install:true});

@@ -24,7 +24,10 @@ test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no ra
   assert.equal(core.validateVefk(doc).ok,true);assert.equal(doc.construction.kind,'manualPaths');
   assert.equal(doc.geometry.paths.length,doc.drawPlan.strokes.length);
   assert.ok(doc.geometry.paths.some(p=>p.id.startsWith('portrait.hatch.')));
-  assert.ok(doc.geometry.paths.some(p=>p.id.startsWith('ornament.')));
+  assert.equal(doc.geometry.paths.some(p=>p.id.startsWith('ornament.')),false);
+  assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.ring.')).length,6);
+  assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.index.')).length,12);
+  assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.cipher.')).length,8);
   const text=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('');
   assert.match(text,/Çağrı&Şule/);
   for(const p of doc.geometry.paths)assert.match(p.d,/^[MLZ0-9. +\-]+$/);
@@ -39,6 +42,60 @@ test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no ra
     assert.ok(frame.visibility.find(p=>p.pathId===stroke.pathId).fraction<1);
     assert.equal(frame.pen.pathId,stroke.pathId);
   }
+});
+test('large sponsor label and name wrap losslessly within the expanded drawing surface',()=>{
+  const names=['Çağrı Şule Çok Uzun Destekçi Adı ve Ortakları','A'.repeat(70)];
+  const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names}});
+  assert.equal(core.validateVefk(doc).ok,true);
+  const paths=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.'));
+  assert.equal(paths.map(p=>p.semanticValue).join(''),('Son bölümün destekçisi:'+names.join(' · ')).replace(/\s+/g,''));
+  const bounds=ps=>ps.flatMap(p=>Array.from(p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g),m=>[+m[1],+m[2]]));
+  for(const [x,y] of bounds(paths)) {
+    assert.ok(x>=90 && x<=910,`sponsor x ${x}`);
+    assert.ok(y>600 && y<doc.geometry.viewBox[3]-35,`sponsor y ${y}`);
+  }
+  assert.ok(doc.geometry.viewBox[3]>800,'long names expand the surface');
+  const short=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names:['Tufan Akkaya']}});
+  const namePoints=bounds(short.geometry.paths.filter(p=>p.ink==='sponsorName'));
+  assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>40,'name uses larger 46-unit outlines');
+  assert.equal(core.validateVefk(drawing.makeDocument()).ok,true,'fallback uses the existing document contract');
+});
+test('portrait and economical seal retain loading proportions and exclude surrounding page content',()=>{
+  const fs=require('node:fs');
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../../channels/birdesengor/web/index.html'),'utf8');
+  const seal=html.match(/<svg class="entrance-seal"[\s\S]*?<\/svg>/)[0];
+  const clipRadius=Number(seal.match(/id="entrance-portrait-clip"><circle[^>]*r="([\d.]+)"/)[1]);
+  const art=require('./channel-drawing/artwork.json');
+  assert.equal(art.sealSource.portraitRadius,clipRadius);
+  const doc=drawing.makeDocument();
+  const points=p=>Array.from(p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g),m=>[+m[1],+m[2]]);
+  for(const path of doc.geometry.paths.filter(p=>p.id.startsWith('geometry.ring.'))) {
+    const coordinates=points(path),radius=coordinates[0][0]-500;
+    assert.ok(seal.includes(`r="${radius/2}"`),'ring comes from the loading SVG');
+    for(const [x,y]of coordinates)assert.ok(Math.abs(Math.hypot(x-500,y-320)-radius)<.02);
+  }
+  for(const path of doc.geometry.paths.filter(p=>p.id.startsWith('portrait.'))) {
+    for(const [x,y]of points(path))assert.ok(Math.hypot(x-500,y-320)<=clipRadius*2+.02,'portrait keeps the source clipping radius');
+  }
+  assert.equal(doc.drawPlan.markers.find(m=>m.id==='portrait').atMs,19675,'seal timing stays fixed while portrait detail is unrestricted');
+  for(const path of art.paths)assert.match(path.id,/^(geometry\.(ring|index|cipher|cardinal|pin)\.|portrait\.(contour|eye|hatch)\.)/);
+});
+test('detailed photo engraving preserves the approved seal and retains real facial contour coverage',()=>{
+  const doc=drawing.makeDocument();
+  const seal={paths:doc.geometry.paths.filter(p=>p.id.startsWith('geometry.')),
+    inks:{construction:doc.geometry.inkStyles.construction,seal:doc.geometry.inkStyles.seal}};
+  // Accepted revision 5: protect its complete geometry and line weights.
+  assert.equal(require('./publication-languages.cjs').hash(seal),
+    '0c014e7473150cc771342d940ea2d60f5fa6eca82b4ce897a558b481c2c056bd');
+  const contours=doc.geometry.paths.filter(p=>p.id.startsWith('portrait.contour.'));
+  for(const level of [65,140,205])assert.ok(contours.some(p=>p.id.startsWith(`portrait.contour.${level}.`)));
+  const coordinates=contours.flatMap(p=>Array.from(p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g),m=>[(+m[1]-500)/2.3+80,(+m[2]-320)/2.3+80]));
+  for(const [label,x0,y0,x1,y1]of [['eye',55,48,82,67],['nose',36,55,61,81],
+    ['mouth',42,89,64,102],['ear',106,62,130,92],['beard',40,80,105,135]]) {
+    assert.ok(coordinates.some(([x,y])=>x>=x0&&x<=x1&&y>=y0&&y<=y1),`source contours retain ${label} detail`);
+  }
+  assert.equal(require('./channel-drawing/artwork.json').portraitSource.method,'photo-engraving');
+  assert.equal(core.validateVefk(doc).ok,true,'quality uses the real engine limits, without the retired low-stroke caps');
 });
 test('only explicit confirmations/manual sponsors from the latest approved published episode count',()=>{
   const db=fixture();try {
@@ -82,7 +139,7 @@ test('normal publication build synchronizes sponsor and signed catalog; unpublis
     const first=publication.buildPublicationV2(db).snapshot;
     assert.equal(first.vefkCatalog.entries[0].revision,2);
     assert.match(first.vefkCatalog.entries[0].document.accessibility.matrixText,/Yayın Sponsoru/);
-    assert.equal(first.vefkLanguages[drawing.ID].tr.title,'Kanal Çizimi');
+    assert.equal(first.vefkLanguages[drawing.ID].tr.title,'Sponsorluk');
     const last=video(db,'BCDEFGHIJKL','2026-01-02',['Henüz Yayınlanmayan']);
     const unchanged=publication.buildPublicationV2(db).snapshot;
     assert.equal(unchanged.vefkCatalog.entries[0].revision,2);

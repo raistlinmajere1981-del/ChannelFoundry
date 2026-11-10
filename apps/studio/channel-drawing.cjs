@@ -34,37 +34,46 @@ function sponsorFor(db, publishedVideos, now = Date.now()) {
   }
   return { videoId: '', names: [] };
 }
-function textLines(text, maxWidth = 900, size = 23) {
+function textLines(text, maxWidth, size) {
   const width = s => Array.from(s).reduce((total,c) => {
     if (!letters[c]) throw new Error(`Kanal çizimi yazı konturu bulunamadı: ${c} (U+${c.codePointAt(0).toString(16)}). Sponsor gizlenmedi; yayın düzeltilmeli.`);
     return total + letters[c].advance * size/1000;
   },0);
   const lines=[]; let line='';
-  // Wrap even a single long sponsor name, with no truncation or guessed glyphs.
-  for (const c of text) {
-    if (line && width(line+c)>maxWidth) { lines.push(line.trimEnd());line=''; }
-    line+=c;
+  // Prefer whole words; split an oversized word without dropping any glyphs.
+  for (const word of text.split(/\s+/u).filter(Boolean)) {
+    if (line && width(line+' '+word)<=maxWidth) { line+=' '+word;continue; }
+    if (line) { lines.push(line);line=''; }
+    for (const c of word) {
+      if (line && width(line+c)>maxWidth) { lines.push(line);line=''; }
+      line+=c;
+    }
   }
   if (line.trim())lines.push(line.trim());
   return lines.map(value=>({text:value,width:width(value)}));
 }
 function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
   const sponsorText = sponsor.names.length ? 'Son bölümün destekçisi: '+sponsor.names.join(' · ') : 'Destekçilerimize teşekkürler';
-  const lines = textLines(sponsorText);
+  const lines = sponsor.names.length
+    ? [ { text:'Son bölümün destekçisi:', size:34, baseline:666, ink:'letter' },
+        ...textLines(sponsor.names.join(' · '),820,46).map((line,row)=>({...line,size:46,baseline:732+row*64,ink:'sponsorName'})) ]
+    : textLines(sponsorText,820,38).map((line,row)=>({...line,size:38,baseline:700+row*56,ink:'letter'}));
   const paths=artwork.paths.map(p=>({...p}));
   let charIndex=0;
-  lines.forEach((line,row)=>{
-    let x=(1000-line.width)/2;
+  lines.forEach(line=>{
+    const scale=line.size/1000;
+    const width=line.width ?? Array.from(line.text).reduce((n,c)=>n+letters[c].advance*scale,0);
+    let x=(1000-width)/2;
     for (const char of line.text) {
       const glyph=letters[char];
-      const d=glyph.runs.map(run=>run.map(([gx,gy],i)=>(i?'L ':'M ')+f(x+gx*.023)+' '+f(700+row*32+gy*.023)).join(' ')).join(' ');
-      if (d)paths.push({id:'sponsor.letter.'+String(charIndex).padStart(4,'0'),d,ink:'letter',semanticValue:char});
-      x+=glyph.advance*.023;charIndex++;
+      const d=glyph.runs.map(run=>run.map(([gx,gy],i)=>(i?'L ':'M ')+f(x+gx*scale)+' '+f(line.baseline+gy*scale)).join(' ')).join(' ');
+      if (d)paths.push({id:'sponsor.letter.'+String(charIndex).padStart(4,'0'),d,ink:line.ink,semanticValue:char});
+      x+=glyph.advance*scale;charIndex++;
     }
   });
-  const height=Math.max(740,722+lines.length*32);
+  const height=Math.max(800,lines.at(-1).baseline+68);
   const geometry={coordinateSpace:'svg-viewBox',viewBox:[0,0,1000,height],paths,
-    inkStyles:{construction:{width:.8,cap:'round'},contour:{width:1.25,cap:'round'},portrait:{width:1.05,cap:'round'},hatch:{width:1.15,cap:'round'},letter:{width:1.05,cap:'round'}}};
+    inkStyles:{construction:{width:1.3,cap:'round'},seal:{width:1.6,cap:'round'},portrait:{width:1.05,cap:'round'},portraitFeature:{width:.75,cap:'round'},hatch:{width:.95,cap:'round'},letter:{width:1.3,cap:'round'},sponsorName:{width:1.5,cap:'round'}}};
   let cursor=0; const markers=[{id:'outline',atMs:0}];let portraitStarted=false,sponsorStarted=false;
   const strokes=paths.map((p,i)=>{
     if(p.id.startsWith('portrait.')&&!portraitStarted){markers.push({id:'portrait',atMs:cursor});portraitStarted=true;}
@@ -72,17 +81,17 @@ function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
     // Length-based timing includes actual pen lifts between independent runs.
     const tokens=p.d.match(/[MLZ]|[-+]?\d+(?:\.\d+)?/g);let length=0,last=null;
     for(let j=0;j<tokens.length;){const op=tokens[j++];if(op==='Z')continue;const point=[+tokens[j++],+tokens[j++]];if(last&&op==='L')length+=Math.hypot(point[0]-last[0],point[1]-last[1]);last=point;}
-    const durationMs=Math.max(90,Math.round(length*(p.ink==='letter'?5:1.8)));
+    const durationMs=Math.max(90,Math.round(length*(p.id.startsWith('sponsor.')?5:1.8)));
     const stroke={id:'stroke.'+String(i).padStart(4,'0'),pathId:p.id,startMs:cursor,durationMs,ink:p.ink,pen:'down',easing:'linear'};
     cursor+=durationMs+50;return stroke;
   });
   markers.push({id:'hold',atMs:cursor});
-  return core.createVefk({id:ID,revision,schemaVersion:2,title:'Kanal Çizimi',language:'tr',kind:'manualPaths',geometry,
+  return core.createVefk({id:ID,revision,schemaVersion:2,title:'Sponsorluk',language:'tr',kind:'manualPaths',geometry,
     drawPlan:{timeUnit:'ms',durationMs:cursor+1500,markers,strokes},
-    description:'BirDeSenGör kanalının kaynak kompozisyonundan çizilmiş dış çerçeve, bitkisel süslemeler, portre ve geometrik çizgiler. '+sponsorText+'.',
-    provenance:{kind:'manual',references:[artwork.source],notes:
-      `Kaynak SHA-256: ${artwork.sha256}. Görselin yalnız [${artwork.crop.join(', ')}] alanı kullanıldı. Portre benzerliği kaynak konturlarından ve gerçek divit taramalarından üretildi; kâğıt dokusu ve sürekli tonlar yeniden üretilmedi. Sponsor kaynağı: ${sponsor.videoId || 'onaylanmış yayın yok'}; yalnız açıkça onaylanan veya elle girilen sponsorlar. Yazı konturları: Noto Serif (SIL OFL 1.1).`},
-    accessibility:{summary:'Çerçeve ve süslemeler, merkezde şapkalı ve sakallı portre, çevresel geometri ve altta '+sponsorText+'.',matrixText:sponsorText},
+    description:"Sponsorluk için hakandemir@gmail.com adresinden Hakan'a ulaşabilirsiniz.",
+    provenance:{kind:'manual',references:[artwork.source,artwork.sealSource.source],notes:
+      `Portre kaynağı SHA-256: ${artwork.sha256}; kırpım [${artwork.crop.join(', ')}]. Gerçek fotoğrafın üç eşik seviyesindeki konturları ve iki yönlü ince gravür taramaları; az çizgili şematik yüz yerine kaynak benzerliği ve ton ayrıntısı önceliklidir. Mühür geometri kaynağı SHA-256: ${artwork.sealSource.sha256}. Loading portre/mühür yarıçap oranı ${artwork.sealSource.portraitRadius}/${artwork.sealSource.outerRadius}; ortak ölçek ${artwork.sealSource.scale}. Altı kaynak halka sınırı, 12 indeks işareti, sekiz özgün bölme işareti ve dört kilit pimi. Yazı, alt çizgi, ışık halesi ve dış bezeme referansa dahil değil. Sponsor kaynağı: ${sponsor.videoId || 'onaylanmış yayın yok'}; yalnız açıkça onaylanan veya elle girilen sponsorlar. Yazı konturları: Noto Serif (SIL OFL 1.1).`},
+    accessibility:{summary:'İşaretli dairesel mühür içinde şapkalı ve sakallı portre, altta büyük harflerle '+sponsorText+'.',matrixText:sponsorText},
   });
 }
 function saveApproved(db,document) {

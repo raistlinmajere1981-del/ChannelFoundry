@@ -1,5 +1,128 @@
 # BirDeSenGör — Çizim Atölyesi kabul kaydı
 
+## Okuma alanı yalnız sponsorluk başlığı ve iletişim — 2026-11-10
+
+Ana kaydın görünen adı **Kanal Çizimi → Sponsorluk** olarak değiştirildi. Kaynak açıklaması yalnız `Sponsorluk için hakandemir@gmail.com adresinden Hakan'a ulaşabilirsiniz.` cümlesidir. Web okuma alanında eski çizim açıklaması ve tekrarlanan alt Sponsorluk başlığı kaldırıldı; yalnız tek başlık ve tek iletişim paragrafı kalır. E-posta `mailto:` bağlantısı korunur. Eski yayın paketindeki açıklama da aynı ana kimlik için gizlenir; diğer çizimlerde açıklama/provenance varsayılanları değişmez. İngilizce arayüz mevcut çevirileri kullanır.
+
+Normal yerel export aynı `birdesengor-channel-drawing` kimliğini **revizyon 8** olarak güncelledi. Bütün çizim geometrisi, sponsor harfleri, mührün ink stilleri, accessibility verisi ve çizim zaman planı revizyon 7 ile birebir aynı; süre 209430 ms ve 472 path/stroke korunur. Diğer yayın alanları başlangıçla aynı. Yedek/kurulum raporu ve yerel doğrulamalar `artifacts/channel-drawing-sponsorship-copy/` altında. Başlangıç tutarlı yedek: `channels/birdesengor/.local-data/studio/backups/channel-drawing-sponsorship-copy-2026-11-10T01-06-58-622Z/`.
+
+Studio ana kayıt/yayın testleri 8/8, ilgili web testleri 7/7, web build ve Studio TypeScript kontrolü geçti. Kaynaklar: `apps/studio/channel-drawing.cjs`, ilgili Studio testi/README, web `src/vefk/{channelDrawing.js,VefkReading.jsx,VefkReading.d.ts,VefkStand.jsx}`, mevcut ana çizim E2E okuma metni kontrolü ve kabul notları. Paylaşılan okuma bileşeninin açıklama gösterimi varsayılan olarak açık kalır; yalnız ana kaydın web sunumunda kapatılır. Commit/push/deploy yapılmadı.
+
+Odaklı tarayıcı doğrulaması dört durumda geçti: masaüstü Türkçe, mobil Türkçe, eski yayın paketiyle Türkçe ve İngilizce. Her birinde tek ana başlık, tek paragraf, sıfır alt başlık ve tek `mailto:` bağlantısı doğrulandı; beklenen metin birebir karşılaştırıldı. Masaüstü ekranı görsel olarak kontrol edildi. Güncel rapor `artifacts/channel-drawing-sponsorship-copy/verification.json`.
+
+---
+
+## Ayrıntılı fotoğraf gravürü, çizgi tasarrufu kısıtı kaldırıldı — 2026-11-10
+
+Kullanıcı, revizyon 6'nın yüzü fazla şematikleştirdiğini belirterek orta portreyi çizgi sayısında tasarruf yapmadan yeniden tasarlamayı istedi; **mühür ve destekçi metni aynı kalacak**. Bu talep önceki 130/157 path ve kısa süre hedeflerini portre için geçersiz kılar. Mevcut çekirdek/belge/yayın sınırları, oynatıcı, ana kimlik ve sponsor hattı korunur.
+
+Şematik elle kurulmuş yüz kaldırıldı. Loading'deki gerçek `observer-portrait.webp` fotoğrafı, yüz benzerliğini koruyan bir gravüre dönüştürüldü: **üç ton seviyesinde 71 kaynak konturu**, iki yönde **335 ince tarama**, toplam **406 portre hamlesi**. Göz/kaş, burun, ağız, kulak ve sakalın biçim/tonları artık fotoğraftan gelir. 160×160 kaynak 640×640 işleme ızgarasında yumuşatılır; büyütmenin yeni fotoğraf ayrıntısı ürettiği iddia edilmez. Kaynağın daire içindeki koyu zemin tonu da çapraz taramayla karşılanır; daire dışına parıltı/çerçeve eklenmez. Çizgi kalınlığı konturlarda 0,75, taramada 0,95 birimdir. Her çizgi gerçek M/L ve zamanlanan kalem hareketidir; bitmap, dolgu/reveal katmanı veya yeni motor yoktur.
+
+Mührün **34 path'i**, bütün koordinat/kalınlıkları ve ilk **19675 ms** zaman çizelgesi revizyon 6 ile birebir aynı. Sponsorun bütün harf path'leri, boyutları/kalınlığı/yerleşimi de aynı. Ana kayıt `birdesengor-channel-drawing`, normal `exportPublicSnapshot` hattında **revizyon 7** oldu; revizyon 6 imzalı belgesi korundu. Katalog seçimleri silinmedi. `journal`, `assets`, `archive`, `youtubeAnalysis`, `support` başlangıçla birebir aynı; yalnız ana çizim/kaynak notları ve paket imzası/tarihi değişti.
+
+| Ölçüm | Revizyon 6 | Revizyon 7 |
+| --- | ---: | ---: |
+| Toplam path / stroke | 114 / 114 | **472 / 472** |
+| Portre path | 48 | **406** |
+| Mühür path | 34 | 34 |
+| Gerçek M alt yolları | 153 | 1216 |
+| L çizgi parçaları | 7324 | 10025 |
+| Kanonik süre / 1× | 53556 ms | **209430 ms (3:29,43)** |
+| İmzalı belge, kompakt JSON | 141195 B | 266886 B |
+| Publication dosyası | 250837 B | 462535 B |
+| Publication gzip | 55304 B | 82122 B |
+
+Bu tur kalite önceliklidir; süre ve boyut artışı gizlenmez veya motor saatini hızlandırarak maskelenmez. Mevcut hız kontrolleri çalışır. Sponsorsuz sürüm 467 path/stroke ve 204566 ms. Önceki düşük hamle/süre testleri kaldırılıp gerçek belge doğrulaması ve kaynak konturlarının göz/burun/ağız/kulak/sakal bölgelerini kapsaması kontrolüne geçirildi; mührün sabit hash testi korundu.
+
+Başlangıç tutarlı SQLite/public-export yedeği: `channels/birdesengor/.local-data/studio/backups/channel-drawing-detailed-portrait-2026-11-10T00-41-49-679Z/`. Ölçümler, eski paket/artwork, imzalı son belge, SVG ve kaynak/önce/sonra karşılaştırması `artifacts/channel-drawing-detailed-portrait/`. Web logları `artifacts/channel-drawing/detailed-portrait-*` altında. Değişen dosyalar: `apps/studio/channel-drawing.cjs`, `channel-drawing.test.cjs`, `channel-drawing/{artwork.json,trace-source.py,README.md}`, web `tests/channel-drawing-e2e.mjs`, bu rapor ve web `docs/VEFK_ACCEPTANCE.md`. Seed, loading, oynatıcı/okuma/katalog ve sponsor/yayın seçim kodları değiştirilmedi; paralel değişiklikler korundu. Commit/push/deploy yapılmadı.
+
+Doğrulama: ana çizim 8/8 dahil ilgili Studio testleri **28/28**, web **223/223**, web build ve Publication V2 sözleşme doğrulaması geçti. Mevcut 500 kB JS derleme uyarısı sürer. Son revizyonla ana çizim E2E dört koşulda geçti: 1920×1080, 1366×768, 390×844 normal ve 390×844 reduced-motion. Tamamlanmış açılış, gerçek oynatma/duraklatma, başa dön, hız, tekrar, dört zoom, okuma/iletişim, katalog, kapanış, 44 px hedefler ve divit eşleşmesi kontrol edildi. İlk turda yalnız son reduced-motion giriş hazırlığı 30 saniyede zaman aşımına uğradı; aynı koşul tek başına ve ardından **dört koşullu turun tamamı** eşik veya oynatıcı değişmeden geçti. İlk/tekrar logları korunur. Teste hata durumunda mevcut revizyonun kısmi raporunu/DOM hazırlık durumunu yazma eklendi; eski revizyonun başarılı raporu yeni sonucun yerine kalmaz. Kaynak/önce/sonra, masaüstü ve mobil final görünümler görsel olarak incelendi. Turun kalıcı tarayıcı kopyaları `artifacts/channel-drawing-detailed-portrait/browser/{desktop.png,mobile.png,verification.json}`. Offline yeniden üretimde artwork SHA-256 aynı kaldı.
+
+---
+
+## Mühür sabit, yüz hatları daha belirgin — 2026-11-10
+
+Kullanıcının Studio revizyon 5 ve loading ekranı görüntüleri incelendi. Yalnız portre yeniden işlendi: parlaklık eşiğinden çıkan kesik konturlar yerine, loading portresinin 160×160 kaynak koordinatlarında elle yerleştirilmiş 29 anatomik eğri kullanılır. Kaş, üst/alt göz kapağı, iris, burun köprüsü/profili/burun deliği, yanak, kulak kıvrımları, bıyık, üst/alt dudak, sakal sınırı, boyun ve şapka ayrı okunur çizgilerdir. Göz ve ağız gibi küçük ayrıntılar 2,1 birim `portraitFeature` çizgisiyle vurgulanır. Bunlar offline M/L örneklerine dönüşür; raster katmanı veya yeni çizim motoru eklenmedi. Çıktı, fotoğrafın stilize çizgi portresidir.
+
+Mühür **34 path**, koordinatlar, kaynak oranı, çizgi kalınlıkları ve ilk **19675 ms** zaman çizelgesi revizyon 5 ile birebir aynı. Tam mühür geometrisi/ink stili kanonik SHA-256 regresyon testiyle korunur. Sponsorun path verisi, harf boyutları, kalınlığı ve yerleşimi de birebir aynı. Portre gölge maskesi yalnız şapka ve sakalı kapsar; taramalar 28'den 19'a indi. Anatomik çizgiler 9'dan 29'a çıktı; toplam portrede net **11 ek hamle** kullanıldı.
+
+| Ölçüm | Revizyon 5 | Revizyon 6 |
+| --- | ---: | ---: |
+| Toplam path / stroke | 103 / 103 | **114 / 114** |
+| Portre path | 37 | 48 |
+| Mühür path | 34 | 34 |
+| Kanonik süre | 53850 ms | **53556 ms** |
+| Publication dosyası | 240676 B | 250837 B |
+| Publication gzip | 52584 B | 55304 B |
+
+Net artış 11 hamle; süre yaklaşık aynı, **294 ms daha kısa**. Publication 10161 B, gzip 2720 B büyüdü; bu artış yeni yüz ayrıntılarını taşır. Sponsorsuz sürüm 109 path/stroke ve 48692 ms. Aynı `birdesengor-channel-drawing` kimliği normal onay/export hattında revizyon 6 oldu; eski imzalı revizyon 5 korundu. Diğer yayın alanları (`journal`, `assets`, `archive`, `youtubeAnalysis`, `support`) başlangıç paketiyle aynı. Kullanıcı verisine sahte sponsor eklenmedi. Başlangıç SQLite/public-export yedeği `channels/birdesengor/.local-data/studio/backups/channel-drawing-2026-11-10T00-24-35-099Z/`.
+
+Doğrulama: ana çizim 8/8 ve ilgili Studio çekirdek/kayıt/yayın/dil testleri birlikte **28/28**; web **223/223**, web build ve Publication V2 doğrulaması geçti. Yeni test mührün sabit hash'ini ve zamanlanan anatomik konturların varlığını doğrular. Ana çizim E2E dört ekran/hareket koşulunda geçti: 1920×1080, 1366×768, 390×844 normal hareket ve 390×844 azaltılmış hareket. Oynat/duraklat, başa dön, tekrar, hız, zoom, okuma/iletişim, katalog, kapanış, taşma/çakışma, dokunma hedefleri ve divit eşleşmesi kontrol edildi. Kaynak/önce/sonra karşılaştırması ile masaüstü/mobil son görünümler incelendi. Derlemedeki mevcut 500 kB JS uyarısı devam ediyor.
+
+Ölçümler, önceki paket/artwork, imzalı son belge, SVG ve karşılaştırma `artifacts/channel-drawing-face-refinement/`; web ham logları `artifacts/channel-drawing/face-refinement-*` altında. Değişen kaynaklar: `apps/studio/channel-drawing.cjs`, `channel-drawing.test.cjs`, `channel-drawing/{artwork.json,trace-source.py,README.md}`, bu rapor ve web `docs/VEFK_ACCEPTANCE.md`. Seed, loading, web oynatıcı/okuma/katalog, sponsor/yayın seçimi ve paralel kitap/mum/topluluk düzenlemeleri değiştirilmedi. Commit/push/deploy yapılmadı.
+
+---
+
+## Portre ve mühür referansına düzeltme — 2026-11-10
+
+Kullanıcı, referansın loading'deki **portre ve çevresindeki mührün tamamı** olduğunu doğruladı; mühür az hamleyle ve süreyi şişirmeden aktarılmalı. Yeşil kareli ek bu oturumda görünmediği için bu doğrulama ve projedeki gerçek loading SVG'si esas alındı. `index.html` içindeki `.entrance-seal` geometrisinden yalnız portre/mühür alınır; alt BirDeSenGör yazısı, alt çizgi, ışık halesi, vurgular ve engraving deseni alınmaz. Bu HTML veya loading görseli değiştirilmedi.
+
+Önceki örneğin portresi halkaya göre büyüktü. Şimdi portre/dış mühür yarıçapı kaynakta olduğu gibi **92/134**, merkez `(500,320)`, ortak ölçek **2**. Altı kaynak halka sınırı korunur; çok yakın üç tekrar halka ve highlight yayları çıkarılır. 24 dış indeks 12'ye indirilir; sekiz özgün bölme işareti, dört yön çizgisi ve dört kilit pimi kaynak konumlarında kalır. Mühür toplam **34 stroke**, **19675 ms**. Yeni simge, köşe süsü veya kare dışı çerçeve eklenmedi.
+
+Portre, dağınık iskelet çizgileri yerine sekiz devamlı kapalı kontur, bir göz detayı ve 73 yerine **28 seyrek tarama** ile çizilir. Bağımsız küçük arka plan lekeleri çıkarıldı; yüz yönü, göz/burun, kulak, sakal ve boyun sınırları kaynak üzerinden korunur. Gövde **71 path**, mevcut sponsorun 32 harf path'iyle toplam **103 path/stroke**. Sponsor etiketi/adı, harf koordinatları, boyutları ve satır yerleşimi revizyon 3 ile birebir aynı; oynatıcı veya sponsor seçim mantığı değiştirilmedi.
+
+| Ölçüm | Başlangıç revizyon 3 | Son revizyon 5 |
+| --- | ---: | ---: |
+| Path / stroke | 157 / 157 | **103 / 103** |
+| Kanonik süre | 61958 ms | **53850 ms** |
+| Gerçek M alt yolları | 258 | 160 |
+| L çizgi parçaları | 6631 | 7058 |
+| İmzalı belge, kompakt JSON | 138812 B | 133840 B |
+| Publication dosyası | 258249 B | 240676 B |
+| Publication gzip | 51381 B | 52584 B |
+
+Hamle sayısı **%34,4**, toplam süre **%13,1**, publication dosyası **%6,8** azaldı. Mühür yeni ayrıntılar taşıdığı için L parçası sayısı %6,4, gzip boyutu 1203 B (%2,3) arttı; her ölçütün azaldığı iddia edilmiyor. Gzip Node zlib varsayılan ayarlarıdır. Sponsorsuz sürüm 98 path/stroke, 48986 ms. Harf sayısına bağlı uzun sponsor listeleri ayrıca path ekleyebilir; isimler kırpılmaz.
+
+Ana kimlik `birdesengor-channel-drawing`. Yerel revizyon 4 görsel inceleme adımıdır; küçük arka plan lekeleri çıkarılınca final revizyon 5 normal onay/export hattıyla üretildi. Önceki revizyon 3 imzalı belgesi korundu. Başlangıç/final `journal`, `assets`, `archive`, `youtubeAnalysis`, `support` alanları aynı; yalnız Vefk kataloğu, Vefk metni ve paket kimliği/zamanı değişti. Gerçek destekçi **Tufan Akkaya**, kaynak bölüm ve katalog seçimi korundu; sahte sponsor yazılmadı.
+
+Başlangıç tutarlı SQLite/public-export yedeği: `channels/birdesengor/.local-data/studio/backups/channel-drawing-2026-11-09T23-57-13-953Z/`. Rapor, önceki paket, imzalı son belge ve bağımsız SVG: `artifacts/channel-drawing-seal-correction/`. Web ekran görüntüleri/raporu: `channels/birdesengor/web/artifacts/channel-drawing/`.
+
+Doğrulama: web **222/222**, ilgili Studio çekirdek/kayıt/yayın/sponsor/kamera/dil testleri **29/29** ve son portre temizliğiyle ana çizim testleri **7/7** geçti. Web build ve Publication V2 sözleşme doğrulaması geçti; mevcut 500 kB JS uyarısı sürüyor. Kaynak oranı, yalnız kaynak halkaların kullanılması, portrenin kaynak kırpımı içinde kalması ve süre/hamle bütçesi ayrı testte doğrulandı. Son revizyonla ana çizim E2E 1920×1080, 1366×768, 390×844 ve mobil reduced-motion senaryolarında geçti: final açılış, oynat/duraklat, başa dön, hız, tekrar, dört zoom kademesi, okuma, katalog, kapanış, 44 px hedefler ve çakışma/taşma kontrol edildi. En büyük divit sapması **0,000170 px altında**. Genel atölye E2E dört koşulda, masaüstü/mobil 32 kayıtlık katalog ve boş/bozuk/ulaşılamayan/yüklenen yayın durumları geçti; gerçek export değişmedi. Masaüstü ve mobil son görüntüler görsel olarak incelendi. Kalıcı tur kopyaları `artifacts/channel-drawing-seal-correction/browser/{desktop.png,mobile.png,verification.json}`, kaynak/çizim karşılaştırması aynı tur dizinindeki `comparison.html` / `comparison.png`; ham loglar web `artifacts/channel-drawing/seal-correction-*` ve kök tur dizinindedir.
+
+Değişen dosyalar (yalnız bu düzeltme turu): `apps/studio/channel-drawing.cjs`, `apps/studio/channel-drawing.test.cjs`, `apps/studio/channel-drawing/{artwork.json,trace-source.py,README.md}`, web `tests/channel-drawing-e2e.mjs`, bu belge ve web `docs/VEFK_ACCEPTANCE.md`. Seed, oynatıcı, okuma/katalog, dil/sponsor seçim kaynakları, loading ve diğer paralel değişiklikler bu turda değiştirilmedi. Commit/push/deploy yapılmadı.
+
+---
+
+## Ana çizimin sadeleştirilmesi — 2026-11-10
+
+Ana kayıt `birdesengor-channel-drawing`, mevcut yerel revizyon 2'den **revizyon 3**'e normal Studio onay/yayın hattıyla geçirildi. Destekçi **Tufan Akkaya** ve aynı bölüm kaynağı korundu. Çizimin tek kaynağı loading ekranındaki `observer-portrait.webp`; 50 kontur, 73 seyrek gölge taraması ve iki ince halka kullanılır. Dış çerçeve, köşe bezemeleri ve yoğun halka sistemi kaldırıldı. Portre ve sponsor yazıları gerçek zamanlanan vektör çizgileridir; yeni resim/HTML katmanı veya oynatıcı yoktur.
+
+Etiket **23 → 34**, destekçi adı **23 → 46** birim oldu. Ad ayrı satırda; uzun adlar sözcük sınırlarından bölünür, tek uzun sözcük de kayıpsız bölünebilir. Alt alan satır sayısına göre uzar. Sponsorsuz teşekkür yazısı 38 birimdir.
+
+| Ölçüm (gerçek yerel sponsorlu yayın) | Önce | Sonra |
+| --- | ---: | ---: |
+| Path / stroke | 567 / 567 | **157 / 157** |
+| Kanonik süre | 184766 ms | **61958 ms** |
+| Gerçek M alt yolları | 2137 | 258 |
+| L çizgi parçaları | 14566 | 6631 |
+| İmzalı belge, kompakt JSON | 350209 B | 138812 B |
+| Publication dosyası | 568078 B | 258249 B |
+| Publication gzip | 96069 B | 51381 B |
+
+Path/stroke **%72,3**, süre **%66,5**, publication **%54,5** azaldı. Sponsorsuz sürüm 152 path/stroke ve 57094 ms. İsim uzunluğuna bağlı ilave harfler/satırlar doğal olarak bu sayıları değiştirir; çok uzun sponsor listelerine 200 üst sınırı dayatılıp isim kırpılmaz. Gzip karşılaştırması Node zlib varsayılan ayarlarıyla yapıldı; sunucu aktarım ölçümü değildir.
+
+Kurulum sırasında göreli görsel yolunun sahibi olan Studio veri kökü atanmadığı için ilk export'un evren görselini dışarıda bıraktığı fark edildi. `seed-channel-drawing.cjs`, normal Studio gibi `visual-profiles.ensureSchema(db,folder)` çağıracak şekilde düzeltildi ve tekrar export edildi. Son pakette `journal`, `assets`, `archive`, `youtubeAnalysis`, `support` başlangıçla birebir aynı; yalnız Vefk kataloğu, Vefk dil metni ve paket kimliği/zamanı değişti. Başlangıçtaki sponsor/bölüm, diğer belgeler ve katalog seçimi korundu; ikinci kurulum yeni revizyon üretmedi.
+
+SQLite ve public-export başlangıç yedeği: `channels/birdesengor/.local-data/studio/backups/channel-drawing-2026-11-09T23-15-12-604Z/`. Ham ölçümler, imzalı belge, bağımsız SVG ve loglar `artifacts/channel-drawing-simplified/` altında. Ekran görüntüleri ve dört ekran/hareket senaryosunun raporu `channels/birdesengor/web/artifacts/channel-drawing/` altında.
+
+Doğrulama: web birim testleri **222/222**, ilgili Studio çekirdek/kayıt/katalog/sponsor/kamera/dil testleri **28/28**, Publication V2 sözleşme doğrulaması ve web üretim derlemesi geçti. Derlemedeki mevcut 500 kB paket uyarısı devam ediyor. Ana çizim tarayıcı testi 1920×1080, 1366×768, 390×844 ve mobil reduced-motion senaryolarında geçti; en büyük divit sapması **0,000098 px altında**. Tamamlanmış açılış, gerçek oynatma/duraklatma, başa dön, hız, tekrar, dört zoom kademesi, okuma/iletişim, katalog, kapanma, 44 px hedefler ve taşma/çakışma kontrol edildi. Masaüstü/mobil tamamlanmış çizimler görsel olarak incelendi. Uzun/çoklu adlar ve sponsorsuz fallback kayıpsız geometri testinden geçti.
+
+Genel Vefk DOC1/DOC2 testleri dört koşulda, gerçek Studio atölye testi dört koşulda, masaüstü/mobil 32 kayıtlık katalog ve empty/tampered/unavailable/loading durumları geçti. İlk genel zincirin fiziksel kullanım testinde 1366 ekranında gerçek saatli 0,25× ölçümü başarısız oldu. Aynı test değiştirilmeden tek başına tekrar çalıştırıldı; **dört koşulun tamamı geçti**. Studio edit/save/check/approve/select/package, 1/5/32 katalog, klavye/dokunma, adım/hız/hücre durması/tekrar/okuma ve gerçek DB/WAL/SHM/publication dosyalarının değişmediği doğrulandı. İlk başarısızlık `simplified-vefk-e2e.log`, başarılı tekrar `simplified-physical-retry.log` içinde korunur. Bu tur sırasında başka bir çalışma kitap ve WebP kaynaklarını değiştirdi; bu değişikliklere dokunulmadı ve bu çalışmanın dosya listesine eklenmedi.
+
+Değişen kaynaklar: `apps/studio/channel-drawing.cjs`, `channel-drawing.test.cjs`, `seed-channel-drawing.cjs`, `channel-drawing/{artwork.json,trace-source.py,README.md}`, web `tests/channel-drawing-e2e.mjs` ve iki kabul belgesi. Web `src/vefk/channelDrawing.js` ve mevcut oyuncu/okuma/katalog kaynaklarında değişiklik gerekmedi. Yeni font/bitmap zinciri eklenmedi; commit, push ve deploy yapılmadı.
+
+---
+
 2026-11-09. Yerel çalışma; commit, push ve deploy yapılmadı. Başlangıçtaki paralel Studio, dil, topluluk, kamera, kitap ve efekt değişiklikleri korundu.
 
 ## Uygulanan davranış
