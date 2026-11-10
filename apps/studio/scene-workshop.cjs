@@ -37,10 +37,10 @@ function readDraft(filename) {
   } catch { return null; }
 }
 function createRunner(webRoot) {
-  async function run(executable, args, extraEnv = {}) {
+  async function run(executable, args, extraEnv = {}, timeoutMs = 240_000) {
     try {
       await execFileAsync(executable, args, {
-        cwd: webRoot, timeout: 240_000, maxBuffer: 2 * 1024 * 1024,
+        cwd: webRoot, timeout: timeoutMs, maxBuffer: 2 * 1024 * 1024,
         env: { ...process.env, ...extraEnv },
       });
     } catch (error) {
@@ -56,8 +56,8 @@ function createRunner(webRoot) {
     build: () => run("npm", ["run", "build"]),
     plan: () => run("npm", ["run", "deploy:natro", "--", "--plan"]),
     dryRun: () => run(wrapper, ["clean-dry-run"]),
-    deploy: () => run(wrapper, ["clean-deploy"]),
-    verifyLive: () => run("npm", ["run", "verify:live"]),
+    deploy: () => run(wrapper, ["clean-deploy"], {}, 600_000),
+    verifyLive: () => run("npm", ["run", "verify:live"], {}, 60_000),
   };
 }
 class SceneWorkshop {
@@ -131,7 +131,7 @@ class SceneWorkshop {
           : "Web sahnesi zaten güncel. Canlıya yayın yapılmadı." };
     });
   }
-  async preflight() {
+  async preflight(onProgress = () => {}) {
     return this.locked(async () => {
       this.approved = null;
       const source = await this.snapshot();
@@ -142,9 +142,12 @@ class SceneWorkshop {
       const readiness = this.site.readiness(draft.scene, source);
       if (!readiness.ready || digest(draft.scene) !== digest(source.scene))
         throw new Error("Taslak ve yerel web sahnesi eşit/doğrulanmış olmalı. Önce Siteye hazırla.");
+      onProgress('Yerel site derlemesi doğrulanıyor…');
       await this.runner.build();
+      onProgress('Yayın dosyalarının planı doğrulanıyor…');
       await this.runner.plan();
       // Do not issue a live-deploy token unless remote FTPS dry-run succeeded.
+      onProgress('FTPS bağlantısı ve uzak kuru deneme kontrol ediliyor…');
       await this.runner.dryRun();
       const after = await this.snapshot();
       const latest = readDraft(this.draftFile);
@@ -157,7 +160,7 @@ class SceneWorkshop {
         message: "Yerel derleme ve uzak kuru deneme geçti. Canlı yayın için ayrıca onay gerekiyor." };
     });
   }
-  async deploy({ token }) {
+  async deploy({ token }, onProgress = () => {}) {
     return this.locked(async () => {
       const approved = this.approved;
       this.approved = null;
@@ -168,12 +171,16 @@ class SceneWorkshop {
       if (approved.sourceHash !== source.sourceHash || draft?.sourceHash !== source.sourceHash ||
         digest(draft?.scene) !== approved.draftHash || digest(source.scene) !== approved.draftHash)
         throw new Error("Onaydan sonra web sahnesi veya kayıtlı taslak değişti. Yayın engellendi.");
+      onProgress('Site derlemesi hazırlanıyor…');
       await this.runner.build();
       const final = await this.snapshot();
       if (final.sourceHash !== approved.sourceHash)
         throw new Error("Derleme sırasında kaynak değişti; canlı yayın başlatılmadı.");
+      onProgress('Yayın paketi kontrol ediliyor ve FTPS ile site dosyaları aktarılıyor…');
       await this.runner.deploy();
+      onProgress('Dosyalar aktarıldı; canlı HTTPS ve SHA-256 kontrol ediliyor…');
       await this.runner.verifyLive();
+      onProgress('Canlı site doğrulandı.');
       return { ok: true, message: "BirDeSenGör efekt sahnesi yayınlandı; canlı doğrulama geçti." };
     });
   }
@@ -189,8 +196,17 @@ async function registerSceneWorkshopIpc(ipcMain, app) {
   ipcMain.handle("studio:scene-load", () => instance.load());
   ipcMain.handle("studio:scene-save", (_event, input) => instance.save(input || {}));
   ipcMain.handle("studio:scene-prepare", () => instance.prepare());
-  ipcMain.handle("studio:scene-preflight", () => instance.preflight());
-  ipcMain.handle("studio:scene-deploy", (_event, input) => instance.deploy(input || {}));
+  // IPC progress contains only predefined phase text; never subprocess
+  // stdout/stderr or FTPS credentials.
+  function progressTo(sender, operation) {
+    return (message) => {
+      if (!sender.isDestroyed()) sender.send("studio:scene-progress", { operation, message });
+    };
+  }
+  ipcMain.handle("studio:scene-preflight", (event) =>
+    instance.preflight(progressTo(event.sender, "preflight")));
+  ipcMain.handle("studio:scene-deploy", (event, input) =>
+    instance.deploy(input || {}, progressTo(event.sender, "deploy")));
   ipcMain.handle("studio:scene-invalidate", () => { instance.invalidate(); return { ok: true }; });
   return instance;
 }

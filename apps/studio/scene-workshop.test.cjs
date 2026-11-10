@@ -98,14 +98,27 @@ test("draft persists only in Studio, stage is separate, publication is explicitl
     assert.equal(staged.changed, true);
     assert.deepEqual(state.calls, [], "Staging never performs a network operation");
     assert.deepEqual(state.source.scene(), changed);
-    const gate = await state.service.preflight();
+    const preflightPhases = [];
+    const gate = await state.service.preflight(message => preflightPhases.push(message));
+    assert.deepEqual(preflightPhases, [
+      "Yerel site derlemesi doğrulanıyor…",
+      "Yayın dosyalarının planı doğrulanıyor…",
+      "FTPS bağlantısı ve uzak kuru deneme kontrol ediliyor…",
+    ]);
     assert.match(gate.token, /^[a-f0-9-]{36}$/i);
     assert.deepEqual(state.calls, ["build", "plan", "dryRun"]);
     await assert.rejects(state.service.deploy({ token: "wrong" }), /Yayın onayı geçersiz/);
     await assert.rejects(state.service.deploy({ token: gate.token }), /Yayın onayı geçersiz/);
     const second = await state.service.preflight();
     assert.deepEqual(state.calls.slice(-3), ["build", "plan", "dryRun"]);
-    const released = await state.service.deploy({ token: second.token });
+    const deployPhases = [];
+    const released = await state.service.deploy({ token: second.token }, message => deployPhases.push(message));
+    assert.deepEqual(deployPhases, [
+      "Site derlemesi hazırlanıyor…",
+      "Yayın paketi kontrol ediliyor ve FTPS ile site dosyaları aktarılıyor…",
+      "Dosyalar aktarıldı; canlı HTTPS ve SHA-256 kontrol ediliyor…",
+      "Canlı site doğrulandı.",
+    ]);
     assert.equal(released.ok, true);
     assert.deepEqual(state.calls.slice(-3), ["build", "deploy", "verifyLive"]);
     await assert.rejects(state.service.deploy({ token: second.token }), /Yayın onayı geçersiz/);

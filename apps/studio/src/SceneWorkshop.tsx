@@ -15,11 +15,26 @@ export default function SceneWorkshop() {
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const [prepared, setPrepared] = useState(false);
   const [approval, setApproval] = useState<StudioSceneWorkshopPreflight | null>(null);
   const [readiness, setReadiness] = useState<StudioSceneReadiness | null>(null);
   const [status, setStatus] = useState("Sahne düzenleyicisi açılıyor…");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const interval = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(interval);
+  }, [busy]);
+
+  useEffect(() => bridge?.onSceneWorkshopProgress((progress) => {
+    if (progress.operation === "deploy" || progress.operation === "preflight") setStatus(progress.message);
+  }), [bridge]);
 
   const send = useCallback((type: string, extra: Record<string, unknown> = {}) =>
     frame.current?.contentWindow?.postMessage({ type, ...extra }, "*"), []);
@@ -186,7 +201,7 @@ export default function SceneWorkshop() {
       </div>
     </div>
     <div className="scene-workshop-status" aria-live="polite">
-      <span>{busy ? "İşlem sürüyor · " : ""}{status}</span>
+      <span>{busy ? "İşlem sürüyor · " + Math.floor(elapsed / 60) + ":" + String(elapsed % 60).padStart(2, "0") + " · " : ""}{status}</span>
       {error && <strong role="alert">{error}</strong>}
     </div>
     <iframe

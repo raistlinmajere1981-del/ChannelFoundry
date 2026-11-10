@@ -416,6 +416,7 @@ interface Window {
     sceneWorkshopPreflight(): Promise<StudioSceneWorkshopPreflight>;
     sceneWorkshopDeploy(input: { token: string }): Promise<{ ok: true; message: string }>;
     sceneWorkshopInvalidate(): Promise<{ ok: true }>;
+    onSceneWorkshopProgress(callback: (progress: { operation: "preflight" | "deploy"; message: string }) => void): () => void;
     channelProjects(): Promise<StudioChannelProjects>;
     channelNarratorSources(input: { id: string }): Promise<StudioNarratorSourceEntity[]>;
     channelProjectCreate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;

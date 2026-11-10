@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   sceneWorkshopPreflight: () => ipcRenderer.invoke("studio:scene-preflight"),
   sceneWorkshopDeploy: (input) => ipcRenderer.invoke("studio:scene-deploy", input),
   sceneWorkshopInvalidate: () => ipcRenderer.invoke("studio:scene-invalidate"),
+  onSceneWorkshopProgress: (callback) => {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on("studio:scene-progress", listener);
+    return () => ipcRenderer.removeListener("studio:scene-progress", listener);
+  },
   channelProjects: () => ipcRenderer.invoke("studio:channel-projects"),
   channelNarratorSources: (input) => ipcRenderer.invoke("studio:channel-narrator-sources", input),
   channelProjectCreate: (input) => ipcRenderer.invoke("studio:channel-project-create", input),
