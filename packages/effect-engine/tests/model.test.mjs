@@ -1,0 +1,14 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {importProject,exportProject,validateProject,createEffect,deleteZone} from '../src/model/project.mjs';
+import {compileScene} from '../src/runtime/index.mjs';
+import {isSimplePolygon,insertPoint,imageTransform,toPhoto,toScreen,polygonBounds} from '../src/model/geometry.mjs';
+import {History} from '../src/editor/history.mjs';
+const fixture=()=>importProject(readFileSync(new URL('../examples/gideros.scene.json',import.meta.url),'utf8'));
+test('JSON roundtrip preserves complete scene',()=>{const s=fixture();assert.deepEqual(importProject(exportProject(s)),s);});
+test('scene edits and deletion retain valid references',()=>{let s=fixture();s.effects.push(createEffect('shimmer',s.zones[0].id,'new'));s.effects[0].params.speed=0;assert.equal(validateProject(s),s);s=deleteZone(s,s.zones[0].id);assert.ok(s.effects.every(e=>e.zoneId===s.zones[0].id));validateProject(s);});
+test('compile preserves order, seeds and zone visibility',()=>{const s=fixture();const c=compileScene(s);assert.equal(c.effects.length,2);assert.equal(typeof c.effects[0].create,'function');assert.equal(c.effects[0].params.count,155);assert.deepEqual(c,compileScene(s));s.zones[0].visible=false;assert.equal(compileScene(s).effects.length,1);s.effects[1].enabled=false;assert.equal(compileScene(s).effects.length,0);});
+test('validation rejects unsupported and unsafe input without mutating original',()=>{for(const edit of [s=>s.version=2,s=>s.photo.src='https://example.com/x.png',s=>s.effects[0].type='unknown',s=>s.effects[0].params.count=1.5,s=>s.effects[0].zoneId='missing',s=>s.zones[0].points=[[0,0],[10,10],[0,10],[10,0]],s=>s.effects.push(structuredClone(s.effects[0]))]){const s=fixture();edit(s);assert.throws(()=>validateProject(s));}assert.throws(()=>importProject('{'));assert.equal(fixture().effects.length,2);});
+test('polygon insertion and photo mapping use original coordinates for contain and cover',()=>{const points=[[0,0],[100,0],[100,100],[0,100]];assert.ok(isSimplePolygon(insertPoint(points,0)));assert.equal(points.length,4);assert.deepEqual(polygonBounds(points),{x:0,y:0,width:100,height:100});for(const fit of ['contain','cover']){const rect={left:20,top:30,width:500,height:300},photo={width:1000,height:1000},t=imageTransform(rect,photo,fit),p=[250,600],screen=toScreen(p,t);assert.deepEqual(toPhoto(screen[0]+20,screen[1]+30,rect,t,photo),p);}});
+test('history undo redo and branching',()=>{const h=new History(),s=fixture(),next=structuredClone(s);next.name='Changed';h.record(s);assert.deepEqual(h.undo(next),s);assert.deepEqual(h.redo(s),next);h.record(next);assert.equal(h.future.length,0);});

@@ -30,6 +30,7 @@ function startStudio() {
   const { registerUniverseMaintenanceIpc } = require("./universe-maintenance-ipc.cjs");
   const { registerSubtitleAnalysisIpc } = require("./subtitle-analysis-ipc.cjs");
   const { registerYoutubeChannelIpc } = require("./youtube-channel-ipc.cjs");
+  const { registerSceneWorkshopIpc } = require("./scene-workshop.cjs");
 
   function windowPreferences() {
     return {
@@ -96,7 +97,7 @@ function startStudio() {
     });
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     webConnection.configure(app.getPath("userData"));
     communityAdmin.configureCredentialStorage(app.getPath("userData"), safeStorage);
     ytDlpManager.configure(app.getPath("userData"), runtime.notifyYtDlpChanged);
@@ -113,6 +114,7 @@ function startStudio() {
     registerUniverseMaintenanceIpc();
     registerSubtitleAnalysisIpc(ipcMain, runtime);
     registerYoutubeChannelIpc(ipcMain, runtime);
+    await registerSceneWorkshopIpc(ipcMain, app);
     runtime.database();
     aiAnalysis.resetInterrupted(runtime.database());
     universeMerge.resetInterrupted(runtime.database());

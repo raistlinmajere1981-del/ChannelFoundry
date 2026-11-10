@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Yayın Atölyesi — Sahne Atölyesi</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./scene-editor.css">
+  <script type="module" src="/src/scene-editor-entry.mjs"></script>
+</head>
+<body data-panel="library">
+  <header class="scene-topbar">
+    <div class="scene-brand">
+      <span class="scene-mark" aria-hidden="true">✳</span>
+      <div><h1>Nesne Sahnesi</h1><p>V2 sahne düzenleyicisi</p></div>
+      <span class="scene-version">v2 · sceneObject</span>
+    </div>
+    <p class="scene-local-warning">Yerel önizleme · canlı yayın ayrı</p>
+    <nav class="scene-actions" aria-label="Proje işlemleri">
+      <button type="button" id="open-project">Proje aç</button>
+      <input id="project-file" class="visually-hidden" type="file" accept=".json,application/json" aria-label="V2 JSON proje dosyası">
+      <button type="button" id="export">JSON dışa aktar</button>
+      <button type="button" id="reset">↺ Fikstürü yükle</button>
+    </nav>
+  </header>
+
+  <main class="scene-workspace">
+    <aside id="library-panel" class="scene-panel scene-library" aria-label="Sahne nesneleri ve efektler">
+      <div class="scene-panel-heading"><span class="scene-eyebrow">SAHNE</span><span class="scene-local-badge">Yerel</span></div>
+      <label class="scene-field">Proje adı<input id="scene-name" maxlength="160"></label>
+      <p class="scene-help" id="source-note"></p>
+      <div class="scene-section-title"><h2>Nesneler</h2><span id="object-count" class="scene-count">0</span></div>
+      <label class="scene-field">Göster<select id="object-filter"><option value="all">Tüm nesneler</option><option value="effects">Efektliler</option></select></label>
+      <div id="object-list" class="scene-list"></div>
+    </aside>
+
+    <nav class="scene-mobile-tabs" aria-label="Düzenleme panelleri" role="tablist"><button type="button" role="tab" data-mobile-panel="library" aria-controls="library-panel" aria-selected="true">Nesneler</button><button type="button" role="tab" data-mobile-panel="inspector" tabindex="-1" aria-controls="inspector-panel" aria-selected="false">Efekt ayarları</button></nav>
+
+    <section class="scene-stage-column" aria-label="Nesne sahnesi önizlemesi">
+      <div class="scene-stage-heading">
+        <div><span class="scene-eyebrow">ÇALIŞMA ALANI</span><h2>V2 sahne önizlemesi</h2></div>
+        <div class="scene-toolbar">
+          <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
+          <button type="button" id="show-guides" aria-pressed="true">İşaretler</button>
+          <button type="button" id="show-effects" aria-pressed="true">Efektler</button>
+          <button type="button" id="undo" aria-label="Geri al" title="Geri al (Ctrl/⌘ Z)">↶</button>
+          <button type="button" id="redo" aria-label="Yinele" title="Yinele (Ctrl/⌘ Shift Z)">↷</button>
+          <button type="button" id="play" aria-pressed="true">Ⅱ Duraklat</button>
+        </div>
+      </div>
+      <div class="scene-stage-well">
+       <div id="scene-viewport" class="scene-viewport" aria-label="Normalleştirilmiş sahne görünümü">
+        <img id="scene-photo" class="scene-photo" alt="BirDeSenGör güncel çalışma odası" draggable="false" hidden>
+        <div id="scene-objects" class="scene-objects"></div>
+        <div id="scene-markers" class="scene-markers"></div>
+       </div>
+      </div>
+      <p class="scene-help scene-stage-help" id="coordinate-help">1600 × 900 kaynak koordinatları. Turuncu hedefi sürükleyerek yalnız efekt kaydırmasını değiştirin. Yakınlaşma ve mobil fiziksel pozlar siteye aittir.</p>
+      <div id="status" class="scene-status" role="status" aria-live="polite">Sahne yükleniyor…</div>
+      <div id="preview-status" class="scene-preview-status" role="status">Önizleme hazırlanıyor…</div>
+    </section>
+
+    <aside id="inspector-panel" class="scene-panel scene-inspector" aria-label="Nesne ve efekt özellikleri">
+      <div class="scene-panel-heading"><span class="scene-eyebrow">EFEKT AYARLARI</span></div>
+      <h2 id="selected-object-name">Bir nesne seçin</h2>
+      <div class="scene-section-title"><h3>Bağlı efektler</h3><span id="effect-count" class="scene-count">0</span></div>
+      <div id="effect-list" class="scene-list"></div>
+      <div id="add-effect-controls">
+        <label class="scene-field"><span>Yeni efekt türü</span><select id="add-effect-type"></select></label>
+        <button type="button" id="add-effect" class="scene-full">＋ Efekt ekle</button>
+        <p class="scene-help">Yerel sahnede yalnız Alev, Işık halesi ve Duman desteklenir.</p>
+      </div>
+      <section id="effect-inspector"></section>
+      <p id="site-effects-note" class="scene-help" hidden>Site kaynağında yalnız mevcut bağlı efektler düzenlenir. Yeni tür, kopya ve bağlantı eklemek site motoru entegrasyonu gerektirir.</p>
+      <details id="advanced-settings" class="scene-advanced">
+        <summary>İnce ayarlar</summary>
+        <section id="effect-advanced"></section>
+        <section id="object-inspector"></section>
+        <div class="scene-divider"></div>
+        <p class="scene-help" id="scene-id-line"></p>
+        <label class="scene-field">Sahne tohumu<input id="scene-seed" maxlength="120" spellcheck="false"></label>
+        <p class="scene-help">Aynı tohum ve parametreler aynı başlangıcı üretir. Profiller yalnız efekt parametrelerini değiştirir.</p>
+      </details>
+    </aside>
+  </main>
+  <footer class="scene-footer"><span>EFEKT ATÖLYESİ <span>/ nesne sahnesi</span></span><span>Yerel önizleme · canlı yayın ayrı</span></footer>
+  <noscript>Bu yerel düzenleyiciyi kullanmak için JavaScript’i etkinleştirin.</noscript>
+</body>
+</html>

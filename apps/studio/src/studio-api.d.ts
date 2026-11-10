@@ -36,6 +36,20 @@ type StudioYoutubeChannel = {
   playlistUrl: string;
   playlistTitle: string;
 };
+type StudioSceneDocument = {
+  version: 2; kind: "objectScene"; sceneId: string;
+  viewport: { width: number; height: number };
+  objects: Array<Record<string, unknown>>;
+  effects: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+type StudioSceneReadiness = { ready: boolean; effectCount: number; enabledCount: number; mountedCount: number; problems: string[] };
+type StudioSceneWorkshopLoad = { scene: StudioSceneDocument; origin: "site" | "draft"; sourceHash: string; note: string;
+  readiness: StudioSceneReadiness; siteSource: true; previewImage: string; previewObjects: unknown[] };
+type StudioSceneWorkshopSave = { ok: true; sourceHash: string; draftHash: string; readiness: StudioSceneReadiness; message: string };
+type StudioSceneWorkshopPrepare = { ok: true; changed: boolean; sourceHash: string; draftHash: string;
+  readiness: StudioSceneReadiness; message: string };
+type StudioSceneWorkshopPreflight = { ok: true; token: string; expiresAt: number; readiness: StudioSceneReadiness; message: string };
 type StudioYoutubeCatalogVideo = {
   videoId: string; channelId: string; title: string; publishedAt: string; durationSeconds: number | null; url: string; thumbnailUrl: string; thumbnailFile: string;
   availability: string; liveStatus: string; subtitleStatus: "manual" | "automatic" | "none" | "unknown" | "";
@@ -396,6 +410,12 @@ type StudioCommunitySession = {
 
 interface Window {
   channelFoundryStudio?: {
+    sceneWorkshopLoad(): Promise<StudioSceneWorkshopLoad>;
+    sceneWorkshopSave(input: { scene: StudioSceneDocument; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
+    sceneWorkshopPrepare(): Promise<StudioSceneWorkshopPrepare>;
+    sceneWorkshopPreflight(): Promise<StudioSceneWorkshopPreflight>;
+    sceneWorkshopDeploy(input: { token: string }): Promise<{ ok: true; message: string }>;
+    sceneWorkshopInvalidate(): Promise<{ ok: true }>;
     channelProjects(): Promise<StudioChannelProjects>;
     channelNarratorSources(input: { id: string }): Promise<StudioNarratorSourceEntity[]>;
     channelProjectCreate(input: StudioChannelProjectInput): Promise<StudioChannelProject>;

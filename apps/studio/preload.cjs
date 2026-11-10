@@ -12,6 +12,12 @@ async function invokeWithOutcome(channel, ...args) {
 }
 
 contextBridge.exposeInMainWorld("channelFoundryStudio", {
+  sceneWorkshopLoad: () => ipcRenderer.invoke("studio:scene-load"),
+  sceneWorkshopSave: (input) => ipcRenderer.invoke("studio:scene-save", input),
+  sceneWorkshopPrepare: () => ipcRenderer.invoke("studio:scene-prepare"),
+  sceneWorkshopPreflight: () => ipcRenderer.invoke("studio:scene-preflight"),
+  sceneWorkshopDeploy: (input) => ipcRenderer.invoke("studio:scene-deploy", input),
+  sceneWorkshopInvalidate: () => ipcRenderer.invoke("studio:scene-invalidate"),
   channelProjects: () => ipcRenderer.invoke("studio:channel-projects"),
   channelNarratorSources: (input) => ipcRenderer.invoke("studio:channel-narrator-sources", input),
   channelProjectCreate: (input) => ipcRenderer.invoke("studio:channel-project-create", input),

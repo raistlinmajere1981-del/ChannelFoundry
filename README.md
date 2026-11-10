@@ -24,7 +24,7 @@ npm ci
 npm ci --prefix channels/birdesengor/web
 ```
 
-Web'in kanonik efekt motoru `~/YardimciWorkspace/EfektAtolyesi/src` altından okunur. Başka konum için `BIRDESENGOR_CANONICAL_EFFECTS_ROOT` ayarlanır; kaynak yoksa build hata verir. Ayrıntılar: [web README](channels/birdesengor/web/README.md).
+Web'in kanonik efekt motoru ChannelFoundry/packages/effect-engine/src altındadır; dış çalışma alanı veya ortam değişkenine bağımlı değildir. Ayrıntılar: [web README](channels/birdesengor/web/README.md).
 
 ## Yerel çalışma ve doğrulama
 

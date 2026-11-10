@@ -124,7 +124,7 @@ html,body,#root{
 .pipeline-content> :where(
   .ops-dashboard,.video-archive-page,.subtitle-research-page,
   .ai-workbench-shell,.editorial-workspace,.community-admin-view,
-  .publish-center,.settings-page,
+  .publish-center,.settings-page,.scene-workshop-page,
   .community-admin-empty,.community-admin-unavailable,.pipeline-loading
 ){
   flex:1 1 auto;

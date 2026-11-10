@@ -55,7 +55,7 @@ assert.match(frame,/\.subtitle-research-page>\.subtitle-results-region\{[\s\S]*?
 const pageTypes=[
  "ops-dashboard","video-archive-page","subtitle-research-page",
  "ai-workbench-shell","editorial-workspace","community-admin-view",
- "publish-center","settings-page",
+ "publish-center","settings-page","scene-workshop-page",
 ];
 for(const page of pageTypes) assert.ok(frame.includes(page),"missing frame mapping: "+page);
-console.log("Fixed Studio viewport: single no-scroll page canvas, eight workspaces, independent scroll areas PASS");
+console.log("Fixed Studio viewport: single no-scroll page canvas, nine workspaces, independent scroll areas PASS");

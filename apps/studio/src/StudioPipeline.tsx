@@ -16,6 +16,7 @@ const VideoArchive = lazy(() => import("./VideoArchive"));
 const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
 const AiWorkbench = lazy(() => import("./AiWorkbench"));
 const VefkWorkshop = lazy(() => import("./VefkWorkshop"));
+const SceneWorkshop = lazy(() => import("./SceneWorkshop"));
 const EditorialWorkspaceV2 = lazy(() => import("./EditorialWorkspaceV2"));
 const CommunityAdmin = lazy(() => import("./CommunityAdmin"));
 const PublishCenter = lazy(() => import("./PublishCenter"));
@@ -26,6 +27,7 @@ const productionSections = [
   "Altyazı Araştırma",
   "AI Atölyesi",
   "Vefk Atölyesi",
+  "Sahne Atölyesi",
   "Kayıt Dosyaları",
 ] as const;
 
@@ -43,6 +45,7 @@ const navIcons: Record<(typeof sections)[number], StudioIconName> = {
   "Altyazı Araştırma": "subtitles",
   "AI Atölyesi": "sparkles",
   "Vefk Atölyesi": "vefk",
+  "Sahne Atölyesi": "scene",
   "Kayıt Dosyaları": "records",
   "Topluluk": "community",
   "Yayınlama": "publish",
@@ -144,6 +147,11 @@ export default function StudioPipeline() {
 
   const studioItems = useMemo<StudioItem[]>(() => items.map((item) => ({ ...item, relatedCount: connectedKeys(item.key, relations).size })), [items, relations]);
   const activateSection = (section: NavigableSection) => {
+    if (active === "Sahne Atölyesi" && section !== active
+      && sessionStorage.getItem("channel-foundry:scene-unsaved") === "1") {
+      if (!window.confirm("Kaydedilmemiş sahne düzenlemeleri var. Çalışma alanından çıkılsın mı?")) return;
+      sessionStorage.removeItem("channel-foundry:scene-unsaved");
+    }
     if (active === "Vefk Atölyesi" && section !== active
       && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
       && !window.confirm("Kaydedilmemiş vefk düzenlemeleri var. Çalışma alanından çıkılsın mı?")) return;
@@ -156,6 +164,8 @@ export default function StudioPipeline() {
   };
   const selectProject = async (id: string) => {
     if (!bridge || projectBusy || !id || id === activeProjectId) return;
+    if (active === "Sahne Atölyesi" && sessionStorage.getItem("channel-foundry:scene-unsaved") === "1"
+      && !window.confirm("Kaydedilmemiş sahne düzenlemeleri var. Proje değiştirilsin mi?")) return;
     if (active === "Vefk Atölyesi" && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
       && !window.confirm("Kaydedilmemiş vefk düzenlemeleri var. Proje değiştirilsin mi?")) return;
     setProjectBusy(true);
@@ -211,6 +221,7 @@ export default function StudioPipeline() {
           {active === "Altyazı Araştırma" && <SubtitleResearch/>}
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
           {active === "Vefk Atölyesi" && <VefkWorkshop/>}
+          {active === "Sahne Atölyesi" && <SceneWorkshop/>}
           {active === "Kayıt Dosyaları" && <EditorialWorkspaceV2 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin/>}
           {active === "Yayınlama" && <PublishCenter items={studioItems} relations={relations} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus}/>}

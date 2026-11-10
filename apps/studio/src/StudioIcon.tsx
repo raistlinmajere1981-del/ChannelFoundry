@@ -4,6 +4,7 @@ export type StudioIconName =
   | "subtitles"
   | "sparkles"
   | "records"
+  | "scene"
   | "vefk"
   | "community"
   | "publish"
@@ -44,6 +45,8 @@ export default function StudioIcon({ name, className, size = 20 }: Props) {
       return <svg {...common}><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>;
     case "records":
       return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>;
+    case "scene":
+      return <svg {...common}><path d="M3 19V5h18v14H3z"/><path d="M7 14l3-4 3 3 2-2 3 4"/><circle cx="16" cy="8" r="1.2"/></svg>;
     case "vefk":
       return <svg {...common}><rect x="3.5" y="3.5" width="17" height="17" rx="1.8"/><path d="M9.2 3.5v17m5.6-17v17M3.5 9.2h17m-17 5.6h17"/><path d="m9.4 9.4 5.2 5.2m0-5.2-5.2 5.2"/></svg>;
     case "community":

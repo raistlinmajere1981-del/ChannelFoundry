@@ -1,5 +1,7 @@
 import { createRequire } from "node:module";
 import { defineConfig } from "vite";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 
 const require = createRequire(import.meta.url);
@@ -38,5 +40,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
+        scene: resolve(fileURLToPath(new URL(".", import.meta.url)), "scene.html"),
+      },
+    },
   },
 });
