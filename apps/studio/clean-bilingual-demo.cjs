@@ -6,7 +6,7 @@ const STUDIO_TABLES=[
  'publication_language_variants','publication_language_sources',
  'narrative_section_chapters','narrative_chapters','narrative_series','narrative_visual_slots',
  'narrative_section_revisions','narrative_sections','narrative_run_sources','narrative_runs',
- 'entity_visual_profiles','universe_workspace_history','universe_workspace_revisions','universe_workspace_relations',
+ 'entity_visual_profiles','universe_main_characters','universe_workspace_history','universe_workspace_revisions','universe_workspace_relations',
  'universe_workspace_imports','universe_workspace_nodes','universe_ingest_run_sources','universe_ingest_runs','universe_ingest_sources',
  'universe_merge_chunks','universe_merge_runs','ai_analysis_editorial_reviews','ai_analysis_jobs','source_ai_analyses',
  'vefk_document_sources','vefk_publication_selection','vefk_revisions','vefk_documents','vefk_source_analyses',

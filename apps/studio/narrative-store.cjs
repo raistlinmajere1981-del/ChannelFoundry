@@ -364,7 +364,12 @@ function prepareRun(db, input = {}) {
   const narrator = require("./channel-projects.cjs").narratorForDatabase(db);
   const narratorSourceEntities = require("./narrator-source-identity.cjs").resolveSourceEntities(db, narrator.sourceEntityKeys);
   const evidencePolicy = EVIDENCE_POLICY;
-  const frozenFingerprint = fingerprint({ inputFingerprint: built.inputFingerprint, narrator, narratorSourceEntities, evidencePolicy });
+  const mainCharacters = db.prepare(`SELECT n.key AS sourceKey, n.name, n.aliases_json AS aliasesJson
+    FROM universe_main_characters mc JOIN universe_workspace_nodes n ON n.key=mc.node_key
+    WHERE n.kind='character' AND n.state='approved' ORDER BY n.key`).all()
+    .map(row => ({ sourceKey: String(row.sourceKey), name: String(row.name),
+      aliases: textArray(safeJson(row.aliasesJson, []), 30, 260) }));
+  const frozenFingerprint = fingerprint({ inputFingerprint: built.inputFingerprint, narrator, narratorSourceEntities, ...(mainCharacters.length ? { mainCharacters } : {}), evidencePolicy });
 
   const existing = db.prepare(`
     SELECT id FROM narrative_runs
@@ -385,6 +390,7 @@ function prepareRun(db, input = {}) {
       removed: built.removed,
       narrator,
       narratorSourceEntities,
+      ...(mainCharacters.length ? { mainCharacters } : {}),
       evidencePolicy,
     }), clean(input?.model, 200));
     const runId = Number(info.lastInsertRowid);

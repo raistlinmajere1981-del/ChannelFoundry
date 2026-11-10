@@ -23,6 +23,7 @@ type EditorialBridge = NonNullable<typeof window.channelFoundryStudio> & {
     aliases: string[];
     state: "draft" | "approved";
     roles?: string[];
+    isMainCharacter?: boolean;
     storyNames?: string[];
     characterNames?: string[];
     locationNames?: string[];
@@ -107,6 +108,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
   const [summary, setSummary] = useState(node.summary);
   const [aliases, setAliases] = useState(node.aliases.join("\n"));
   const [roles, setRoles] = useState(payloadArray(node, "roles").join("\n"));
+  const [isMainCharacter, setIsMainCharacter] = useState(Boolean(node.isMainCharacter));
   const [storyNames, setStoryNames] = useState(payloadArray(node, "storyNames").join("\n"));
   const [characterNames, setCharacterNames] = useState(payloadArray(node, "characterNames").join("\n"));
   const [locationNames, setLocationNames] = useState(payloadArray(node, "locationNames").join("\n"));
@@ -120,6 +122,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
     setSummary(node.summary);
     setAliases(node.aliases.join("\n"));
     setRoles(payloadArray(node, "roles").join("\n"));
+    setIsMainCharacter(Boolean(node.isMainCharacter));
     setStoryNames(payloadArray(node, "storyNames").join("\n"));
     setCharacterNames(payloadArray(node, "characterNames").join("\n"));
     setLocationNames(payloadArray(node, "locationNames").join("\n"));
@@ -147,6 +150,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
         aliases: lines(aliases),
         state,
         roles: lines(roles),
+        ...(node.kind === "character" ? { isMainCharacter } : {}),
         storyNames: lines(storyNames),
         characterNames: lines(characterNames),
         locationNames: lines(locationNames),
@@ -173,6 +177,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
           <label><span>Başlık / ad</span><input value={name} onChange={(event) => setName(event.target.value)}/></label>
           <div className="form-two"><ArrayField label="Diğer adlar · satır satır" value={aliases} onChange={setAliases} placeholder="Alias veya alternatif ad"/><label><span>Durum</span><select value={state} onChange={(event) => setState(event.target.value as "draft" | "approved")}><option value="approved">Onaylı / public adayı</option><option value="draft">İncelemeye geri gönder</option></select></label></div>
           <label><span>Özet</span><textarea className="record-summary-input" value={summary} onChange={(event) => setSummary(event.target.value)}/></label>
+          {node.kind === "character" && <label className="record-main-character"><input type="checkbox" checked={isMainCharacter} onChange={(event) => setIsMainCharacter(event.target.checked)}/><span><strong>Ana karakter</strong><small>Birden fazla muhatap seçilebilir. Taslakta da seçilebilir; yalnız onaylı muhataplar AI bağlamına katılır.</small></span></label>}
           {node.kind === "character" && <ArrayField label="Rol / tür · satır satır" value={roles} onChange={setRoles} placeholder={"Araştırmacı\nTanık\nVarlık…"}/>} 
         </div>
         <aside className="record-ai-note"><span>AI KAYNAĞI</span><p>Bu kayıt Evren Birleştirme sonucundan geldi. Burada yaptığın onaylı düzenlemeler sonraki AI birleştirmelerinde korunur.</p></aside>

@@ -34,7 +34,7 @@ try{
   "const hasRevision=new URLSearchParams(location.search).get('revision')==='1';",
   "window.__revisions=hasRevision?[{id:7,nodeKey:'node-0',runId:2,baseRunId:1,state:'pending',diff:['summary'],proposed:{name:window.__rows[0].name,summary:'Yeni video önceki yolculuk ayrıntılarını tamamlıyor.',aliases:[],sourceVideoIds:['source-1'],payload:{}},createdAt:'2026-11-09',reviewedAt:null}]:[];",
   "const count=()=>({total:window.__rows.length,draft:window.__rows.filter(r=>r.state==='draft').length,approved:window.__rows.filter(r=>r.state==='approved').length,pendingRevisions:window.__revisions.filter(r=>r.state==='pending').length});",
-  "window.channelFoundryStudio={universeWorkspaceStatus:async()=>({latestImport:null,counts:count()}),universeWorkspaceList:async(input)=>input?.view==='revisions'?window.__revisions:input?.view==='history'?[]:window.__rows,universeWorkspaceSetState:async({keys,state})=>{window.__rows=window.__rows.map(r=>keys.includes(r.key)?{...r,state}:r);return {counts:count()};},youtubeCatalogVideos:async()=>[{videoId:'source-1',title:'Birinci anlatı'},{videoId:'source-2',title:'İkinci anlatı'}],navigate:(dest)=>window.__destination=dest,onDataChanged:()=>()=>{}};",
+  "window.channelFoundryStudio={universeWorkspaceStatus:async()=>({latestImport:null,counts:count()}),universeWorkspaceList:async(input)=>input?.view==='revisions'?window.__revisions:input?.view==='history'?[]:window.__rows,universeWorkspaceSetState:async({keys,state})=>{window.__rows=window.__rows.map(r=>keys.includes(r.key)?{...r,state}:r);return {counts:count()};},universeWorkspaceUpdate:async({key,isMainCharacter})=>{window.__rows=window.__rows.map(r=>r.key===key?{...r,isMainCharacter}:r);return window.__rows.find(r=>r.key===key);},youtubeCatalogVideos:async()=>[{videoId:'source-1',title:'Birinci anlatı'},{videoId:'source-2',title:'İkinci anlatı'}],navigate:(dest)=>window.__destination=dest,onDataChanged:()=>()=>{}};",
   "document.documentElement.dataset.studioTheme=new URLSearchParams(location.search).get('theme')||'light';",
   "document.body.style.margin='0';createRoot(document.getElementById('root')).render(<div className='studio-shell' style={{display:'block',width:'100%',height:'100dvh',padding:'14px',boxSizing:'border-box'}}><div className='ai-production-workbench' style={{height:'100%',display:'block'}}><div className='ai-stage-content' style={{height:'100%',boxSizing:'border-box'}}><Review onReadyForUniverse={()=>window.__returned=true}/></div></div></div>);"
  ].join('\n');
@@ -79,8 +79,19 @@ try{
  await row.click();
  assert.equal(await row.getAttribute('class'),'active');
  await page.getByText('Yedi Kapı ve Uzak Adadaki Kavim',{exact:true}).last().waitFor();
+ // The 04 review can mark multiple important characters without touching source evidence.
+ await page.locator('.ai-review-list>div:last-child>button').nth(2).click();
+ const main=page.locator('.ai-review-main-control input[type=checkbox]');
+ await main.waitFor();
+ assert.equal(await main.isChecked(),false);
+ await main.check();
+ assert.equal(await main.isChecked(),true);
+ assert.equal(await page.evaluate(()=>window.__rows[2].isMainCharacter),true);
+ assert.match(await page.locator('.ai-review-list>div:last-child>button').nth(2).innerText(),/Ana karakter/);
+ await main.uncheck();
+ assert.equal(await page.evaluate(()=>window.__rows[2].isMainCharacter),false);
  await page.screenshot({path:path.join(out,'review-'+theme+'-'+viewport.width+'.png')});
- console.log(JSON.stringify({viewport,theme,layout,hovered,checks:'PASS'}));
+ console.log(JSON.stringify({viewport,theme,layout,hovered,mainCharacter:'PASS',checks:'PASS'}));
  assert.deepEqual(errors,[]);
  await page.close();
  }}

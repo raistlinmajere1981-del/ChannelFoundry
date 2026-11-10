@@ -24,6 +24,7 @@ type EditorialBridge = NonNullable<typeof window.channelFoundryStudio> & {
     aliases: string[];
     state: "draft" | "approved";
     roles?: string[];
+    isMainCharacter?: boolean;
     storyNames?: string[];
     characterNames?: string[];
     locationNames?: string[];
@@ -146,6 +147,7 @@ function WorkspaceNodeEditor({ node, relations, allNodes, onReload }: { node: St
   const [summary, setSummary] = useState(node.summary);
   const [aliases, setAliases] = useState(node.aliases.join("\n"));
   const [roles, setRoles] = useState(payloadArray(node, "roles").join("\n"));
+  const [isMainCharacter, setIsMainCharacter] = useState(Boolean(node.isMainCharacter));
   const [storyNames, setStoryNames] = useState(payloadArray(node, "storyNames").join("\n"));
   const [state, setState] = useState<"draft" | "approved">(node.state);
   const [busy, setBusy] = useState(false);
@@ -153,7 +155,7 @@ function WorkspaceNodeEditor({ node, relations, allNodes, onReload }: { node: St
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setName(node.name); setSummary(node.summary); setAliases(node.aliases.join("\n")); setRoles(payloadArray(node, "roles").join("\n")); setStoryNames(payloadArray(node, "storyNames").join("\n")); setState(node.state); setNotice(null); setError(null);
+    setName(node.name); setSummary(node.summary); setAliases(node.aliases.join("\n")); setRoles(payloadArray(node, "roles").join("\n")); setIsMainCharacter(Boolean(node.isMainCharacter)); setStoryNames(payloadArray(node, "storyNames").join("\n")); setState(node.state); setNotice(null); setError(null);
   }, [node.key, node.updatedAt]);
 
   const related = relations.filter((relation) => relation.fromKey === node.key || relation.toKey === node.key).map((relation) => {
@@ -174,6 +176,7 @@ function WorkspaceNodeEditor({ node, relations, allNodes, onReload }: { node: St
         aliases: lines(aliases),
         state,
         roles: lines(roles),
+        ...(node.kind === "character" ? { isMainCharacter } : {}),
         storyNames: lines(storyNames),
       });
       await onReload();
@@ -189,6 +192,7 @@ function WorkspaceNodeEditor({ node, relations, allNodes, onReload }: { node: St
       <label><span>Başlık / ad</span><input value={name} onChange={(event) => setName(event.target.value)}/></label>
       <div className="form-two"><label><span>Diğer adlar · satır satır</span><textarea value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="Alias veya alternatif ad"/></label><label><span>Durum</span><select value={state} onChange={(event) => setState(event.target.value as "draft" | "approved")}><option value="approved">Onaylı / public adayı</option><option value="draft">İncelemeye geri gönder</option></select></label></div>
       <label><span>Özet</span><textarea className="editorial-summary-input" value={summary} onChange={(event) => setSummary(event.target.value)}/></label>
+      {node.kind === "character" && <label className="record-main-character"><input type="checkbox" checked={isMainCharacter} onChange={event => setIsMainCharacter(event.target.checked)}/><span><strong>Ana karakter</strong><small>Taslakta da seçilebilir; yalnız onaylı muhataplar AI bağlamına katılır.</small></span></label>}
       {(node.kind === "character" || roles) && <label><span>Rol / tür · satır satır</span><textarea value={roles} onChange={(event) => setRoles(event.target.value)} placeholder="Araştırmacı\nTanık\nVarlık…"/></label>}
       <label><span>Bağlı hikâyeler · satır satır</span><textarea value={storyNames} onChange={(event) => setStoryNames(event.target.value)} placeholder="Hikâye adları"/></label>
     </div>

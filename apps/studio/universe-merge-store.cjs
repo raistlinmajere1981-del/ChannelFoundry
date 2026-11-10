@@ -135,13 +135,20 @@ function start(db, userDataPath, input = {}) {
   const active = db.prepare("SELECT id FROM universe_merge_runs WHERE state IN ('waiting','running') ORDER BY id DESC LIMIT 1").get();
   if (active) throw new Error("Devam eden bir Evrene İşleme işi zaten var.");
   const sourceItems = pendingEntries.map((entry) => entry.mergeSource);
+  require('./universe-workspace-core.cjs').ensureSchema(db);
+  const mainCharacters = db.prepare(`SELECT n.key AS sourceKey, n.name, n.aliases_json AS aliasesJson
+    FROM universe_main_characters mc JOIN universe_workspace_nodes n ON n.key=mc.node_key
+    WHERE n.kind='character' AND n.state='approved' ORDER BY n.key`).all().map(row => ({
+      sourceKey: String(row.sourceKey), name: String(row.name),
+      aliases: (() => { try { return JSON.parse(row.aliasesJson) } catch { return [] } })(),
+    }));
   const signature = sourceItems.map((item) => item.videoId).sort().join("|");
   const info = db.prepare(`INSERT INTO universe_merge_runs (state, model, analysis_count, source_signature) VALUES ('waiting', ?, ?, ?)`).run(config.displayModel || config.model, sourceItems.length, signature);
   const runId = Number(info.lastInsertRowid);
   const insert = db.prepare(`INSERT INTO universe_merge_chunks (run_id, level, batch_index, state, input_json) VALUES (?, 0, ?, 'waiting', ?)`);
   db.exec("BEGIN IMMEDIATE;");
   try {
-    chunk(sourceItems, SOURCE_BATCH).forEach((batch, index) => insert.run(runId, index, JSON.stringify({ videos: batch })));
+    chunk(sourceItems, SOURCE_BATCH).forEach((batch, index) => insert.run(runId, index, JSON.stringify({ videos: batch, mainCharacters })));
     db.exec("COMMIT;");
   } catch (error) {
     db.exec("ROLLBACK;");
@@ -302,7 +309,9 @@ function advance(db, runId) {
   if (!exists) {
     const outputs = rows.map((row) => safeJson(row.outputJson, {})).map((entry) => entry.universe ?? entry);
     const insert = db.prepare("INSERT INTO universe_merge_chunks (run_id, level, batch_index, state, input_json) VALUES (?, ?, ?, 'waiting', ?)");
-    chunk(outputs, REDUCE_BATCH).forEach((batch, index) => insert.run(runId, nextLevel, index, JSON.stringify({ partials: batch })));
+    const firstInput = safeJson(db.prepare("SELECT input_json AS inputJson FROM universe_merge_chunks WHERE run_id=? ORDER BY level,batch_index LIMIT 1").get(runId)?.inputJson, {});
+    const mainCharacters = Array.isArray(firstInput.mainCharacters) ? firstInput.mainCharacters : [];
+    chunk(outputs, REDUCE_BATCH).forEach((batch, index) => insert.run(runId, nextLevel, index, JSON.stringify({ partials: batch, mainCharacters })));
   }
   return status(db, runId);
 }

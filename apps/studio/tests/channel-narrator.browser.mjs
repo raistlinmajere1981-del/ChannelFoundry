@@ -58,6 +58,7 @@ try {
   assert.equal(await page.getByLabel('Anlatım perspektifi', { exact: true }).inputValue(), 'source_bound_first_person');
   const ownerChoice = () => page.getByRole('checkbox', { name: new RegExp(ownerKey) });
   const announcerChoice = () => page.getByRole('checkbox', { name: new RegExp(announcerKey) });
+  await page.locator('.project-narrator-identity-disclosure > summary').click();
   await ownerChoice().waitFor();
   assert.equal(await ownerChoice().isChecked(), false, 'Neither Ömer nor Anlatıcı auto-maps by name');
   assert.equal(await announcerChoice().isChecked(), false);
@@ -80,6 +81,7 @@ try {
   await page.getByRole('button', { name: 'Kanal Ayarları', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.project-narrator input')?.value === 'Ömer');
   assert.equal(await page.getByLabel('Editoryal üslup notları', { exact: true }).inputValue(), 'Kaynaklara sadık, kısa paragraflar.');
+  await page.locator('.project-narrator-identity-disclosure > summary').click();
   await ownerChoice().waitFor(); assert.equal(await ownerChoice().isChecked(), true);
   await page.getByLabel('Anlatım perspektifi', { exact: true }).selectOption('neutral');
   await page.getByRole('button', { name: 'Kaydet', exact: true }).click(); await page.getByText('Kaydedildi', { exact: true }).waitFor();
@@ -93,6 +95,7 @@ try {
   brokenIdentity.narrator.sourceEntityKeys.push('missing-character');
   fs.writeFileSync(settingsFile, JSON.stringify(brokenIdentity));
   await page.reload();
+  await page.locator('.project-narrator-identity-disclosure > summary').click();
   await page.getByText('Çözümlenemiyor: güncel onaylı karakter kaydı bulunamadı.', { exact: false }).waitFor();
   assert.equal(await ownerChoice().isChecked(), true);
   await page.getByRole('button', { name: 'Eşlemeyi kaldır', exact: true }).click();
@@ -113,6 +116,7 @@ try {
   // Project activation relaunches production Electron; reload recreates its renderer here.
   await page.reload(); await page.waitForFunction(() => document.querySelector('.project-narrator input')?.value === 'Deniz');
   const secondChoice = page.getByRole('checkbox', { name: /second-character/ });
+  await page.locator('.project-narrator-identity-disclosure > summary').click();
   await secondChoice.waitFor();
   assert.equal(await ownerChoice().count(), 0);
   await secondChoice.check();

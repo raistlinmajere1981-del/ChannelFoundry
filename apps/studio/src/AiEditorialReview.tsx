@@ -8,6 +8,7 @@ type StateFilter = "all" | StudioUniverseWorkspaceState;
 type ReviewBridge = NonNullable<typeof window.channelFoundryStudio> & {
   universeWorkspaceList(input?: { kind?: StudioUniverseWorkspaceNode["kind"]; state?: StudioUniverseWorkspaceState }): Promise<StudioUniverseWorkspaceNode[]>;
   universeWorkspaceSetState(input: { keys: string[]; state: StudioUniverseWorkspaceState }): Promise<StudioUniverseWorkspaceStatus>;
+  universeWorkspaceUpdate(input: { key: string; isMainCharacter: boolean }): Promise<StudioUniverseWorkspaceNode>;
 };
 
 const kindLabel: Record<StudioUniverseWorkspaceNode["kind"], string> = {
@@ -100,6 +101,17 @@ export default function AiEditorialReview() {
     finally { setBusy(false); }
   };
 
+  const chooseMainCharacter = async (node: StudioUniverseWorkspaceNode, checked: boolean) => {
+    if (!bridge || busy || node.kind !== "character") return;
+    setBusy(true);
+    try {
+      await bridge.universeWorkspaceUpdate({ key: node.key, isMainCharacter: checked });
+      await load();
+      notify(checked ? 'Ana karakter seçildi.' : 'Ana karakter seçimi kaldırıldı.', 'success');
+    } catch (reason) { notify(errorText(reason), 'error'); }
+    finally { setBusy(false); }
+  };
+
   if (!bridge) return <div className="ai-review-empty panel">Editoryal inceleme Electron Studio içinde kullanılabilir.</div>;
 
   const selectedDetails = selected ? details(selected) : [];
@@ -122,12 +134,15 @@ export default function AiEditorialReview() {
           <button className="secondary-button" disabled={busy || !filtered.length} onClick={() => void changeState(filtered.map((node) => node.key), state === "approved" ? "draft" : "approved")}>{state === "approved" ? "Görünenleri taslağa çek" : "Görünenleri onayla"}</button>
         </div>
         <header><span>{filtered.length} kayıt</span><small>AI EVRENİ</small></header>
-        <div>{filtered.map((node) => <button key={node.key} className={selected?.key === node.key ? "active" : ""} onClick={() => setSelectedKey(node.key)}><span className="kind-badge">{kindShort[node.kind]}</span><div><strong>{node.name}</strong><small>{kindLabel[node.kind]} · {node.sourceVideoIds.length} kaynak video</small></div><em className={node.state}>{node.state === "approved" ? "Onaylı" : "İncele"}</em></button>)}{!filtered.length && <p className="ai-review-list-empty">Bu filtrede kayıt yok.</p>}</div>
+        <div>{filtered.map((node) => <button key={node.key} className={selected?.key === node.key ? "active" : ""} onClick={() => setSelectedKey(node.key)}><span className="kind-badge">{kindShort[node.kind]}</span><div><strong>{node.name}</strong><small>{kindLabel[node.kind]} · {node.sourceVideoIds.length} kaynak video{node.isMainCharacter ? ' · Ana karakter' : ''}</small></div><em className={node.state}>{node.state === "approved" ? "Onaylı" : "İncele"}</em></button>)}{!filtered.length && <p className="ai-review-list-empty">Bu filtrede kayıt yok.</p>}</div>
       </section>
 
       <section className="panel ai-review-detail">
         {selected ? <>
           <header><div><small>{kindLabel[selected.kind].toUpperCase()} · {selected.sourceVideoIds.length} KAYNAK</small><h3>{selected.name}</h3>{selected.aliases.length > 0 && <p>{selected.aliases.join(" · ")}</p>}</div><div><span className={`ai-review-state ${selected.state}`}>{selected.state === "approved" ? "Onaylı" : "İnceleme bekliyor"}</span><button className={selected.state === "draft" ? "primary-button" : "secondary-button"} disabled={busy} onClick={() => void changeState([selected.key], selected.state === "draft" ? "approved" : "draft")}>{selected.state === "draft" ? "Onayla" : "Taslağa çek"}</button></div></header>
+          {selected.kind === "character" && <section className="ai-review-main-control">
+            <label className="record-main-character"><input type="checkbox" checked={Boolean(selected.isMainCharacter)} disabled={busy} onChange={(event) => void chooseMainCharacter(selected, event.target.checked)}/><span><strong>Ana karakter</strong><small>Birden fazla muhatap seçilebilir. Taslaklar da işaretlenebilir; yalnız onaylı kişiler sonraki Evren ve Hikâyeleştir bağlamına alınır.</small></span></label>
+          </section>}
           <article className="ai-review-summary"><small>ÖZET</small><p>{selected.summary || "Özet bulunmuyor."}</p></article>
           {payloadArray(selected, "roles").length > 0 && <section><small>ROL / TÜR</small><div className="ai-review-chips">{payloadArray(selected, "roles").map((entry) => <span key={entry}>{entry}</span>)}</div></section>}
           {contextGroups.length > 0 && <section><small>BAĞLAM</small><div className="ai-review-context">{contextGroups.map(([label, values]) => <div key={label}><b>{label}</b>{values.map((entry) => <span key={entry}>{entry}</span>)}</div>)}</div></section>}

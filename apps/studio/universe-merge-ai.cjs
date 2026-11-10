@@ -129,6 +129,7 @@ function kindMessages(input, level, definition) {
           : "Girdideki partials kayıtlarının yalnız hedef türünü kayıpsız ve tekrarsız birleştir.",
         "Her bilgi için sourceVideoIds bağını eksiksiz koru; yalnız girdideki kimlikleri kullan.",
         definition.instruction,
+        "mainCharacters varsa bu liste önceki onaylı Evren'de editörün önemli bulduğu kişilerin adları, aliasları ve kimlikleridir. Yeni kayıtlardaki açık ad ve alias eşleşmelerini kontrol et; sırf bu listede var diye kaynakta geçmeyen bir kişiyi, olayı veya ilişkiyi ekleme. Anlatıcı kimliğiyle karıştırma.",
         "Özetleri ve görsel metinlerini tekrarsız ve özlü tut. JSON'u gereksiz boşluk ve satır sonu olmadan yaz.",
         `Şema tam olarak {"items":[${definition.schema}]}. items alanını boş olsa bile mutlaka yaz.`,
         "Markdown, code fence, giriş veya sonuç cümlesi yazma. Yalnız tek bir JSON nesnesi döndür.",
@@ -183,11 +184,11 @@ function splitArray(values) {
 
 function splitKindInput(input, key) {
   const videos = Array.isArray(input?.videos) ? input.videos : [];
-  if (videos.length > 1) return splitArray(videos).map((part) => ({ videos: part }));
+  if (videos.length > 1) return splitArray(videos).map((part) => ({ videos: part, mainCharacters: input.mainCharacters ?? [] }));
   const partials = Array.isArray(input?.partials) ? input.partials : [];
-  if (partials.length > 1) return splitArray(partials).map((part) => ({ partials: part }));
+  if (partials.length > 1) return splitArray(partials).map((part) => ({ partials: part, mainCharacters: input.mainCharacters ?? [] }));
   const items = partials.length === 1 && Array.isArray(partials[0]?.[key]) ? partials[0][key] : [];
-  if (items.length > 1) return splitArray(items).map((part) => ({ partials: [{ [key]: part }] }));
+  if (items.length > 1) return splitArray(items).map((part) => ({ partials: [{ [key]: part }], mainCharacters: input.mainCharacters ?? [] }));
   return [];
 }
 

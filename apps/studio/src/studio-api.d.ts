@@ -285,6 +285,7 @@ type StudioUniverseWorkspaceNode = {
   sourceVideoIds: string[];
   payload: StudioUniverseStory | StudioUniverseEntity | StudioUniverseEvent | Record<string, unknown>;
   state: StudioUniverseWorkspaceState;
+  isMainCharacter: boolean;
   updatedAt: string;
 };
 type StudioUniverseWorkspaceStatus = {

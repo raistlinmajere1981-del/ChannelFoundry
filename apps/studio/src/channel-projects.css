@@ -65,3 +65,5 @@
 .studio-settings-surface>.ai-provider-panel,.studio-settings-surface>.community-admin-settings{margin:0}
 .studio-settings-data{display:grid;grid-template-columns:minmax(245px,.6fr) minmax(0,1.4fr);gap:14px;align-items:start}
 @media(max-width:1100px){.studio-settings-data{grid-template-columns:1fr}}
+
+.project-narrator-identity-disclosure{min-width:0;padding:9px 11px;border:1px solid var(--border-soft);border-radius:6px}.project-narrator-identity-disclosure>summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer;font-size:12px;color:var(--text-primary)}.project-narrator-identity-disclosure>summary strong{font-weight:650}.project-narrator-identity-disclosure>summary small{color:var(--text-muted);font-size:11px;font-weight:400}.project-narrator-identity-disclosure[open] .project-narrator-identities{margin-top:11px;max-height:290px;overflow:auto}.project-narrator-identity-disclosure .project-narrator-identities{border-radius:5px}

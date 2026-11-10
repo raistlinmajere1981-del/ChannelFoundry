@@ -15,13 +15,14 @@ function listNodes(db, input = {}) {
   const rows = db.prepare(`
     SELECT key, run_id AS runId, kind, name, summary,
            aliases_json AS aliasesJson, source_video_ids_json AS sourceVideoIdsJson,
-           payload_json AS payloadJson, state, updated_at AS updatedAt
+           payload_json AS payloadJson, state, updated_at AS updatedAt,
+           EXISTS(SELECT 1 FROM universe_main_characters mc WHERE mc.node_key=universe_workspace_nodes.key) AS isMainCharacter
     FROM universe_workspace_nodes
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY CASE kind WHEN 'story' THEN 1 WHEN 'character' THEN 2 WHEN 'event' THEN 3 WHEN 'location' THEN 4 ELSE 5 END,
              name COLLATE NOCASE ASC
   `).all(...params);
-  return rows.map(hydrateNode);
+  return rows.map((row) => ({ ...hydrateNode(row), isMainCharacter: Boolean(row.isMainCharacter) }));
 }
 
 function listRelations(db, input = {}) {
@@ -99,6 +100,16 @@ function updateNode(db, input) {
   `).get(key);
   if (!row) throw new Error("Editoryal kayıt bulunamadı.");
   const current = hydrateNode(row);
+  const mainSelection = input?.isMainCharacter;
+  if (mainSelection !== undefined && (current.kind !== 'character' || typeof mainSelection !== 'boolean')) {
+    throw new Error('Ana karakter işareti yalnız muhataplara uygulanabilir.');
+  }
+  const metadataOnly = mainSelection !== undefined && Object.keys(input ?? {}).every(field => field === 'key' || field === 'isMainCharacter');
+  if (metadataOnly) {
+    if (mainSelection) db.prepare('INSERT OR IGNORE INTO universe_main_characters(node_key) VALUES (?)').run(key);
+    else db.prepare('DELETE FROM universe_main_characters WHERE node_key=?').run(key);
+    return { ...current, isMainCharacter: mainSelection };
+  }
   const name = clean(input?.name ?? current.name, 260);
   if (!name) throw new Error("Editoryal kayıt adı boş bırakılamaz.");
   const summary = clean(input?.summary ?? current.summary, 12000);
@@ -120,6 +131,11 @@ function updateNode(db, input) {
       SET name=?, summary=?, aliases_json=?, payload_json=?, state=?, updated_at=CURRENT_TIMESTAMP
       WHERE key=?
     `).run(name, summary, JSON.stringify(aliases), JSON.stringify(payload), state, key);
+    if (mainSelection === true) {
+      db.prepare('INSERT OR IGNORE INTO universe_main_characters(node_key) VALUES (?)').run(key);
+    } else if (mainSelection === false) {
+      db.prepare('DELETE FROM universe_main_characters WHERE node_key=?').run(key);
+    }
     syncRelationStates(db);
     db.exec("COMMIT;");
   } catch (error) {
@@ -132,7 +148,7 @@ function updateNode(db, input) {
            payload_json AS payloadJson, state, updated_at AS updatedAt
     FROM universe_workspace_nodes WHERE key=?
   `).get(key);
-  return hydrateNode(updated);
+  return { ...hydrateNode(updated), isMainCharacter: Boolean(db.prepare('SELECT 1 FROM universe_main_characters WHERE node_key=?').get(key)) };
 }
 
 function status(db) {

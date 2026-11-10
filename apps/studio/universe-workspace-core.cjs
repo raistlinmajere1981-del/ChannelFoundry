@@ -16,6 +16,11 @@ function ensureSchema(db) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS universe_main_characters (
+      node_key TEXT PRIMARY KEY REFERENCES universe_workspace_nodes(key) ON DELETE CASCADE,
+      selected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS universe_workspace_relations (
       key TEXT PRIMARY KEY,
       run_id INTEGER NOT NULL,

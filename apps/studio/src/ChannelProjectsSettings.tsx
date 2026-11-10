@@ -167,6 +167,8 @@ export default function ChannelProjectsSettings() {
             </select></label>
           </div>
           <p className="project-web-help">Görünen ad kimlik kanıtı değildir. Birinci şahıs eylemleri aşağıda açıkça eşlenen kaynak karakterlere dayanır.</p>
+          <details className="project-narrator-identity-disclosure">
+            <summary><strong>Anlatıcı kaynak kimliği</strong><small>{selectedKeys.length ? selectedKeys.length + " eşleme" : "Henüz eşlenmedi"} · Birinci şahıs kanıtı</small></summary>
           <fieldset className="project-narrator-identities">
             <legend>Evren'deki anlatıcı kimlikleri</legend>
             <p className="project-web-help">Bu kanalın onaylı karakterlerini açıkça bağla veya kaldır. İsim benzerliği eşleme yapmaz. Seçim yoksa yeni anlatılar üçüncü şahıs kaynaklı tarafsız anlatılır.</p>
@@ -184,6 +186,7 @@ export default function ChannelProjectsSettings() {
               <button type="button" className="secondary-button" onClick={() => toggleIdentity(key, false)}>Eşlemeyi kaldır</button>
             </div>)}
           </fieldset>
+          </details>
           <label><span>Editoryal üslup notları</span><textarea aria-label="Editoryal üslup notları" rows={2} maxLength={1600} value={form.narrator.editorialNote} onChange={event => updateNarrator({ editorialNote: event.target.value })} placeholder="Kalıcı anlatım tercihleri" /></label>
           <p className="project-web-help">Üslup notları kaynak doğruluğunu geçersiz kılamaz; kaynakta olmayan duygu, deneyim veya olay eklenemez. Kaydedilen tercihler sonraki Hikâyeleştir işlemlerinde kullanılır.</p>
         </fieldset>

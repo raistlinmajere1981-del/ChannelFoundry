@@ -176,7 +176,10 @@ function buildRequest(db, runId) {
       sourceVideos: modernEvidence ? narrativeEvidence.sortedVideos(videoMetadata(db, videoIds)) : videoMetadata(db, videoIds),
       // Old snapshotless runs stay deterministic too; never reread live settings.
       narrator: run.input?.narrator ?? { displayName: "", mode: "neutral", editorialNote: "" },
-      ...(run.input?.evidencePolicy === narrativeEvidence.POLICY ? { narratorSourceEntities: run.input.narratorSourceEntities ?? [] } : {}),
+      ...(run.input?.evidencePolicy === narrativeEvidence.POLICY ? {
+        narratorSourceEntities: run.input.narratorSourceEntities ?? [],
+        ...(run.input.mainCharacters?.length ? { mainCharacters: run.input.mainCharacters } : {}),
+      } : {}),
     },
     responseContract: {
       contractVersion: CONTRACT_VERSION,

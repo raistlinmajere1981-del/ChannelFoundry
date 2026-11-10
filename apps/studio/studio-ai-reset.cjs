@@ -4,6 +4,7 @@ const AI_TABLES = [
   "narrative_sections",
   "narrative_run_sources",
   "narrative_runs",
+  "universe_main_characters",
   "universe_workspace_history",
   "universe_workspace_revisions",
   "universe_workspace_relations",
