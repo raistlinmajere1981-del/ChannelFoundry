@@ -129,6 +129,8 @@ function subtitleLabel(video: StudioYoutubeCatalogVideo) {
   if (video.subtitleStatus === "manual") return "Manuel";
   if (video.subtitleStatus === "automatic") return "Otomatik";
   if (video.subtitleStatus === "none") return "Yok";
+  if (video.detailCheckStatus === "unavailable") return "Erişilemedi";
+  if (video.detailCheckStatus === "retry") return "Tekrar";
   return "—";
 }
 
@@ -296,7 +298,7 @@ export default function VideoArchive() {
       await load();
       const detailedReady = result.detailStats.skipped + result.detailStats.completed;
       setSyncNotice({
-        text: `Senkronizasyon tamamlandı · ${result.newCount} yeni · ${result.updatedCount} katalog${result.removedCount ? ` · ${result.removedCount} kapsam dışı kaldırıldı` : ""} · ${detailedReady} ayrıntı hazır · ${result.detailStats.unavailable} erişilemedi · ${result.archivedThumbnailCount} thumbnail arşivde${result.cachedCount ? ` · ${result.cachedCount} yeni indirildi` : ""}.`,
+        text: `Senkronizasyon tamamlandı · ${result.newCount} yeni · ${result.updatedCount} katalog${result.removedCount ? ` · ${result.removedCount} kapsam dışı kaldırıldı` : ""} · ${detailedReady} ayrıntı hazır · ${result.detailStats.unavailable} sonuç alınamadı${result.detailStats.deferred ? ` · ${result.detailStats.deferred} kontrollü tekrar bekliyor` : ""} · ${result.archivedThumbnailCount} thumbnail arşivde${result.cachedCount ? ` · ${result.cachedCount} yeni indirildi` : ""}.`,
         tone: "success",
       });
     } catch (reason) {
@@ -581,7 +583,7 @@ export default function VideoArchive() {
             <div className="catalog-video-main"><img src={video.thumbnailUrl} alt=""/><div><a href={youtubeVideoUrl(video.videoId)} title="YouTube'da aç" onClick={(event) => { event.preventDefault(); void openYoutubeVideo(video); }}>{video.title}</a></div></div>
             <span className="catalog-date">{formatDate(video.publishedAt)}</span>
             <span className="catalog-duration">{formatDuration(video.durationSeconds)}</span>
-            <span className={`catalog-subtitle-state ${video.subtitleIgnored ? "catalog-state" : video.subtitleStatus === "manual" ? "catalog-state good" : video.subtitleStatus === "automatic" ? "catalog-state pending" : "catalog-state"}`} title={[...video.subtitleLanguages, ...video.automaticCaptionLanguages].join(", ")}>{subtitleLabel(video)}</span>
+            <span className={`catalog-subtitle-state ${video.subtitleIgnored ? "catalog-state" : video.subtitleStatus === "manual" ? "catalog-state good" : video.subtitleStatus === "automatic" ? "catalog-state pending" : "catalog-state"}`} title={[...video.subtitleLanguages, ...video.automaticCaptionLanguages].join(", ") || (video.detailRetryAt ? `Yeniden kontrol: ${new Date(video.detailRetryAt).toLocaleString("tr-TR")}` : "")}>{subtitleLabel(video)}</span>
             {video.hasTranscript
               ? <span className="catalog-archive-state">Arşivde</span>
               : video.subtitleIgnored

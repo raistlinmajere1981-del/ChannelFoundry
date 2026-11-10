@@ -56,7 +56,7 @@ async function test() {
     assert.equal(videos.length,1);
     assert.equal(videos[0].subtitleIgnored,true);
 
-    // Synchronization passes persistent ignore IDs to the detail scanner.
+    // Transcript download exclusions do not suppress independent YouTube metadata checks.
     const source = require("./youtube-catalog-source.cjs");
     const catalogApi = require("./youtube-catalog.cjs");
     const originalSourceStatus = source.ytDlpStatus;
@@ -75,7 +75,7 @@ async function test() {
         };
       };
       await catalogApi.syncChannel(db, dir, {channelId:"UCtest",mode:"recent"});
-      assert.equal(observedSkip,true,"previously ignored videos should skip detail requests");
+      assert.equal(observedSkip,false,"ignored transcript downloads must not suppress metadata checks");
     } finally {
       source.ytDlpStatus = originalSourceStatus;
       source.fetchCatalog = originalFetchCatalog;

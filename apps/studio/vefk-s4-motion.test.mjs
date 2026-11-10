@@ -238,6 +238,7 @@ test('S4b PHP handler rejects doc2 catalog1 and catalog2 with legacy binding2, w
   }
   try {
     fs.cpSync(new URL('../../channels/birdesengor/web/public/api/studio',import.meta.url),shipped,{recursive:true});
+    fs.cpSync(new URL('../../channels/birdesengor/web/public/api/analytics',import.meta.url),path.join(shipped,'../analytics'),{recursive:true});
     fs.mkdirSync(assets,{recursive:true});
     fs.writeFileSync(path.join(content,'publication.json'),'{"previous":"publication"}\n');
     fs.writeFileSync(path.join(content,'community-credits.json'),'{"previous":"credits"}\n');
@@ -253,6 +254,11 @@ test('S4b PHP handler rejects doc2 catalog1 and catalog2 with legacy binding2, w
       raw.vefkCatalog.entries[0].document=structuredClone(core.createVefk({...squareInput,schemaVersion:2}));
       raw.vefkCatalog.schemaVersion=version;
       s6Fixtures.rehash(raw);
+      // Reach the Vefk gate through today's bilingual publication envelope.
+      Object.assign(raw, {languageVersion:1, languages:['tr','en'], vefkLanguages:{}});
+      raw.archive.entities.forEach(entity => { entity.locales = {}; });
+      const {publication, ...meaning} = raw;
+      publication.contentFingerprint = sha(core.canonicalString(meaning));
       const before=snapshot(),body=JSON.stringify({publication:raw});
       const resultFile=path.join(root,'response.json');
       const output=php([fileURLToPath(new URL('./vefk-s6-endpoint-harness.php',import.meta.url))],JSON.stringify({

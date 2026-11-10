@@ -208,6 +208,8 @@ function fetchDetailedEntries(url, mode, options = ytDlp.mediaOptions(), control
     let timedOut = false;
     let forceKillTimer = null;
     const attempted = new Set();
+    const failureByVideoId = new Map();
+    const checkpointedFailures = new Set();
 
     const report = (entry = null) => {
       control.onProgress?.({
@@ -242,6 +244,11 @@ function fetchDetailedEntries(url, mode, options = ytDlp.mediaOptions(), control
       const parsed = parseDetailOutput(line, options);
       if (!parsed.length) return;
       const entry = parsed[0];
+      try { control.onEntry?.(entry); } catch (error) {
+        finish(() => reject(error));
+        terminate();
+        return;
+      }
       entries.push(entry);
       attempted.add(entry.id);
       report(entry);
@@ -251,7 +258,19 @@ function fetchDetailedEntries(url, mode, options = ytDlp.mediaOptions(), control
       stderrLines = flush ? "" : lines.pop() ?? "";
       for (const line of lines) {
         const match = line.match(/\[youtube\]\s+([A-Za-z0-9_-]{11}):/);
-        if (!match || attempted.has(match[1])) continue;
+        if (!match) continue;
+        failureByVideoId.set(match[1], line);
+        if (/^ERROR:/i.test(line) && !checkpointedFailures.has(match[1])) {
+          try {
+            control.onFailed?.({ videoId: match[1], error: line });
+            checkpointedFailures.add(match[1]);
+          } catch (error) {
+            finish(() => reject(error));
+            terminate();
+            return;
+          }
+        }
+        if (attempted.has(match[1])) continue;
         attempted.add(match[1]);
         report({ title: control.titlesById?.get(match[1]) || "" });
       }
@@ -290,7 +309,15 @@ function fetchDetailedEntries(url, mode, options = ytDlp.mediaOptions(), control
       consumeErrorLines(true);
       if (control.signal?.aborted) return finish(() => reject(cancellationError()));
       if (timedOut) return finish(() => reject(new Error("yt-dlp ayrıntılı kanal taraması zaman aşımına uğradı.")));
+      if (settled) return;
       if (code !== 0 && !entries.length && !control.allowEmpty) return finish(() => reject(new Error(stderr.trim() || `yt-dlp ${code} koduyla durdu.`)));
+      const successful = new Set(entries.map((entry) => entry.id));
+      try {
+        for (const videoId of control.videoIds || []) {
+          if (successful.has(videoId) || checkpointedFailures.has(videoId)) continue;
+          control.onFailed?.({ videoId, error: failureByVideoId.get(videoId) || (code !== 0 ? `yt-dlp exit ${code}` : "No metadata returned") });
+        }
+      } catch (error) { return finish(() => reject(error)); }
       if (Number(control.total) > attempted.size) control.onProgress?.({ processed: Number(control.total), total: Number(control.total), currentTitle: "" });
       return finish(() => resolve(entries));
     });
@@ -382,6 +409,8 @@ async function fetchCatalog(channelUrl, mode, input = {}) {
     .map((entry, index) => ({ entry, playlistIndex: index + 1 }))
     .filter(({ entry }) => shouldIncludeEntry(entry, filters)));
   const completeIds = new Set(Array.isArray(input.skipVideoIds) ? input.skipVideoIds : []);
+  const deferredIds = new Set(Array.isArray(input.deferredVideoIds) ? input.deferredVideoIds : []);
+  const cachedDetails = new Map((input.cachedDetails || []).map((detail) => [String(detail.id), detail]));
   const pendingGroups = eligibleGroups.map((items) => items
     .filter(({ entry }) => !completeIds.has(String(entry?.id ?? ""))));
   const targetProgress = pendingGroups.map((items) => ({ processed: 0, total: items.length }));
@@ -393,6 +422,9 @@ async function fetchCatalog(channelUrl, mode, input = {}) {
     total: pendingGroups[index].length,
     allowEmpty: true,
     titlesById: new Map(pendingGroups[index].map(({ entry }) => [String(entry.id), String(entry.title || "")])),
+    videoIds: pendingGroups[index].map(({ entry }) => String(entry.id)),
+    onEntry: input.onDetail,
+    onFailed: input.onDetailFailure,
     onProgress: (progress) => {
       targetProgress[index] = { processed: progress.processed, total: pendingGroups[index].length };
       input.onProgress?.({
@@ -405,7 +437,7 @@ async function fetchCatalog(channelUrl, mode, input = {}) {
   }) : Promise.resolve([])));
   const detailedById = new Map(detailPayloads.flat().map((entry) => [String(entry.id), entry]));
   const entries = eligibleGroups.flatMap((group) => group.map(({ entry }) => {
-    const detailed = detailedById.get(String(entry.id));
+    const detailed = detailedById.get(String(entry.id)) || cachedDetails.get(String(entry.id));
     if (detailed) return { ...entry, ...detailed };
     return {
       ...entry,
@@ -420,7 +452,8 @@ async function fetchCatalog(channelUrl, mode, input = {}) {
       requested: detailTotal,
       completed: detailedById.size,
       unavailable: Math.max(0, detailTotal - detailedById.size),
-      skipped: Math.max(0, entries.length - detailTotal),
+      skipped: Math.max(0, entries.length - detailTotal - eligibleGroups.flat().filter(({ entry }) => deferredIds.has(String(entry.id))).length),
+      deferred: eligibleGroups.flat().filter(({ entry }) => deferredIds.has(String(entry.id))).length,
     },
   };
 }

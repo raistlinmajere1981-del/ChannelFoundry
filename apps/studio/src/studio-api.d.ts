@@ -40,6 +40,8 @@ type StudioYoutubeCatalogVideo = {
   videoId: string; channelId: string; title: string; publishedAt: string; durationSeconds: number | null; url: string; thumbnailUrl: string; thumbnailFile: string;
   availability: string; liveStatus: string; subtitleStatus: "manual" | "automatic" | "none" | "unknown" | "";
   subtitleLanguages: string[]; automaticCaptionLanguages: string[];
+  detailCheckStatus?: "checked" | "none" | "unavailable" | "retry" | "unknown";
+  detailCheckedAt?: string; detailRetryAt?: string;
   contentKey: string | null; editorialStatus: "published" | "draft" | null; hasTranscript: boolean; subtitleIgnored: boolean; thumbnailCached: boolean;
 };
 type StudioYoutubeCatalogStats = { total: number; imported: number; transcripts: number; pendingImport: number };
@@ -53,7 +55,7 @@ type StudioYoutubeChannelMediaOptions = {
 type StudioYoutubeSyncResult = {
   ok: true; mode: "recent" | "full"; tool: StudioTranscriptToolStatus; channel: StudioYoutubeChannel;
   newCount: number; updatedCount: number; removedCount: number; cachedCount: number; archivedThumbnailCount: number;
-  detailStats: { requested: number; completed: number; unavailable: number; skipped: number };
+  detailStats: { requested: number; completed: number; unavailable: number; skipped: number; deferred?: number };
 } | { ok: false; canceled: true };
 type StudioYoutubeSyncProgress = {
   phase: "preparing" | "catalog" | "scanning" | "thumbnails" | "saving" | "complete" | "canceling" | "canceled";

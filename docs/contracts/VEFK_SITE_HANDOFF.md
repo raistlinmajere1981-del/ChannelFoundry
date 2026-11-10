@@ -29,6 +29,8 @@ Her iki ailede:
 }
 ```
 
+2026-11-10 sahiplik sözleşmesi: oda yalnız `vefk-stand` nesnesini ve `vefk-stand.ink-plane` yüzeyini içerir. `quill` / `quill.tip`, `vefk-site-consumer.mjs` içindeki `VEFK_WORKSHOP.pen` ile tanımlanan atölye içi yayın kimliğidir; oda nesnesi veya Efekt Atölyesi hedefi değildir. Tüketici pen kimliğini kesin binding karşılaştırmasıyla, oda bağlantısını yalnız atölye yüzeyi üzerinden doğrular. Mevcut paket kimlikleri, hash'leri ve belge verileri değişmez; migration gerekmez.
+
 Binding'in alan kümesi ve değerleri kesin doğrulanır. Eski rulo anchor'ı, bilinmeyen alan/easing/sürüm, yanlış geometri veya hash reddedilir; migration, sessiz yükseltme veya sürüm düşürme yoktur. Studio, seçilen onaylı revizyonlar arasında açık DOC2 varsa katalog 2 üretir. DOC1 seçimi DOC1 byte'larını ve fingerprint'ini korur. DOC2 `drawPlan.strokes[].easing`, kanonik doğrulayıcının izin verdiği eğrileri taşır; eksik easing kanonik oynatıcıda doğrusal okunur, belge değiştirilmez.
 
 Entry alanları `id`, `revision`, `order`, `title`, `contentHash`, `url`, `sha256`, `document` şeklindedir. Katalog fingerprint'i, semantik belge contentHash'i ve serileştirilmiş belge SHA-256 değeri tüketicide doğrulanır. Studio core/store/publisher ve PHP/JS gate doğrulaması aynı sürüm ailesini kabul etmelidir.
@@ -55,7 +57,7 @@ Birden fazla `M` içeren kaynak path görünmez tutulur, alt yollar kendi görü
 
 Şövale/kalem düğümleri yaklaşma, seçim, seek ve dönüş boyunca aynıdır. Kol play/pause, oyuk native range seek, süpürme taşı seek(0), mühür çarkı kayıt seçimi ve çerçeve köşesindeki X/Escape saati durdurup oda dönüşünü başlatır. Masaüstünde en fazla beş, mobilde üç mühür görünür. Reduced-motion son kareyi duraklatır; elle zaman seçimi yine aynı kanonik kareyi kullanır.
 
-Efekt Atölyesi yalnız çok düşük yoğunluklu ortam ışığını yönetir. `vefk-stand.ink-plane` ve `quill.tip` kimlikleri korunur; efektler çizim zamanının veya geometrisinin sahibi olmaz.
+Efekt Atölyesi gerçek oda nesnelerinin efektlerini yönetir. Atölyenin yerel parşömen ışığı aynı kanonik motoru kullanır; çizim ve divit yaşam döngüsünün sahibi `VefkStand` olur. `quill.tip`, DOM üzerinde `data-vefk-anchor` olarak bulunur; `data-effect-anchor` veya bağımsız `data-scene-object-id` olarak yayımlanmaz.
 
 ## Gerçek yerel örnek ve kabul
 

@@ -4,6 +4,7 @@ const store = require("./youtube-catalog-store.cjs");
 const { cacheThumbnails, thumbnailCacheFile } = require("./youtube-thumbnail-cache.cjs");
 const ytDlp = require("./ytdlp-manager.cjs");
 const ignored = require("./youtube-transcript-ignore.cjs");
+const detailChecks = require("./youtube-detail-checkpoints.cjs");
 
 async function addChannel(db, input) {
   store.ensureSchema(db);
@@ -47,6 +48,7 @@ async function syncChannel(db, userDataPath, input) {
   const url = source.normalizeChannelUrl(input?.url || selectedChannel.url);
   const mode = input?.mode === "recent" ? "recent" : "full";
   const detailSignature = source.currentDetailSignature(mediaOptions);
+  const checkpoints = detailChecks.load(db, selectedChannel.id, detailSignature);
   const { payload, identity, options, filters, detailStats } = await source.fetchCatalog(url, mode, {
     mediaOptions,
     playlistUrl: selectedChannel.playlistUrl,
@@ -55,10 +57,19 @@ async function syncChannel(db, userDataPath, input) {
     excludeMembersOnly: input?.excludeMembersOnly,
     signal: input?.signal,
     onProgress: input?.onProgress,
+    // A saved transcript does not imply that YouTube metadata was checked.
     skipVideoIds: [...new Set([
       ...store.detailedVideoIds(db, detailSignature, selectedChannel.id),
-      ...ignored.ignoredVideoIds(db, mediaOptions.subtitleLanguages),
+      ...checkpoints.skipVideoIds,
     ])],
+    deferredVideoIds: checkpoints.deferredVideoIds,
+    cachedDetails: checkpoints.cachedDetails,
+    onDetail: (detail) => detailChecks.record(db, {
+      channelId: selectedChannel.id, videoId: detail.id, signature: detailSignature, detail,
+    }),
+    onDetailFailure: ({ videoId, error }) => detailChecks.record(db, {
+      channelId: selectedChannel.id, videoId, signature: detailSignature, error,
+    }),
   });
   const videos = source.flattenEntries(payload?.entries)
     .filter((entry) => source.shouldIncludeEntry(entry, filters))
@@ -104,6 +115,7 @@ async function syncChannel(db, userDataPath, input) {
   }
   input?.onProgress?.({ phase: "saving", processed: videos.length, total: videos.length, currentTitle: "" });
   const result = store.upsertCatalog(db, identity, url, videos, mode);
+  if (mode === "full") detailChecks.prune(db, identity.channelId, videos.map((video) => video.videoId));
   const channel = store.getChannel(db, identity.channelId);
   return { ok: true, mode, tool, channel, ...result, cachedCount, archivedThumbnailCount, detailStats };
 }

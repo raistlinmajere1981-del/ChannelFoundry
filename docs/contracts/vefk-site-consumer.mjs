@@ -2,13 +2,21 @@
  * Standalone ESM adapter for the BirDeSenGör V2 site.
  * Studio remains the sole owner of validation, construction and timeline data.
  * This file can be copied/imported into the V2 build after the scene session
- * connects its permanent stand and quill. No network or DOM required.
+ * connects its permanent workshop. No network or DOM required.
  */
+/** Workshop-local publication identity. These are NOT room objects/effect anchors.
+ * Keep the published pen IDs stable: geometry/timing contain no scene positions.
+ * VefkStand owns the one VefkQuill and projects frame.pen.position in its ink SVG.
+ */
+export const VEFK_WORKSHOP = Object.freeze({
+  ownerId: "vefk-stand",
+  pen: Object.freeze({ objectId: "quill", anchorId: "quill.tip" }),
+});
 export const VEFK_BINDING = Object.freeze({
   bindingVersion: 2,
   sceneId: "birdesengor-study-v2",
-  surface: { objectId: "vefk-stand", anchorId: "vefk-stand.ink-plane" },
-  pen: { objectId: "quill", anchorId: "quill.tip" },
+  surface: { objectId: VEFK_WORKSHOP.ownerId, anchorId: "vefk-stand.ink-plane" },
+  pen: VEFK_WORKSHOP.pen,
   coordinateSpace: "svg-viewBox",
   fit: "contain",
 });
@@ -110,12 +118,12 @@ export function validateSceneBinding(binding, scene, catalogVersion = 1) {
   if (scene) {
     if (scene.sceneId !== binding.sceneId) throw new Error("Vefk sceneId etkin sahneye ait değil.");
     const objects = Array.isArray(scene.objects) ? scene.objects : [];
-    for (const part of [binding.surface, binding.pen]) {
-      const object = objects.find(item => item.id === part.objectId);
-      if (!object || !Array.isArray(object.anchors) ||
-          !object.anchors.some(anchor => anchor.id === part.anchorId)) {
-        throw new Error("Vefk sahnesinde gerekli fiziksel nesne/ankor bulunamadı: " + part.anchorId);
-      }
+    // The strict binding comparison above validates the workshop-local pen.
+    // Only the workshop surface belongs to the room's object/anchor registry.
+    const surface = objects.find(item => item.id === binding.surface.objectId);
+    if (!surface || !Array.isArray(surface.anchors) ||
+        !surface.anchors.some(anchor => anchor.id === binding.surface.anchorId)) {
+      throw new Error("Vefk sahnesinde gerekli fiziksel nesne/ankor bulunamadı: " + binding.surface.anchorId);
     }
   }
   return true;

@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const youtubeImporter = require("./youtube-import.cjs");
 const ignored = require("./youtube-transcript-ignore.cjs");
+const detailChecks = require("./youtube-detail-checkpoints.cjs");
 
 const DEFAULT_CHANNEL_MEDIA_OPTIONS = Object.freeze({
   metadataLanguage: "tr",
@@ -112,6 +113,7 @@ function ensureSchema(db) {
   ensureColumn(db, "youtube_videos", "subtitle_languages_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "youtube_videos", "automatic_caption_languages_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "youtube_videos", "detail_signature", "TEXT NOT NULL DEFAULT ''");
+  detailChecks.ensureSchema(db);
   ensureActiveSelection(db);
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_youtube_channels_active ON youtube_channels(is_active) WHERE is_active = 1;");
 }
@@ -249,13 +251,13 @@ function detailedVideoIds(db, detailSignature, channelId = "") {
   const scopedId = String(channelId || "").trim();
   db.prepare(`
     UPDATE youtube_videos SET detail_signature=?
-    WHERE detail_signature='' AND published_at<>''
+    WHERE detail_signature=''
       AND subtitle_status IN ('manual', 'automatic', 'none')
       ${scopedId ? "AND channel_id=?" : ""}
   `).run(signature, ...(scopedId ? [scopedId] : []));
   return db.prepare(`
     SELECT video_id AS videoId FROM youtube_videos
-    WHERE published_at<>'' AND subtitle_status IN ('manual', 'automatic', 'none')
+    WHERE subtitle_status IN ('manual', 'automatic', 'none')
       AND detail_signature=?
       ${scopedId ? "AND channel_id=?" : ""}
   `).all(signature, ...(scopedId ? [scopedId] : [])).map((row) => row.videoId);
@@ -358,6 +360,7 @@ function listVideos(db, input = {}) {
            yv.automatic_caption_languages_json AS automaticCaptionLanguagesJson,
            ci.key AS contentKey, ci.status AS editorialStatus,
            yi.subtitle_languages_json AS ignoredLanguagesJson,
+           yc.metadata_language AS channelMetadataLanguage,
            yc.subtitle_languages_json AS channelSubtitleLanguagesJson,
            ${transcriptSelect}
     FROM youtube_videos yv
@@ -370,10 +373,26 @@ function listVideos(db, input = {}) {
     ${channelId ? "WHERE yv.channel_id = ?" : ""}
     ORDER BY CASE WHEN yv.published_at='' THEN 1 ELSE 0 END, yv.published_at DESC, yv.discovered_at DESC
   `).all(...(channelId ? [channelId] : []));
-  return rows.map((row) => ({
+  const checkpointStates = detailChecks.statusMap(db, channelId);
+  return rows.map((row) => {
+    const requestedLanguages = parseJsonArray(row.channelSubtitleLanguagesJson);
+    const signature = JSON.stringify({
+      metadataLanguage: row.channelMetadataLanguage || DEFAULT_CHANNEL_MEDIA_OPTIONS.metadataLanguage,
+      subtitleLanguages: requestedLanguages.length ? requestedLanguages : DEFAULT_CHANNEL_MEDIA_OPTIONS.subtitleLanguages,
+    });
+    const checkpoint = checkpointStates.get([row.channelId, row.videoId, signature].join("\t"));
+    const fresh = row.detailSignature === signature && ["manual", "automatic", "none"].includes(row.subtitleStatus);
+    const knownStatus = ["manual", "automatic", "none"].includes(row.subtitleStatus);
+    return {
     ...row,
-    subtitleLanguages: parseJsonArray(row.subtitleLanguagesJson),
-    automaticCaptionLanguages: parseJsonArray(row.automaticCaptionLanguagesJson),
+    subtitleStatus: knownStatus ? row.subtitleStatus : (checkpoint?.detail?.subtitle_status || row.subtitleStatus),
+    detailCheckStatus: checkpoint?.result || (fresh ? (row.subtitleStatus === "none" ? "none" : "checked") : "unknown"),
+    detailCheckedAt: checkpoint?.checkedAt || "",
+    detailRetryAt: checkpoint?.retryAt || "",
+    subtitleLanguages: parseJsonArray(row.subtitleLanguagesJson).length
+      ? parseJsonArray(row.subtitleLanguagesJson) : (checkpoint?.detail?.subtitle_languages || []),
+    automaticCaptionLanguages: parseJsonArray(row.automaticCaptionLanguagesJson).length
+      ? parseJsonArray(row.automaticCaptionLanguagesJson) : (checkpoint?.detail?.automatic_caption_languages || []),
     hasTranscript: Boolean(row.hasTranscript),
     subtitleIgnored: !row.hasTranscript && Boolean(row.ignoredLanguagesJson)
       && row.ignoredLanguagesJson === ignored.signature(
@@ -382,7 +401,8 @@ function listVideos(db, input = {}) {
           : DEFAULT_CHANNEL_MEDIA_OPTIONS.subtitleLanguages,
       ),
     thumbnailCached: Boolean(row.thumbnailFile && fs.existsSync(row.thumbnailFile)),
-  }));
+  };
+  });
 }
 
 function parseJsonArray(value) {
