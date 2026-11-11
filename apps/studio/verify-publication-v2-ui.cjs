@@ -21,7 +21,10 @@ const communityModel = read("apps/web/src/community/communityModel.js");
 const deployWeb = read("apps/web/scripts/deploy-natro.mjs");
 
 assert.match(center, /KİTAP WEB · PUBLICATION V2/, "Yayınlama merkezi tek hedefi Kitap Web publication v2 olarak göstermeli");
-assert.match(center, /Kitap Web'i canlıya yayınla/, "Canlı yayın publication v2 Web hedefini açıkça belirtmeli");
+assert.match(center, /Mevcut yayını güncelle/, "Mevcut yayın güncelleme düğmesi açıkça adlandırılmalı");
+assert.match(center, /Tam yayını canlıya gönder/, "Tam yayın işlemi açıkça adlandırılmalı");
+assert.match(center, /Canlı durumu yenile/, "Dışarıdan yapılan FTPS yayını Studio ekranında yeniden okunabilmeli");
+assert.doesNotMatch(center, /Yerel approved içerik canlı publication.dan farklı/, "Fark bildirimi hata gibi sunulmamalı");
 assert.match(center, /readiness\.readyForTheme/, "Canlı yayın 05/06 readiness kapısını zorunlu tutmalı");
 assert.match(center, /exportPublicSnapshot\(publishMode\)/, "Yerel paket seçili yayın biçiminde hazırlanmalı");
 assert.match(center, /publishPublicSnapshot\(publishMode\)/, "Canlı yayın seçili biçimde IPC köprüsünü kullanmalı");

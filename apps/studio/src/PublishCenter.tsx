@@ -169,6 +169,17 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
     }
   };
 
+  const refreshLiveStatus = async () => {
+    const bridge = window.channelFoundryStudio as PublicationBridge | undefined;
+    if (!bridge) return;
+    setError(null);
+    try {
+      await load(bridge);
+    } catch (refreshError) {
+      setError(publishErrorText(refreshError));
+    }
+  };
+
   const revealPackage = async () => {
     try {
       await window.channelFoundryStudio?.showPublicExport();
@@ -230,13 +241,18 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
           {localBuilding ? "Oluşturuluyor…" : "Yerel paketi oluştur"}
         </button>
         <button className="primary-button" disabled={!project?.deploymentEnabled || !selectedReady || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
-          {livePublishing ? "Yayınlanıyor…" : "Kitap Web'i canlıya yayınla"}
+          {livePublishing ? "Yayınlanıyor…" : publishMode === "update" ? "Mevcut yayını güncelle" : "Tam yayını canlıya gönder"}
         </button>
       </div>
 
       {!project?.deploymentEnabled && <p className="publish-deployment-help">
         Önce web uygulaması hosting üzerinde kurulmalı. Ardından <strong>Ayarlar → Kanal ve yayın → Web yayını</strong> bölümündeki <strong>Test</strong> kontrolü başarılı olunca canlı yayını etkinleştirip kaydet. Yayınlanacak içerik hazır, yalnız sunucu bağlantısı bekleniyor.
       </p>}
+      <div className="publish-actions">
+        <button type="button" className="secondary-button" disabled={livePublishing || localBuilding} onClick={() => void refreshLiveStatus()}>
+          Canlı durumu yenile
+        </button>
+      </div>
       <div className={communityConnected ? "live-readiness ready" : "live-readiness"}>
         <span className="local-dot"/>
         {!project?.deploymentEnabled ? "Yerel tasarım · canlı yayın işlemi devre dışı" : communityConnected ? "Studio yönetici bağlantısı hazır" : "Yayın için Topluluk yönetici bağlantısı gerekli"}
@@ -268,8 +284,12 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       </div>}
 
       {preview?.baseline && <div className="automation-note">
-        <span>CANLI BASELINE</span>
-        <p>{preview.changed ? "Yerel approved içerik canlı publication'dan farklı." : "Yerel approved içerik canlı publication ile aynı fingerprint'e sahip."}</p>
+        <span>CANLI / YEREL KARŞILAŞTIRMASI</span>
+        <p>{preview.changed
+          ? preview.update?.ready
+            ? "Canlı kayıtlarda yayımlanabilir değişiklikler var. Bu bir hata değil; güncelleme modu üzerinden aktarılabilir."
+            : "Yerel onaylı içerik canlıdan farklı, ancak mevcut kayıtlar için yayımlanabilir güncelleme yok. Yeni kayıtlar Tam yayın kapsamında değerlendirilir."
+          : "Güncel: Yerel onaylı içerik ile canlı yayın aynı fingerprint'e sahip."}</p>
       </div>}
     </section>
     </>}
