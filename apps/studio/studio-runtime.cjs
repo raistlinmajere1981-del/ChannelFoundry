@@ -21,6 +21,8 @@ const {
   exportPublicSnapshot,
   getPublicationInfo,
 } = require("./storage.cjs");
+const {recordPublicationInfo} = require("./storage-publication.cjs");
+const publicationUpdates = require("./publication-updates.cjs");
 
 let studioDatabase = null;
 let mainWindow = null;
@@ -67,69 +69,110 @@ function liveBaselineFile() {
   return path.join(app.getPath("userData"), "public-export", "publication-live-baseline.json");
 }
 
-function publicationPreview() {
-  const built = publicationV2.buildPublicationV2(database());
-  const baselineFile = liveBaselineFile();
-  let previous = null;
-  if (fs.existsSync(baselineFile)) {
-    try { previous = JSON.parse(fs.readFileSync(baselineFile, "utf8")); } catch {}
-  }
-  const snapshot = built.snapshot;
+async function fetchLivePublication() {
+  const project = require("./channel-projects.cjs").activeProject();
+  if (!project?.webUrl) throw new Error("Canlı site adresi tanımlı değil.");
+  const url = require("./web-connection.cjs").endpoints(project.webUrl).publication;
+  const {net} = require("electron");
+  const response = await (net?.fetch ? net.fetch.bind(net) : fetch)(url, {
+    method:"GET",cache:"no-store",signal:AbortSignal.timeout(20000),
+    headers:{"Accept":"application/json"},
+  });
+  if (!response.ok) throw new Error(`Canlı publication okunamadı (HTTP ${response.status}).`);
+  const raw = await response.text();
+  if (raw.length > 30000000) throw new Error("Canlı publication beklenen boyutu aşıyor.");
+  return publicationUpdates.valid(JSON.parse(raw));
+}
+
+function publicationUpdateVisibility(db) {
+  // Drafted archive entries and retired narrative sections are explicit
+  // editorial visibility decisions. Unavailable/missing records stay live.
   return {
-    baselineAvailable: Boolean(previous?.schemaVersion === 2),
-    generatedAt: snapshot.publication.generatedAt,
-    publicationId: snapshot.publication.id,
-    contentFingerprint: snapshot.publication.contentFingerprint,
-    changed: previous?.publication?.contentFingerprint !== snapshot.publication.contentFingerprint,
-    counts: {
-      sections: snapshot.journal.sections.length,
-      entities: snapshot.archive.entities.length,
-      relations: snapshot.archive.relations.length,
-      assets: snapshot.assets.length,
-      vefks: snapshot.vefkCatalog?.entries?.length ?? 0,
-    },
-    readiness: built.readiness,
-    baseline: previous?.schemaVersion === 2 ? {
-      source: "live",
-      file: baselineFile,
-      generatedAt: String(previous.publication?.generatedAt ?? ""),
-      publicationId: String(previous.publication?.id ?? ""),
-      contentFingerprint: String(previous.publication?.contentFingerprint ?? ""),
-    } : null,
+    hiddenEntityIds:db.prepare("SELECT key FROM universe_workspace_nodes WHERE state='draft'").all().map(row => row.key),
+    hiddenSectionIds:db.prepare("SELECT key FROM narrative_sections WHERE state='retired'").all().map(row => row.key),
   };
 }
 
-function createPublicExport() {
-  return exportPublicSnapshot(database(), app.getPath("userData"));
+async function publicationPreview() {
+  const built = publicationV2.buildPublicationV2(database());
+  const snapshot = built.snapshot;
+  let baseline = null;
+  let liveError = "";
+  try {baseline = await fetchLivePublication();}
+  catch(error) {liveError = error instanceof Error ? error.message : String(error);}
+  const update = baseline ? publicationUpdates.buildUpdatePublication(baseline,built,publicationUpdateVisibility(database())) : null;
+  return {
+    baselineAvailable:Boolean(baseline),
+    generatedAt:snapshot.publication.generatedAt,
+    publicationId:snapshot.publication.id,
+    contentFingerprint:snapshot.publication.contentFingerprint,
+    changed:baseline ? baseline.publication.contentFingerprint !== snapshot.publication.contentFingerprint : true,
+    counts:{
+      sections:snapshot.journal.sections.length,entities:snapshot.archive.entities.length,
+      relations:snapshot.archive.relations.length,assets:snapshot.assets.length,
+      vefks:snapshot.vefkCatalog?.entries?.length ?? 0,
+    },
+    readiness:built.readiness,
+    baseline:baseline ? {
+      source:"live",file:"",generatedAt:baseline.publication.generatedAt,
+      publicationId:baseline.publication.id,
+      contentFingerprint:baseline.publication.contentFingerprint,
+    }:null,
+    update:update ? {
+      ready:update.changed,changes:update.changes,
+      publicationId:update.snapshot.publication.id,
+      contentFingerprint:update.snapshot.publication.contentFingerprint,
+    }:null,
+    liveError,
+  };
 }
 
-async function publishPublicExport() {
+async function createPublicExport(mode = "full") {
+  if (mode !== "update") return exportPublicSnapshot(database(),app.getPath("userData"));
+  const baseline = await fetchLivePublication();
+  const built = publicationV2.buildPublicationV2(database());
+  const update = publicationUpdates.buildUpdatePublication(baseline,built,publicationUpdateVisibility(database()));
+  const result = publicationUpdates.exportUpdatePublication(update,app.getPath("userData"));
+  recordPublicationInfo(database(),result);
+  return {...result,root:path.join(app.getPath("userData"),"public-export"),publicationV2:result};
+}
+
+async function publishPublicExport(mode = "full") {
   const project = require("./channel-projects.cjs").activeProject();
   if (!project?.deploymentEnabled) {
-    throw new Error("Bu kanal yerel tasarım aşamasında. Natro yayını açıkça etkinleştirilmeden canlı yayın gönderilemez.");
+    throw new Error("Bu kanal yerel tasarım aşamasında. Web yayını etkin değil.");
   }
-  const local = createPublicExport();
-  if (!local.readiness?.readyForTheme) {
-    throw new Error("Publication v2 henüz canlı yayına hazır değil. Önce 05 · Hikâyeleştir ve 06 · Görsel Tamamlama kapılarını tamamla.");
+  if (mode !== "full" && mode !== "update") throw new Error("Bilinmeyen yayın biçimi.");
+  const local = await createPublicExport(mode);
+  if (mode === "full" && !local.readiness?.readyForTheme) {
+    throw new Error("Tam yayın için önce 05 · Hikâyeleştir ve 06 · Görsel Tamamlama kapılarını tamamla.");
   }
-  const snapshot = JSON.parse(fs.readFileSync(local.file, "utf8"));
+  const snapshot = JSON.parse(fs.readFileSync(local.file,"utf8"));
   let uploadedAssets = 0;
+  const uploadIds = mode === "update" ? new Set(local.assetUploads ?? []) : null;
   for (const asset of snapshot.assets ?? []) {
+    if (uploadIds && !uploadIds.has(asset.assetId)) continue;
     const relative = String(asset?.url ?? "");
     if (!relative.startsWith("assets/")) throw new Error(`Publication asset URL geçersiz: ${relative}`);
     const filename = path.basename(relative);
-    const file = path.join(local.assetsDirectory, filename);
-    await communityAdmin.uploadPublicationAsset({ file, filename, sha256: asset.sha256 });
-    uploadedAssets += 1;
+    const file = path.join(local.assetsDirectory,filename);
+    await communityAdmin.uploadPublicationAsset({file,filename,sha256:asset.sha256});
+    uploadedAssets++;
   }
-  const seo = seoWorkspace.manifest(app.getPath("userData"), snapshot, project.webUrl || "");
-  const live = await communityAdmin.publishPublication(snapshot, seo);
-  writeSnapshotFile(liveBaselineFile(), snapshot);
-  return { ...local, uploadedAssets, live };
+  if (mode === "update") {
+    const latest = await fetchLivePublication();
+    if (latest.publication.contentFingerprint !== local.baselineFingerprint) {
+      throw new Error("Canlı yayın hazırlık sırasında değişti; güvenli güncelleme iptal edildi.");
+    }
+  }
+  const seo = seoWorkspace.manifest(app.getPath("userData"),snapshot,project.webUrl || "");
+  const live = await communityAdmin.publishPublication(snapshot,seo);
+  writeSnapshotFile(liveBaselineFile(),snapshot);
+  return {...local,uploadedAssets,live};
 }
 
 function showPublicExport() {
-  const info = getPublicationInfo(database());
+  const info = getPublicationInfo(database(),app.getPath("userData"));
   if (!info?.file) throw new Error("Henüz publication v2 paketi oluşturulmadı.");
   shell.showItemInFolder(info.file);
   return true;
@@ -199,16 +242,8 @@ async function processAnalysisQueue() {
           break;
         }
         aiAnalysis.complete(database(), job.videoId, result.config?.model ?? config.model, result);
-        const languageStore=require('./publication-languages.cjs');
-        const video=languageStore.videoSources(database()).find(v=>v.videoId===job.videoId);
-        if(video) {
-          languageStore.sync(database(),{youtubeAnalysis:{videos:[video]}});
-          for(const language of languageStore.LANGUAGES) {
-            if(controller.signal.aborted) break;
-            try { await languageStore.generate(database(),app.getPath('userData'),{kind:'video',id:job.videoId,language,signal:controller.signal}); }
-            catch(error) { aiActivity.note(activitySession.id,`${language==='tr'?'Türkçe':'İngilizce'} yayın metni üretilemedi; temel çözümleme korundu.`,{stage:'Dil çıktısı',tone:'error'}); }
-          }
-        }
+        // Source analysis finishes here. Publication translations are synchronized,
+        // generated and approved only in Yayınlama (Publishing).
         aiActivity.finishSession(activitySession.id, {
           state: "done",
           model: result.config?.model ?? config.model,

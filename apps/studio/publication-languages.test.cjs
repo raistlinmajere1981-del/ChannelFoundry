@@ -22,3 +22,30 @@ test('large immutable core never enters translation requests and multiple batche
   assert.equal(final.summary,'Generated summary.');
   db.close();
 });
+
+test('descriptive object and location records may carry a localized display label without changing identity',()=>{
+  const db=setup();
+  const entity=id=>language.variants(db,'entity',id);
+  language.putSource(db,'entity','entity-object',{name:'Kapsız Kitap',kind:'object',summary:'Deri kaplaması olmayan kitap.',details:[],sourceVideoIds:[]});
+  language.putSource(db,'entity','entity-character',{name:'Kral Arohan',kind:'character',summary:'Babil kralı.',details:[],sourceVideoIds:[]});
+  const object=entity('entity-object'),character=entity('entity-character');
+  language.save(db,{kind:'entity',id:'entity-object',language:'tr',sourceHash:object.sourceHash,revision:0,approved:true,data:object.source});
+  language.save(db,{kind:'entity',id:'entity-object',language:'en',sourceHash:object.sourceHash,revision:0,approved:true,data:{...object.source,summary:'A book without a leather cover.',displayName:'The Coverless Book'}});
+  assert.equal(entity('entity-object').source.name,'Kapsız Kitap','Canonical identity must never be renamed');
+  assert.equal(language.published(db,'entity','entity-object').en.displayName,'The Coverless Book');
+  assert.equal(language.published(db,'entity','entity-object').en.name,'Kapsız Kitap');
+  language.save(db,{kind:'entity',id:'entity-character',language:'en',sourceHash:character.sourceHash,revision:0,approved:true,data:character.source});
+  assert.throws(()=>language.save(db,{kind:'entity',id:'entity-character',language:'en',sourceHash:character.sourceHash,revision:1,approved:true,data:{...character.source,displayName:'King Arohan'}}),/Görünen ad/);
+  const objectEn=entity('entity-object').variants.en;
+  assert.throws(()=>language.save(db,{kind:'entity',id:'entity-object',language:'en',sourceHash:object.sourceHash,revision:objectEn.revision,approved:true,data:{...object.source,displayName:'   '}}),/Görünen ad/);
+  db.close();
+});
+
+test('inline reference identity is immutable while its visible label follows the translated prose',()=>{
+  const db=setup();
+  const original={blocks:[{type:'paragraph',spans:[{type:'text',text:'Dün '},{type:'reference',entityId:'entity-1',label:'eski dostumla'},{type:'text',text:' görüştüm.'}]}]};
+  const translated={blocks:[{type:'paragraph',spans:[{type:'text',text:'Yesterday '},{type:'reference',entityId:'entity-1',label:'with my old friend'},{type:'text',text:' I spoke.'}]}]};
+  assert.doesNotThrow(()=>language.validateData(original,translated));
+  assert.throws(()=>language.validateData(original,{blocks:[{type:'paragraph',spans:[{type:'text',text:'Yesterday '},{type:'reference',entityId:'entity-2',label:'with my old friend'},{type:'text',text:' I spoke.'}]}]}),/Kaynak referansı/);
+  db.close();
+});

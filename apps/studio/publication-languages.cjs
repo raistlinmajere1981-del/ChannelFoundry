@@ -3,11 +3,14 @@
 const crypto = require('node:crypto');
 const LANGUAGES = ['tr', 'en'];
 const KINDS = ['video', 'section', 'vefk', 'entity', 'outline'];
-const PROMPT_VERSION = 'publication-language-2';
+const PROMPT_VERSION = 'publication-language-4';
+// `name` is the canonical identity and never changes. Only descriptive object and
+// location records may carry a publication-only English label for readers.
+const DISPLAY_NAME_KINDS = new Set(['object', 'location']);
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
 const hash = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 const parse = value => { try { return JSON.parse(value); } catch { return null; } };
-const textKeys = new Set(['title','summary','description','text','label','alt','caption','notes','numberLabel','role']);
+const textKeys = new Set(['title','summary','description','text','label','alt','caption','notes','numberLabel','role','displayName']);
 function language(value) { if (!LANGUAGES.includes(value)) throw new Error('Yalnız Türkçe ve İngilizce destekleniyor.'); return value; }
 function ensureSchema(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS publication_language_sources (
@@ -65,21 +68,40 @@ function validateData(original, next, key='') {
   if (original === null || typeof original !== 'object') {
     if (original !== next) throw new Error('Kaynak yapısı değiştirilemez.'); return;
   }
-  if(original?.type==='reference'&&original.label!==next?.label)throw new Error('Kaynak özel adı korunmalı.');
+  // An inline reference keeps its entity identity. Its label is visible prose
+  // (often the words of the sentence), so it follows the translated language;
+  // the target entityId can never change.
+  if(original?.type==='reference'&&original.entityId!==next?.entityId)throw new Error('Kaynak referansı korunmalı.');
   if (!next || typeof next !== 'object' || Array.isArray(original)!==Array.isArray(next) || JSON.stringify(Object.keys(original).sort())!==JSON.stringify(Object.keys(next).sort())) throw new Error('Çeviri kaynak yapısıyla eşleşmiyor.');
   for (const k of Object.keys(original)) validateData(original[k],next[k],Array.isArray(original)?key:k);
+}
+function validateVariant(kind, original, next) {
+  // `displayName` is an optional publication-only label. It never exists in the
+  // source, never replaces `name`, and is only accepted for object/location
+  // archive records; character, event and story identities stay untouched.
+  if (!original || typeof original !== 'object' || Object.prototype.hasOwnProperty.call(original, 'displayName')
+    || !next || typeof next !== 'object' || !Object.prototype.hasOwnProperty.call(next, 'displayName')) {
+    validateData(original, next);
+    return next;
+  }
+  if (kind !== 'entity' || !DISPLAY_NAME_KINDS.has(original.kind)) throw new Error('Görünen ad yalnız nesne ve mekân kayıtlarında kullanılabilir.');
+  if (typeof next.displayName !== 'string' || !next.displayName.trim() || next.displayName.length > 200) throw new Error('Görünen ad geçersiz.');
+  const { displayName, ...rest } = next;
+  validateData(original, rest);
+  return { ...rest, displayName: displayName.trim() };
 }
 function save(db, input) {
   const lang=language(input.language), s=source(db,input.kind,input.id);
   if (!s) throw new Error('Önce kaynak içeriği kaydet veya onayla.');
   const existing=variants(db,input.kind,input.id).variants[lang];
   if (input.sourceHash!==s.source_hash || (input.revision ?? 0)!==(existing?.revision ?? 0)) throw new Error('İçerik değişti; editörü yenileyip yeniden incele.');
-  validateData(parse(s.data_json),input.data);
-  if(input.approved===true) {if(input.data.analysisStale)throw new Error('Önce temel çözümlemeyi güncelle.');required(input.kind,input.data);}
+  const original=parse(s.data_json);
+  const data=validateVariant(input.kind,original,input.data);
+  if(input.approved===true) {if(data.analysisStale)throw new Error('Önce temel çözümlemeyi güncelle.');required(input.kind,data);}
   db.prepare(`INSERT INTO publication_language_variants(kind,id,language,source_hash,data_json,state,manual,approved_revision)
     VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(kind,id,language) DO UPDATE SET source_hash=excluded.source_hash,
     data_json=excluded.data_json,state=excluded.state,manual=1,approved_revision=CASE WHEN excluded.state='approved' THEN revision+1 ELSE 0 END,revision=revision+1,candidate_json=NULL,error='',job_state='',updated_at=CURRENT_TIMESTAMP`)
-    .run(input.kind,input.id,lang,s.source_hash,JSON.stringify(input.data),input.approved===true?'approved':'draft',input.approved===true?1:0);
+    .run(input.kind,input.id,lang,s.source_hash,JSON.stringify(data),input.approved===true?'approved':'draft',input.approved===true?1:0);
   return variants(db,input.kind,input.id);
 }
 // Send only mutable prose to the language model; source core, identity, geometry,
@@ -89,7 +111,8 @@ function translatableFields(node,path=[],out=[]) {
     if(textKeys.has(String(path.at(-1)))&&node.trim())out.push({path,text:node});
   } else if(Array.isArray(node)) node.forEach((v,i)=>translatableFields(v,[...path,i],out));
   else if(node&&typeof node==='object') for(const [key,value] of Object.entries(node)) {
-    if(!['core','protectedNames'].includes(key))translatableFields(value,[...path,key],out);
+    if(['core','protectedNames'].includes(key))continue;
+    translatableFields(value,[...path,key],out);
   }
   return out;
 }
@@ -142,7 +165,7 @@ async function generate(db,userDataPath,input,client=require('./ai-client.cjs'))
     for(const batch of proseBatches(fields)) {
       if(input.signal?.aborted)throw new Error('Dil üretimi iptal edildi.');
       const response=await client.chat(userDataPath,[{role:'system',content:
-        `Yayın editörüsün. ${lang==='en'?'İngilizce':'Türkçe'} metin üret. Yalnız verilen metni çevir; yeni iddia ekleme. Özel adları, Arapça harfleri, sembolleri ve teknik gösterimleri koru. JSON alanlarının path dizilerini aynen döndür. Yalnız {"fields":[{"path":["title"],"text":"..."},...]} biçiminde yanıt ver; listedeki her alana tam bir çeviri yaz. Kaynak çözümlemeyi veya altyazıyı yeniden analiz etme.`},
+        `Yayın editörüsün. ${lang==='en'?'İngilizce':'Türkçe'} metin üret. Yalnız verilen metni çevir; yeni olay, kişi, neden-sonuç ilişkisi veya açıklama ekleme ya da çıkarma. Anlatıcının birinci şahıs üslubunu ve konuşmacıların tereddütlerini koru; tereddüdü kesin hükme dönüştürme. Gerçekleşmiş olaylarla planlanan veya yalnız anlatılan olayları ayır. Özel adları, Evren'e özgü isimleri, Arapça harfleri, sembolleri, sayıları, kaynak referanslarını, tarihleri ve olay sırasını değiştirme. Karakterlerin iyi/kötü niteliklerini yeniden yorumlama. Doğal ve okunabilir ol; hikâyeleştirme yapma. Paragraflar sıralı metin parçalarından (spans) oluşur: parçaları sırayla birleştirdiğinde dilbilgisel ve doğal İngilizce cümle oluşmalıdır; gerekirse anlamı parçalar arasında taşı, ama her path'e eksiksiz metin yaz. \`label\` alanı cümle içinde görünen bağlantı metnidir; onu da çevir ve Türkçe hâl eklerini İngilizce yapıya çevir ("Poyraz'la" -> "with Poyraz", "Bekir'in" -> "Bekir's", "davetliyi" -> "the invitee"); özel adı bu sırada aynen koru. JSON alanlarının path dizilerini aynen döndür. Yalnız {"fields":[{"path":["title"],"text":"..."},...]} biçiminde yanıt ver; listedeki her alana tam bir çeviri yaz. Kaynak çözümlemeyi veya altyazıyı yeniden analiz etme.`},
         {role:'user',content:JSON.stringify({context,fields:batch})}],{json:true,returnMeta:true,maxTokens:14000,temperature:0.15,signal:input.signal});
       const parsed=client.parseAssistantJson(typeof response==='string'?response:response.content);
       // Reject missing, repeated or invented paths before applying the next batch.
@@ -178,7 +201,7 @@ function published(db,kind,id) {
   for (const lang of LANGUAGES) {
     const v=pack?.variants[lang];
     if (!v || v.state!=='approved' || v.stale) continue;
-    try { validateData(pack.source,v.data);required(kind,v.data); if(v.data.analysisStale)continue; const {core,analysisStale,...prose}=v.data; result[lang]={...prose,status:'approved',sourceHash:v.sourceHash,revision:v.approvedRevision}; } catch {}
+    try { const data=validateVariant(kind,pack.source,v.data);required(kind,data); if(data.analysisStale)continue; const {core,analysisStale,...prose}=data; result[lang]={...prose,status:'approved',sourceHash:v.sourceHash,revision:v.approvedRevision}; } catch {}
   }
   return result;
 }
@@ -200,7 +223,7 @@ function records(snapshot) {
   const result=[];
   for (const v of snapshot.youtubeAnalysis?.videos??[]) result.push({kind:'video',id:v.videoId,data:{title:v.title,summary:v.summary,description:v.description||v.summary||'',core:v.core||{},protectedNames:['BirDeSenGör',...['characters','locations','objects'].flatMap(k=>(v.core?.[k]||[]).map(e=>e.name)).filter(Boolean)],analysisStale:!!v.analysisStale},dependency:v.sourceVersion||''});
   for (const s of snapshot.journal?.sections??[]) result.push({kind:'section',id:s.sectionId,data:{title:s.title,blocks:s.blocks,media:s.media||[],sourceVideoIds:s.sourceVideoIds||[]},dependency:s.revision});
-  for (const e of snapshot.archive?.entities??[]) result.push({kind:'entity',id:e.entityId,data:{name:e.name,summary:e.summary,details:e.details||[],sourceVideoIds:e.sourceVideoIds||[]}});
+  for (const e of snapshot.archive?.entities??[]) result.push({kind:'entity',id:e.entityId,data:{name:e.name,kind:e.kind,summary:e.summary,details:e.details||[],sourceVideoIds:e.sourceVideoIds||[]}});
   for (const v of snapshot.vefkCatalog?.entries??[]) result.push({kind:'vefk',id:v.id,data:{title:v.document.title,description:v.document.description||'',notes:v.document.provenance?.notes||'',references:v.document.provenance?.references||[]},dependency:v.contentHash});
   for (const s of snapshot.journal?.outline?.series??[]) {
     result.push({kind:'outline',id:s.key,data:{title:s.title,description:s.description||''}});
@@ -219,7 +242,7 @@ function overview(db,snapshot) {
   const counts={ready:0,missing:0,pending:0,stale:0,errors:0};
   for(const row of rows) {
     const vs=Object.values(row.variants);
-    const hasValidText=(lang)=>{const v=row.variants[lang];if(!v)return false;try{validateData(row.source,v.data);required(row.kind,v.data);return true;}catch{return false;}};
+    const hasValidText=(lang)=>{const v=row.variants[lang];if(!v)return false;try{validateVariant(row.kind,row.source,v.data);required(row.kind,v.data);return true;}catch{return false;}};
     // The dashboard counters and the list filters use exactly the same per-content flags.
     const flags={
       ready:LANGUAGES.every(l=>row.variants[l]?.state==='approved'&&!row.variants[l].stale&&hasValidText(l)),
@@ -247,4 +270,4 @@ function apply(db,snapshot) {
   snapshot.vefkLanguages=Object.fromEntries((snapshot.vefkCatalog?.entries??[]).map(e=>[e.id,published(db,'vefk',e.id)]));
   return snapshot;
 }
-module.exports={resetInterrupted,videoSources,LANGUAGES,PROMPT_VERSION,hash,ensureSchema,language,putSource,source,variants,save,generate,published,records,sync,overview,apply,validateData};
+module.exports={resetInterrupted,videoSources,LANGUAGES,PROMPT_VERSION,hash,ensureSchema,language,putSource,source,variants,save,generate,published,records,sync,overview,apply,validateData,validateVariant};

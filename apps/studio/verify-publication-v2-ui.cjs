@@ -23,8 +23,8 @@ const deployWeb = read("apps/web/scripts/deploy-natro.mjs");
 assert.match(center, /KİTAP WEB · PUBLICATION V2/, "Yayınlama merkezi tek hedefi Kitap Web publication v2 olarak göstermeli");
 assert.match(center, /Kitap Web'i canlıya yayınla/, "Canlı yayın publication v2 Web hedefini açıkça belirtmeli");
 assert.match(center, /readiness\.readyForTheme/, "Canlı yayın 05/06 readiness kapısını zorunlu tutmalı");
-assert.match(center, /exportPublicSnapshot\(\)/, "Yerel paket publication export köprüsünü kullanmalı");
-assert.match(center, /publishPublicSnapshot\(\)/, "Canlı yayın mevcut IPC köprüsünden publication v2 hattını çağırmalı");
+assert.match(center, /exportPublicSnapshot\(publishMode\)/, "Yerel paket seçili yayın biçiminde hazırlanmalı");
+assert.match(center, /publishPublicSnapshot\(publishMode\)/, "Canlı yayın seçili biçimde IPC köprüsünü kullanmalı");
 assert.match(center, /!project\?\.deploymentEnabled/, "Yerel tasarımda canlı yayın düğmesi pasif olmalı");
 assert.match(center, /publish-deployment-help/, "Kapalı canlı yayın düğmesinin gerekçesi kullanıcıya gösterilmeli");
 assert.match(projectSettings, /Canlı yayını etkinleştir/, "Proje ayarlarında canlı yayın açma kontrolü bulunmalı");
@@ -37,8 +37,9 @@ assert.match(model, /sectionCount/, "Yayın modeli anlatı bölüm sayısını t
 assert.match(model, /assetCount/, "Yayın modeli publication asset sayısını taşımalı");
 
 assert.match(runtime, /uploadPublicationAsset/, "Studio canlı yayından önce publication asset'lerini yüklemeli");
-assert.match(runtime, /publishPublication\(snapshot, seo\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
-assert.match(runtime, /readyForTheme/, "Runtime hazırlık kapısını UI'dan bağımsız olarak da zorunlu tutmalı");
+assert.match(runtime, /publishPublication\(snapshot,\s*seo\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
+assert.match(runtime, /mode === "full" && !local.readiness\?\.readyForTheme/, "Runtime tam yayının 05/06 kapısını korumalı");
+assert.match(runtime, /publicationUpdates\.buildUpdatePublication/, "Runtime mevcut yayını güvenle güncellemeli");
 assert.match(runtime, /deploymentEnabled/, "Offline kanal canlı yayınını açıkça etkinleştirmeden engellemeli");
 assert.doesNotMatch(runtime, /publishVisualManifest|buildPublicSnapshot|preparePublicVisuals/, "Runtime legacy snapshot/visual-manifest hattını kullanmamalı");
 

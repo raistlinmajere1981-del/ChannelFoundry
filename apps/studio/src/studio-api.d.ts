@@ -536,8 +536,8 @@ interface Window {
     webConnectionConfig(): Promise<StudioWebConnectionConfig>;
     webConnectionTest(input: { url: string }): Promise<StudioWebConnectionTest>;
     webConnectionSave(input: { url: string; youtubeChannelUrl: string }): Promise<StudioWebConnectionConfig>;
-    exportPublicSnapshot(): Promise<StudioPublicExportResult>;
-    publishPublicSnapshot(): Promise<StudioPublicPublishResult>;
+    exportPublicSnapshot(mode?: "full" | "update"): Promise<StudioPublicExportResult>;
+    publishPublicSnapshot(mode?: "full" | "update"): Promise<StudioPublicPublishResult>;
     analyticsSummary(days?: number): Promise<StudioWebsiteInsights>;
     languagesOverview(): Promise<PublicationLanguageOverview>;
     languagesGet(input:{kind:PublicationLanguageKind;id:string}): Promise<PublicationLanguagePack|null>;

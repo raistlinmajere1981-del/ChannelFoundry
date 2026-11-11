@@ -1,4 +1,5 @@
 const path = require("node:path");
+const fs = require("node:fs");
 const { getMeta, setMeta } = require("./storage-database.cjs");
 const publicationV2 = require("./publication-v2.cjs");
 
@@ -46,8 +47,25 @@ function exportPublicSnapshot(db, userDataPath) {
   };
 }
 
-function getPublicationInfo(db) {
+function getPublicationInfo(db, userDataPath = "") {
   const generatedAt = getMeta(db, "last_export_at");
+  if (!generatedAt && userDataPath) {
+    const file = path.join(userDataPath,"public-export","content","publication.json");
+    try {
+      const snapshot = JSON.parse(fs.readFileSync(file,"utf8"));
+      if (snapshot.schemaVersion !== 2 || !snapshot.publication?.contentFingerprint) return null;
+      return {
+        file,generatedAt:snapshot.publication.generatedAt,
+        publicationId:snapshot.publication.id,
+        contentFingerprint:snapshot.publication.contentFingerprint,
+        sectionCount:snapshot.journal?.sections?.length ?? 0,
+        entityCount:snapshot.archive?.entities?.length ?? 0,
+        relationCount:snapshot.archive?.relations?.length ?? 0,
+        assetCount:snapshot.assets?.length ?? 0,
+        vefkCount:snapshot.vefkCatalog?.entries?.length ?? 0,
+      };
+    } catch {return null;}
+  }
   if (!generatedAt) return null;
   const sectionCount = number(getMeta(db, "last_export_sections"));
   const entityCount = number(getMeta(db, "last_export_entities"));

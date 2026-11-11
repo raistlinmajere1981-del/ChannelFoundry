@@ -1,4 +1,4 @@
-import PublicationLanguageEditor from "./PublicationLanguageEditor";
+import PublicationTranslationCenter from "./PublicationTranslationCenter";
 import { useEffect, useState } from "react";
 import {
   formatExportDate,
@@ -27,8 +27,8 @@ type PublicationBridge = Omit<
   "exportPublicSnapshot" | "publishPublicSnapshot" | "getPublicationInfo"
 > & {
   publicationPreview(): Promise<PublicationPreview>;
-  exportPublicSnapshot(): Promise<LocalExportResult>;
-  publishPublicSnapshot(): Promise<LiveExportResult>;
+  exportPublicSnapshot(mode?: "full" | "update"): Promise<LocalExportResult>;
+  publishPublicSnapshot(mode?: "full" | "update"): Promise<LiveExportResult>;
   getPublicationInfo(): Promise<PublicationInfo | null>;
 };
 
@@ -58,6 +58,8 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
   void workspaceNodes;
   void workspaceStatus;
 
+  const [publishMode, setPublishMode] = useState<"full" | "update">("update");
+  const [activePublishView, setActivePublishView] = useState<"languages" | "delivery">("languages");
   const [publicationInfo, setPublicationInfo] = useState<PublicationInfo | null>(null);
   const [preview, setPreview] = useState<PublicationPreview | null>(null);
   const [livePublication, setLivePublication] = useState<LivePublicationInfo | null>(null);
@@ -98,6 +100,8 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
 
   const readiness = preview?.readiness;
   const ready = Boolean(readiness?.readyForTheme);
+  const updateReady = Boolean(preview?.update?.ready);
+  const selectedReady = publishMode === "full" ? ready : updateReady;
   const counts = preview?.counts ?? { sections: 0, entities: 0, relations: 0, assets: 0, vefks: 0 };
   const reasons = [
     ...(readiness && readiness.narrativeSections === 0 ? ["05 · Hikâyeleştir aşamasında en az bir anlatı bölümü onaylanmalı."] : []),
@@ -114,7 +118,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
     setLocalBuilding(true);
     setError(null);
     try {
-      const result = await bridge.exportPublicSnapshot();
+      const result = await bridge.exportPublicSnapshot(publishMode);
       setPublicationInfo(exportInfo(result));
       setPreview(await bridge.publicationPreview());
     } catch (buildError) {
@@ -136,8 +140,8 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
     }
     const latestPreview = await bridge.publicationPreview();
     setPreview(latestPreview);
-    if (!latestPreview.readiness.readyForTheme) {
-      setError("Publication v2 henüz canlı yayına hazır değil. Önce 05 · Hikâyeleştir ve 06 · Görsel Tamamlama kapılarını tamamla.");
+    if (publishMode === "full" ? !latestPreview.readiness.readyForTheme : !latestPreview.update?.ready) {
+      setError(publishMode === "full" ? "Tam yayın için 05/06 aşamaları tamamlanmalı." : latestPreview.liveError || "Mevcut yayında doğrulanmış bir güncelleme bulunmuyor.");
       return;
     }
     const session = await bridge.communitySession();
@@ -147,14 +151,14 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       return;
     }
     const confirmed = window.confirm(
-      `${latestPreview.counts.sections} anlatı bölümü, ${latestPreview.counts.entities} arşiv kaydı, ${latestPreview.counts.assets} görsel ve ${latestPreview.counts.vefks} onaylı vefk yeni Kitap Web'e yayınlansın mı?`,
+      `${publishMode === "update" ? "Yalnız mevcut canlı kayıtlar güvenli biçimde güncellensin" : `${latestPreview.counts.sections} anlatı, ${latestPreview.counts.entities} arşiv kaydı ve ${latestPreview.counts.assets} görsel tam paket olarak yayınlansın`} mı?`,
     );
     if (!confirmed) return;
 
     setLivePublishing(true);
     setError(null);
     try {
-      const result = await bridge.publishPublicSnapshot();
+      const result = await bridge.publishPublicSnapshot(publishMode);
       setPublicationInfo(exportInfo(result));
       setLivePublication(result.live);
       setPreview(await bridge.publicationPreview());
@@ -182,15 +186,23 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
       : lastLiveAt ? `Son canlı yayın · ${formatExportDate(lastLiveAt)}` : "Henüz canlı publication v2 yayını yapılmadı.");
 
   return <section className="publish-center">
-    <PublicationLanguageEditor/>
-    <section className={`panel theme-publication-panel${ready ? " ready" : " waiting"}`}>
+    <nav className="publish-phase-tabs" role="tablist" aria-label="Yayın hazırlığı aşamaları">
+      <button type="button" role="tab" aria-selected={activePublishView === "languages"} onClick={() => setActivePublishView("languages")}>01 · Dil ve çeviri</button>
+      <button type="button" role="tab" aria-selected={activePublishView === "delivery"} onClick={() => setActivePublishView("delivery")}>02 · Paket ve canlı yayın</button>
+    </nav>
+    {activePublishView === "languages" ? <PublicationTranslationCenter/> : <>
+    <div className="publish-actions" role="group" aria-label="Yayın biçimi">
+      <button type="button" className={publishMode === "update" ? "primary-button" : "secondary-button"} onClick={() => setPublishMode("update")}>İçerik / görsel güncellemesi</button>
+      <button type="button" className={publishMode === "full" ? "primary-button" : "secondary-button"} onClick={() => setPublishMode("full")}>Tam yayın</button>
+    </div>
+    <section className={`panel theme-publication-panel${selectedReady ? " ready" : " waiting"}`}>
       <div className="theme-publication-head">
         <div>
           <small>KİTAP WEB · PUBLICATION V2</small>
           <h3>Studio’dan yeni Web temasına tek yayın hattı</h3>
           <p>{project?.webUrl || "Web hedefi tanımlanmadı"} · Publication v2</p>
         </div>
-        <span>{!project?.deploymentEnabled ? "YAYIN KAPALI" : ready ? "CANLI YAYINA HAZIR" : "HAZIRLIK BEKLİYOR"}</span>
+        <span>{!project?.deploymentEnabled ? "YAYIN KAPALI" : selectedReady ? "CANLI YAYINA HAZIR" : "HAZIRLIK BEKLİYOR"}</span>
       </div>
 
       <div className="theme-publication-metrics">
@@ -201,7 +213,10 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <div><small>VEFK</small><strong>{counts.vefks}</strong><span>Site kataloğunda seçili</span></div>
       </div>
 
-      {reasons.length ? <div className="theme-publication-gates">
+      {publishMode === "update" ? <div className={updateReady ? "theme-publication-gates ready" : "theme-publication-gates"}>
+        <strong>{updateReady ? "Mevcut canlı kayıtlar güncellenebilir." : "Güncelleme için canlı yayın karşılaştırması gerekli."}</strong>
+        <p>{preview?.liveError || (preview?.update ? `${preview.update.changes.updated} kayıt değişikliği, ${preview.update.changes.images} portre/görsel, ${preview.update.changes.assetUploads} yükleme; yeni kayıtlar yayına eklenmez.` : "Canlı paket bekleniyor.")}</p>
+      </div> : reasons.length ? <div className="theme-publication-gates">
         <strong>Publication v2 henüz canlı yayına hazır değil.</strong>
         {reasons.map((reason) => <p key={reason}>{reason}</p>)}
       </div> : <div className="theme-publication-gates ready">
@@ -214,7 +229,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <button className="secondary-button" disabled={livePublishing || localBuilding} onClick={() => void buildLocal()}>
           {localBuilding ? "Oluşturuluyor…" : "Yerel paketi oluştur"}
         </button>
-        <button className="primary-button" disabled={!project?.deploymentEnabled || !ready || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
+        <button className="primary-button" disabled={!project?.deploymentEnabled || !selectedReady || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
           {livePublishing ? "Yayınlanıyor…" : "Kitap Web'i canlıya yayınla"}
         </button>
       </div>
@@ -230,7 +245,7 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
 
     <section className="panel last-export-panel">
       <div className="publish-panel-head">
-        <div><small>SON YEREL PUBLICATION</small><h3>{publicationInfo ? formatExportDate(publicationInfo.generatedAt) : "Henüz paket oluşturulmadı"}</h3></div>
+        <div><small>SON YEREL PUBLICATION</small><h3>{publicationInfo ? formatExportDate(publicationInfo.generatedAt) : "Henüz yerel paket bulunamadı"}</h3></div>
         {publicationInfo && <button className="secondary-button" onClick={() => void revealPackage()}>Klasörde göster</button>}
       </div>
       {publicationInfo ? <>
@@ -257,5 +272,6 @@ export default function PublishCenter({ items, relations, workspaceNodes, worksp
         <p>{preview.changed ? "Yerel approved içerik canlı publication'dan farklı." : "Yerel approved içerik canlı publication ile aynı fingerprint'e sahip."}</p>
       </div>}
     </section>
+    </>}
   </section>;
 }

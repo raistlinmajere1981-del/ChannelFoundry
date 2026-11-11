@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './publication-languages.css';
-const labels:Record<string,string>={title:'Başlık',summary:'Özet',description:'Açıklama',text:'Metin',label:'Bağlantı metni',alt:'Görsel açıklaması',caption:'Görsel alt yazısı',notes:'Okuma notları',numberLabel:'Bölüm etiketi',role:'Rol'};
+const labels:Record<string,string>={title:'Başlık',displayName:'İngilizce görünen ad',summary:'Özet',description:'Açıklama',text:'Metin',label:'Bağlantı metni',alt:'Görsel açıklaması',caption:'Görsel alt yazısı',notes:'Okuma notları',numberLabel:'Bölüm etiketi',role:'Rol'};
 function fields(value:unknown,path:string[]=[]):{path:string[];text:string;label:string}[] {
   if(typeof value==='string') return labels[path.at(-1)||'']?[{path,text:value,label:labels[path.at(-1)||'']}]:[];
   if(!value||typeof value!=='object') return [];

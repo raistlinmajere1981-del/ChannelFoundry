@@ -173,6 +173,11 @@ function journalData(db, archive, assetMap, assetSourceMap) {
   const visualStatus = visualCompletion.status(db);
   const sceneByRevision = new Map(visualStatus.sections.map((scene) => [Number(scene.revisionId), scene]));
   const archiveIds = new Set(archive.entities.map((entity) => entity.entityId));
+  const publishedDateQuery = db.prepare("SELECT published_at AS publishedAt FROM youtube_videos WHERE video_id=?");
+  const sourcePublications = (videoIds) => stringArray(videoIds, 5000, 100)
+    .map((videoId) => ({ videoId, publishedAt: clean(publishedDateQuery.get(videoId)?.publishedAt, 10) }))
+    .filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry.publishedAt))
+    .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt) || a.videoId.localeCompare(b.videoId));
 
   for (const scene of visualStatus.sections) {
     if (scene.state !== "ready") continue;
@@ -222,6 +227,8 @@ function journalData(db, archive, assetMap, assetSourceMap) {
       blocks,
       sourceKeys: stringArray(section.sourceKeys, 5000, 220),
       sourceVideoIds: stringArray(section.sourceVideoIds, 5000, 100),
+      // Publication metadata, not an inferred date of the narrated event.
+      sourcePublications: sourcePublications(section.sourceVideoIds),
       media,
     };
   }).sort((left, right) => left.order - right.order || left.sectionId.localeCompare(right.sectionId));

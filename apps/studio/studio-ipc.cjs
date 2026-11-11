@@ -282,8 +282,8 @@ function registerPublishingHandlers() {
     runtime.refreshMainWindow();
     return result;
   });
-  ipcMain.handle("studio:export-public-snapshot", () => runtime.createPublicExport());
-  ipcMain.handle("studio:publish-public-snapshot", () => runtime.publishPublicExport());
+  ipcMain.handle("studio:export-public-snapshot", (_event, mode) => runtime.createPublicExport(mode));
+  ipcMain.handle("studio:publish-public-snapshot", (_event, mode) => runtime.publishPublicExport(mode));
   ipcMain.handle("studio:publication-preview", () => runtime.publicationPreview());
   ipcMain.handle("studio:analytics-summary", (_event, days) => communityAdmin.analyticsSummary(days));
   const languageStore = require('./publication-languages.cjs');
@@ -297,7 +297,7 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:seo-overview", () => seoWorkspace.overview(app.getPath("userData"), seoSnapshot()));
   ipcMain.handle("studio:seo-save", (_event, input) => seoWorkspace.update(app.getPath("userData"), input, seoSnapshot()));
   ipcMain.handle("studio:seo-suggest", (_event, input) => seoWorkspace.suggest(app.getPath("userData"), input, seoSnapshot()));
-  ipcMain.handle("studio:publication-info", () => getPublicationInfo(runtime.database()));
+  ipcMain.handle("studio:publication-info", () => getPublicationInfo(runtime.database(), require("electron").app.getPath("userData")));
   ipcMain.handle("studio:show-public-export", () => runtime.showPublicExport());
   ipcMain.handle("studio:database-info", () => getDatabaseInfo(runtime.database(), app.getPath("userData")));
   ipcMain.handle("studio:community-session", () => communityAdmin.connectStored());

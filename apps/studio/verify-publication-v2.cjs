@@ -206,6 +206,10 @@ try {
   const sectionOne = first.snapshot.journal.sections.find((entry) => entry.sectionId === "section-first");
   const sectionTwo = first.snapshot.journal.sections.find((entry) => entry.sectionId === "section-second");
   assert.equal(sectionOne.order, 10, "order fiziksel sayfa değil semantik anlatı sırası olmalı");
+  assert.deepEqual(sectionOne.sourcePublications, [{videoId:"support0001",publishedAt:"2026-08-14"}],
+    "Anlatı kaynağının gerçek yayın tarihi, olay tarihi uydurulmadan aktarılmalı");
+  assert.deepEqual(sectionTwo.sourcePublications, [{videoId:"support0001",publishedAt:"2026-08-14"}],
+    "Aynı kaynak farklı anlatı kayıtlarında da tarihle ilişkilendirilebilmeli");
   assert.equal(sectionOne.locales.tr.media.length, 1);
   assert.equal(sectionOne.locales.tr.media[0].role, "scene");
   assert.equal(sectionTwo.locales.tr.media.length, 0, "Görselsiz bırakılan bölüm sahne media'sı yayınlamamalı");

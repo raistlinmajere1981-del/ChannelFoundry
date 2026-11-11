@@ -67,6 +67,8 @@ export type PublicationPreview = {
   changed: boolean;
   counts: { sections: number; entities: number; relations: number; assets: number; vefks: number };
   readiness: ThemePublicationReadiness;
+  liveError?: string;
+  update?: null | { ready: boolean; publicationId: string; contentFingerprint: string; changes: {updated:number;hidden:number;images:number;assetUploads:number} };
   baseline: null | {
     source: "live";
     file: string;
