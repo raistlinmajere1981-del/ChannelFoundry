@@ -46,6 +46,15 @@ function verifiedMounts(entries){
     && scene.includes('study-pulse-host') && hook.includes('sceneForPulseObjectEffects(scene,id)')
     && hook.includes('bindObjectScene(compiled,()=>motion?element:host') && hook.includes('handle.destroy();host.remove()')
     && hook.includes("from './pulseController.js'"),
+  'Inactive scene effects publish no transparent click/hover targets':
+    scene.includes('ACTIVE_PULSE_IDS.has(object.id)')
+    && scene.includes('ACTIVE_HOVER_INPUT_IDS.has(object.id)')
+    && scene.includes('CANDLE_EFFECT_ACTIVE && <button')
+    && scene.includes('INCENSE_EFFECT_ACTIVE && <button')
+    && scene.includes('[...ACTIVE_HOVER_IDS].filter')
+    && scene.includes("hoverEnabled={ACTIVE_HOVER_IDS.has('camera')}")
+    && hook.includes("if(!selection.effects.some(effect=>effect.enabled))continue;")
+    && hook.includes('...(interactive ? {interactive:true,interactionTarget:input} : {})'),
   'Motion slot mounts the declared visual layer':scene.includes('object.visual.layers.map')
     && scene.includes('data-effect-layer={layer.id}') && scene.includes('study-metal-fixed')
     && hook.includes('bindObjectScene(compiled,()=>motion?element:host'),
