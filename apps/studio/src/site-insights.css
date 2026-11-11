@@ -64,3 +64,17 @@
 .site-pulse-seo small{font-size:10px;color:var(--text-muted)}
 .site-pulse-note{margin-top:auto}
 @media(max-width:1000px){.insight-split,.seo-workspace{grid-template-columns:1fr}.insight-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Analytics reset is intentionally separate from regular navigation and refresh. */
+.analytics-settings .insight-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+.insight-reset{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 15px;border:1px solid var(--border-control);border-radius:5px;background:var(--surface-panel)}
+.insight-reset strong{font:500 15px var(--font-display);color:var(--text-primary)}
+.insight-reset p{font-size:11px;line-height:1.5;color:var(--text-muted);margin:4px 0 0}
+.insight-reset button{border:1px solid var(--border-control);color:var(--text-primary);background:var(--surface-inset);padding:8px 12px;white-space:nowrap;border-radius:5px;cursor:pointer;font-size:11px}
+.insight-reset button:disabled{opacity:.55;cursor:wait}
+.insight-reset .insight-reset-danger{border-color:var(--state-danger);color:var(--state-danger)}
+.insight-reset .insight-reset-danger:hover:not(:disabled){background:var(--state-danger-soft)}
+.insight-reset-confirm{display:grid;gap:8px;max-width:330px}
+.insight-reset-confirm p{color:var(--state-danger)}
+.insight-reset-confirm>div{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+@media(max-width:800px){.insight-reset{flex-direction:column;align-items:stretch}.insight-reset-confirm{max-width:none}.insight-reset-open{align-self:flex-start}}

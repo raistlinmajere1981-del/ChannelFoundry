@@ -354,6 +354,12 @@ async function analyticsSummary(days = 30) {
   return authorizedRequest(studioEndpoint(), 'analytics_summary', { query: { days } });
 }
 
+async function analyticsReset() {
+  return authorizedRequest(studioEndpoint(), 'analytics_reset', {
+    method: 'POST', body: { confirm: 'RESET_ANALYTICS' },
+  });
+}
+
 async function publishPublication(publication, seo = null) {
   if (!publication || publication.schemaVersion !== 2) throw new Error("Publication v2 paketi hazırlanamadı.");
   const result = await authorizedRequest(studioEndpoint(), "publish", {
@@ -390,5 +396,6 @@ module.exports = {
   uploadPublicationAsset,
   publishPublication,
   analyticsSummary,
+  analyticsReset,
   resetConnection,
 };

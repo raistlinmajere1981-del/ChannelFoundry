@@ -66,7 +66,15 @@ function validateObjectScene(scene) {
   const unique = id => {string(id,'Kimlik',120); if(ids.has(id)) fail(`Tekrarlanan kimlik: ${id}`); ids.add(id);};
   const objects=new Map();
   for(const item of scene.objects) {
-    keys(item,['id','name','visible','pose','anchors','motionLayers'],'Nesne'); unique(item.id); string(item.name,'Nesne adı'); bool(item.visible,'Nesne görünürlüğü');
+    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea'],'Nesne'); unique(item.id); string(item.name,'Nesne adı'); bool(item.visible,'Nesne görünürlüğü');
+    if(item.hitArea!==undefined){
+      keys(item.hitArea,['x','y','width','height'],'Tıklama alanı');
+      const area=item.hitArea;
+      num(area.x,0,1,'Tıklama X');num(area.y,0,1,'Tıklama Y');
+      num(area.width,.001,1,'Tıklama genişliği');num(area.height,.001,1,'Tıklama yüksekliği');
+      if(area.x+area.width>1.000000001||area.y+area.height>1.000000001)
+        fail('Tıklama alanı sahne dışına taşamaz.');
+    }
     keys(item.pose,['x','y','width','height','rotation','depth'],'Nesne konumu');
     const pose=item.pose;
     num(pose.x,0,1,'Nesne X'); num(pose.y,0,1,'Nesne Y');

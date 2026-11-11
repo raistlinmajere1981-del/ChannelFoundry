@@ -133,6 +133,17 @@ try {
   assert.match(ui, /visualCompletionSetSceneState/);
   assert.match(ui, /VisualProfileEditor/);
   assert.match(ui, /1536x1024/);
+  const recordEditor = fs.readFileSync(path.join(__dirname, "src", "EditorialRecordDetail.tsx"), "utf8");
+  assert.match(recordEditor, /<VisualProfileEditor productionActions item=\{\{ key: node.key,/,
+    "Onaylı Evren kayıtları Görsel Profil sekmesinden üretim yapabilmeli");
+  assert.match(recordEditor, /<VisualProfileEditor productionActions item=\{item\}/,
+    "Manuel kayıtlar da aynı görsel üretim ve dosya yönetimini kullanmalı");
+  const visualEditor = fs.readFileSync(path.join(__dirname, "src", "VisualProfileEditor.tsx"), "utf8");
+  assert.match(visualEditor, /visualImageGenerate\(generationInput\)/,
+    "Kayıt üretimi mevcut Studio görsel motoruna gitmeli");
+  assert.match(visualEditor, /Tariften prompt hazırla/);
+  assert.match(visualEditor, /profile\?\.imagePath && !window\.confirm\(/,
+    "Var olan görsel kullanıcı onayı olmadan değiştirilmemeli");
   const rail = fs.readFileSync(path.join(__dirname, "src", "AiWorkbench.tsx"), "utf8");
   assert.match(rail, /<span>06<\/span>/);
   assert.match(rail, /VisualCompletionWorkbench/);

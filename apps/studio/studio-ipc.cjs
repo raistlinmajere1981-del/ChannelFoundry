@@ -286,6 +286,7 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:publish-public-snapshot", (_event, mode) => runtime.publishPublicExport(mode));
   ipcMain.handle("studio:publication-preview", () => runtime.publicationPreview());
   ipcMain.handle("studio:analytics-summary", (_event, days) => communityAdmin.analyticsSummary(days));
+  ipcMain.handle("studio:analytics-reset", () => communityAdmin.analyticsReset());
   const languageStore = require('./publication-languages.cjs');
   const languageSnapshot = () => {const snapshot=publicationV2.buildPublicationV2(runtime.database(), {sourceOnly:true}).snapshot;snapshot.youtubeAnalysis.videos=languageStore.videoSources(runtime.database());return snapshot;};
   const refreshLanguageSources = () => languageStore.overview(runtime.database(),languageSnapshot());

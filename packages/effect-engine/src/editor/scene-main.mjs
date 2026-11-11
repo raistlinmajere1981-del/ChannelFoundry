@@ -107,11 +107,23 @@ function renderLists(){
   document.querySelector('.scene-local-badge').textContent=siteSource?'Site kaynağı':'Yerel';
 }
 function renderObjectInspector(){
-  const host=$('#object-inspector');const item=object();
+  const host=$('#object-inspector'),hitHost=$('#hit-inspector'),item=object();
   host.replaceChildren(el('h3',{text:'Nesne ve bağlantı'}));
+  hitHost.replaceChildren();
+  $('#hit-area-settings').hidden=!item?.hitArea;
   if(!item)return;
+  if(item.hitArea){
+    hitHost.append(el('p',{class:'scene-help',text:'Alan çerçevesinin kenarından sürükleyin; yuvarlak turuncu nokta yalnız efekt hedefini taşır. Genişliği ve yüksekliği aşağıdan ayarlayın.'}));
+    for(const [key,label] of [['x','Sol X %'],['y','Üst Y %'],['width','Genişlik %'],['height','Yükseklik %']]){
+      hitHost.append(numberInput(label,round(item.hitArea[key]*100),value=>mutate(s=>{
+        const area=s.objects.find(entry=>entry.id===item.id).hitArea;
+        area[key]=round(value/100);
+      },'hit:'+item.id+':'+key),{min:key==='x'||key==='y'?0:.1,max:100,step:.1,'data-testid':'scene-hit-'+key}));
+    }
+  }
   if(siteSource){
-    host.append(el('p',{class:'scene-help',text:'Nesne konumu, görünürlüğü ve bağlantıları site kaynağında sabittir. Hizalamayı efekt kaydırmasıyla yapın.'}));return;
+    host.append(el('p',{class:'scene-help',text:'Nesne yerleşimi ve bağlantıları sabittir. Tıklanabilir alan, web sahnesine hazırlamada uygulanır.'}));
+    return;
   }
   host.append(
     field('Nesne adı',el('input',{value:item.name,maxlength:160,onchange:event=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).name=event.target.value;},`object:${item.id}:name`)})),
@@ -271,6 +283,14 @@ function renderStage(){
   if(!scene)return;
   for(const item of scene.objects){
     const node=buildObject(item);objectElements.set(item.id,node);host.append(node);
+    if(item.hitArea){
+      const area=el('span',{class:'scene-hit-area'+(item.id===objectId?' selected':''),
+        'data-hit-object':item.id,'aria-hidden':'true'});
+      Object.assign(area.style,{left:item.hitArea.x*100+'%',top:item.hitArea.y*100+'%',
+        width:item.hitArea.width*100+'%',height:item.hitArea.height*100+'%'});
+      if(item.id===objectId)area.addEventListener('pointerdown',event=>beginHitDrag(event,item,area));
+      host.append(area);
+    }
   }
   bindPreview();
   renderMarkers();
@@ -302,7 +322,41 @@ function updateHistoryButtons(){
   $('#undo').disabled=!history.past.length;
   $('#redo').disabled=!history.future.length;
 }
-let drag=null;
+let drag=null,hitDrag=null;
+function beginHitDrag(event,item,node){
+  if(event.button!==undefined&&event.button!==0)return;
+  event.preventDefault();event.stopPropagation();
+  const viewport=$('#scene-viewport').getBoundingClientRect();
+  hitDrag={id:item.id,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,
+    original:structuredClone(item.hitArea),before:structuredClone(scene),changed:false,
+    width:viewport.width,height:viewport.height,node};
+  node.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove',moveHitDrag);
+  window.addEventListener('pointerup',endHitDrag);
+  window.addEventListener('pointercancel',endHitDrag);
+}
+function moveHitDrag(event){
+  if(!hitDrag||event.pointerId!==hitDrag.pointerId)return;
+  const {id,original,width,height,node}=hitDrag;
+  const x=round(clamp(original.x+(event.clientX-hitDrag.startX)/width,0,1-original.width));
+  const y=round(clamp(original.y+(event.clientY-hitDrag.startY)/height,0,1-original.height));
+  const old=scene.objects.find(item=>item.id===id).hitArea;
+  if(old.x===x&&old.y===y)return;
+  const next=structuredClone(scene);
+  next.objects.find(item=>item.id===id).hitArea={...original,x,y};
+  try{validateScene(next);}catch(e){error(e);return;}
+  scene=next;hitDrag.changed=true;
+  node.style.left=x*100+'%';node.style.top=y*100+'%';
+  status('Tıklanabilir alan: '+Math.round(x*100)+'% / '+Math.round(y*100)+'%');
+}
+function endHitDrag(event){
+  if(!hitDrag||event.pointerId!==hitDrag.pointerId)return;
+  window.removeEventListener('pointermove',moveHitDrag);
+  window.removeEventListener('pointerup',endHitDrag);
+  window.removeEventListener('pointercancel',endHitDrag);
+  if(hitDrag.changed){history.record(hitDrag.before);changed();}
+  hitDrag=null;draw();
+}
 function beginDrag(event,item){
   if(event.button!==undefined&&event.button!==0)return;
   event.preventDefault();event.stopPropagation();

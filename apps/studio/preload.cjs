@@ -191,6 +191,7 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   publishPublicSnapshot: (mode) => ipcRenderer.invoke("studio:publish-public-snapshot", mode),
   publicationPreview: () => ipcRenderer.invoke("studio:publication-preview"),
   analyticsSummary: (days) => ipcRenderer.invoke("studio:analytics-summary", days),
+  analyticsReset: () => ipcRenderer.invoke("studio:analytics-reset"),
   languagesOverview: () => ipcRenderer.invoke('studio:languages-overview'),
   languagesGet: input => ipcRenderer.invoke('studio:languages-get',input),
   languagesSave: input => ipcRenderer.invoke('studio:languages-save',input),

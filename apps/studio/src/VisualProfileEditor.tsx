@@ -14,6 +14,19 @@ function generationLabel(provider: string, model: string) {
   return provider === "codex-cli" ? "Codex yerleşik görsel aracı" : "model bildirilmedi";
 }
 
+function promptFromDescription(item: VisualEditorItem, description: string, attributes: string[], atmosphere: string): string {
+  const details = description.trim();
+  const traits = attributes.map((value) => value.trim()).filter(Boolean);
+  if (!details && !traits.length) return "";
+  return [
+    `“${item.title}” kaydının görsel temsili.`,
+    details && `Görünüm ve sahne tarifi: ${details}`,
+    traits.length && `Belirtilen özellikler: ${traits.join("; ")}`,
+    atmosphere.trim() && `Atmosfer: ${atmosphere.trim()}`,
+    "Kaynakta tanımlanmayan özgül karakteristikler, yeni semboller veya yazılar ekleme.",
+  ].filter(Boolean).join("\n");
+}
+
 export default function VisualProfileEditor({
   item,
   seedVisual,
@@ -68,6 +81,13 @@ export default function VisualProfileEditor({
     negativePrompt,
   });
 
+  const preparePrompt = () => {
+    const proposal = promptFromDescription(item, description, attributesText.split(/\r?\n/), atmosphere);
+    if (!proposal || (prompt.trim() && !window.confirm("Mevcut üretim promptu kayıt açıklamasından hazırlanan metinle değiştirilsin mi?"))) return;
+    setPrompt(proposal);
+    onStatus?.("Görsel tarifi kullanılarak prompt hazırlandı. Üretim henüz başlatılmadı.", "success");
+  };
+
   const begin = (next: Exclude<VisualOperation, null>, message?: string) => {
     setBusy(true);
     setOperation(next);
@@ -102,6 +122,7 @@ export default function VisualProfileEditor({
 
   const generate = async () => {
     if (!bridge || !productionActions || !capability?.supported || !prompt.trim()) return;
+    if (profile?.imagePath && !window.confirm("Bu kayıt için mevcut görsel var. Yeni görsel üretip bağlı dosyayı değiştirmek istiyor musun?")) return;
     begin("generate", "Görsel hazırlanıyor. Bu işlem birkaç dakika sürebilir.");
     try {
       const generationInput = { ...input(), size, subject: item.title };
@@ -114,6 +135,7 @@ export default function VisualProfileEditor({
 
   const clear = async () => {
     if (!bridge || !productionActions || !profile?.imagePath) return;
+    if (!window.confirm("Bu kaydın görsel dosyası kaldırılsın mı? Görsel tarifi ve prompt korunacak.")) return;
     begin("clear");
     try {
       const result = await bridge.visualImageClear(item.key);
@@ -144,6 +166,7 @@ export default function VisualProfileEditor({
         <label><span>Görsel üretim promptu</span><textarea disabled={busy} className="prompt-area" value={prompt} onChange={(event) => setPrompt(event.target.value)}/></label>
         <label><span>Kaçınılacak özellikler · opsiyonel</span><textarea disabled={busy} value={negativePrompt} onChange={(event) => setNegativePrompt(event.target.value)}/></label>
         <div className="entity-visual-actions">
+          {productionActions && <button className="secondary-button" disabled={busy || (!description.trim() && !attributesText.trim())} onClick={preparePrompt}>Tariften prompt hazırla</button>}
           <button className="secondary-button" disabled={busy} onClick={() => void save()}>{operation === "save" ? "Kaydediliyor…" : "Profili kaydet"}</button>
           {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
           {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}

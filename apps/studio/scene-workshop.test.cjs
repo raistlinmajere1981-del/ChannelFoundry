@@ -55,9 +55,9 @@ test("Channel Foundry reads canonical live scene without writing web or Admin da
   const current = await site.snapshot();
   assert.ok(BIRDESENGOR_SITE.endsWith("/ChannelFoundry/channels/birdesengor/web"));
   assert.equal(current.scene.sceneId, "birdesengor-study-v2");
-  assert.equal(current.scene.effects.length, 13);
+  assert.equal(current.scene.effects.length, 17);
   assert.deepEqual(site.readiness(current.scene, current), {
-    ready: true, effectCount: 13, enabledCount: 13, mountedCount: 13, problems: [],
+    ready: true, effectCount: 17, enabledCount: 9, mountedCount: 17, problems: [],
   });
   validateIdentity(current.scene);
   const valid = structuredClone(current.scene);
@@ -68,7 +68,7 @@ test("Channel Foundry reads canonical live scene without writing web or Admin da
     const service = new SceneWorkshop({ userDataDir: temporary, site, runner: {} });
     const loaded = await service.load();
     assert.equal(loaded.origin, "site");
-    assert.equal(loaded.readiness.effectCount, 13);
+    assert.equal(loaded.readiness.effectCount, 17);
     assert.match(loaded.previewImage, /^data:image\/webp;base64,/);
     assert.ok(Array.isArray(loaded.previewObjects));
     await assert.rejects(service.save({

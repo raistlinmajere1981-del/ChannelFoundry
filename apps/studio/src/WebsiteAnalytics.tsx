@@ -11,6 +11,23 @@ export default function WebsiteAnalytics() {
   const [data,setData] = useState<StudioWebsiteInsights|null>(null);
   const [error,setError] = useState("");
   const [busy,setBusy] = useState(false);
+  const [resetPrompt,setResetPrompt] = useState(false);
+  const [resetBusy,setResetBusy] = useState(false);
+  const [success,setSuccess] = useState("");
+  const reset = async () => {
+    if (!window.channelFoundryStudio || resetBusy) return;
+    setResetBusy(true);setError("");setSuccess("");
+    try {
+      await window.channelFoundryStudio.analyticsReset();
+      setResetPrompt(false);
+      setSuccess("Bütün ziyaret ve etkinlik istatistikleri sıfırlandı.");
+      setData(null);
+      try { setData(await window.channelFoundryStudio.analyticsSummary(days)); }
+      catch (e) { setError("Sıfırlama başarılı, ancak yeni özet alınamadı: " + (e instanceof Error ? e.message : String(e))); }
+    } catch (e) {
+      setError("Sıfırlama tamamlanamadı: " + (e instanceof Error ? e.message : String(e)));
+    } finally { setResetBusy(false); }
+  };
   const refresh = async () => {
     if (!window.channelFoundryStudio) return;
     setBusy(true);setError("");
@@ -22,17 +39,17 @@ export default function WebsiteAnalytics() {
   const rows = data?.areas ?? [];
   const max = Math.max(1,...rows.map(row => row.seconds));
   return <section className="insight-settings analytics-settings">
-    <header className="insight-header"><div><h2>Ziyaretçi analitiği</h2><p>Kimlik izlemeden, içerik ve aktif okuma süreleri.</p></div>
+    <header className="insight-header"><div><h2>Site analitiği</h2><p>Ziyaret oturumları ve aktif geçirilen süre. Kimlik takibi yapılmaz.</p></div>
       <div className="insight-actions">
         {[7,30,90].map(value=><button key={value} type="button" className={days===value?"selected":""} onClick={()=>setDays(value)}>{value} gün</button>)}
         <button type="button" disabled={busy} onClick={()=>void refresh()}>Yenile</button>
       </div>
     </header>
-    {error && <p className="insight-warning" role="status">Canlı istatistik alınamadı: {error}</p>}
+    {error && <p className="insight-warning" role="alert">{error}</p>}
+    {success && <p className="insight-success" role="status">{success}</p>}
     <div className="insight-metrics">
-      <div><small>Sayfa açılışları</small><strong>{data ? format(data.visits) : "—"}</strong><span>Tekil kişi sayısı değildir</span></div>
-      <div><small>Ölçülen aktif süre</small><strong>{data ? duration(data.activeSeconds) : "—"}</strong><span>Görünür / etkileşimli sekme</span></div>
-      <div><small>İçerik açılışları</small><strong>{data ? format(rows.reduce((n,r)=>n+r.opens,0)) : "—"}</strong><span>Kitap, kamera, topluluk, vefk</span></div>
+      <div><small>Ziyaret oturumları</small><strong>{data ? format(data.visits) : "—"}</strong><span>Aynı sekmede yenileme yeni oturum sayılmaz</span></div>
+      <div><small>Toplam aktif süre</small><strong>{data ? duration(data.activeSeconds) : "—"}</strong><span>Ana oda ve içerik alanlarında etkileşimli süre</span></div>
     </div>
     <div className="insight-split">
       <section className="panel insight-card">
@@ -49,6 +66,17 @@ export default function WebsiteAnalytics() {
         )}</div> : <p className="insight-empty">Henüz içerik etkileşimi yok.</p>}
       </section>
     </div>
-    <p className="insight-footnote">Ölçümler toplulaştırılmıştır: IP, çerez, ziyaretçi ID’si ve bireysel gezinme geçmişi kaydedilmez. Ziyaret sayısı sayfa açılışlarını ifade eder; aktif süre tahminidir.</p>
+    <p className="insight-footnote">Ziyaret oturumu aynı sekmedeki yenilemeleri tek sayar; sekme veya tarayıcı yeniden açıldığında yeni oturum başlayabilir. Bu bir tekil insan sayısı değildir. Aktif süre yaklaşık ölçümdür. Sunucuda yalnızca anonim günlük toplamlar saklanır.</p>
+    <section className="insight-reset" aria-label="İstatistik yönetimi">
+      <div><strong>İstatistik yönetimi</strong><p>Testlerin ardından yayına temiz sayaçlarla başlamak için kullanılır. Yalnız analitik kayıtlarını siler; topluluk, yayın ve SEO verileri etkilenmez.</p></div>
+      {!resetPrompt ? <button type="button" className="insight-reset-open" disabled={busy || resetBusy} onClick={() => {setError("");setSuccess("");setResetPrompt(true);}}>İstatistikleri sıfırla</button> :
+        <div className="insight-reset-confirm">
+          <p>7, 30 ve 90 günlük ziyaret ve süre kayıtlarının tamamı kalıcı olarak silinecek. Bu işlem geri alınamaz.</p>
+          <div>
+            <button type="button" disabled={resetBusy} onClick={() => setResetPrompt(false)}>Vazgeç</button>
+            <button type="button" className="insight-reset-danger" disabled={resetBusy} onClick={() => void reset()}>{resetBusy ? "Sıfırlanıyor…" : "Evet, tümünü sıfırla"}</button>
+          </div>
+        </div>}
+    </section>
   </section>;
 }

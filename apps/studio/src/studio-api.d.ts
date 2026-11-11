@@ -539,6 +539,7 @@ interface Window {
     exportPublicSnapshot(mode?: "full" | "update"): Promise<StudioPublicExportResult>;
     publishPublicSnapshot(mode?: "full" | "update"): Promise<StudioPublicPublishResult>;
     analyticsSummary(days?: number): Promise<StudioWebsiteInsights>;
+    analyticsReset(): Promise<{ ok: true; removedEvents: number }>;
     languagesOverview(): Promise<PublicationLanguageOverview>;
     languagesGet(input:{kind:PublicationLanguageKind;id:string}): Promise<PublicationLanguagePack|null>;
     languagesSave(input:{kind:PublicationLanguageKind;id:string;language:PublicationLanguage;data:LanguageData;sourceHash:string;revision:number;approved:boolean}): Promise<PublicationLanguagePack>;

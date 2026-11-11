@@ -55,3 +55,29 @@ test('site source allows parameter/offset edits but rejects invented slots, type
     assert.throws(()=>assertSiteStructure(invalid,source),/site|Site/);
   }
 });
+
+test('normalized room hit areas are validated and independent of editor pose', async () => {
+  const {validateProject}=await import('../src/model/project.mjs');
+  const {readFileSync}=await import('node:fs');
+  const path=new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url);
+  const scene=JSON.parse(readFileSync(path,'utf8'));
+  assert.equal(validateProject(scene),scene);
+  assert.equal(scene.objects.filter(item=>item.hitArea).length,14);
+  const changed=structuredClone(scene);
+  changed.objects[0].hitArea.x=.5;
+  changed.objects[0].hitArea.width=.1;
+  assert.equal(validateProject(changed),changed);
+  changed.objects[0].hitArea.x=.99;
+  assert.throws(()=>validateProject(changed),/Tıklama alanı/);
+});
+
+test('Studio accepts editing hit areas without unlocking object poses or effect identities', async () => {
+ const {assertSiteStructure}=await import('../src/editor/scene-ux.mjs');
+ const {readFileSync}=await import('node:fs');
+ const original=JSON.parse(readFileSync(new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url),'utf8'));
+ const changed=structuredClone(original);
+ changed.objects.find(item=>item.id==='archive-chest').hitArea.y+=.01;
+ assert.doesNotThrow(()=>assertSiteStructure(changed,original));
+ changed.objects.find(item=>item.id==='archive-chest').pose.x+=.01;
+ assert.throws(()=>assertSiteStructure(changed,original),/Nesne yerleşimi/);
+});
