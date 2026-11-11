@@ -8,7 +8,40 @@ const narrativeService = require("./narrative-service.cjs");
 const generation = require("./narrative-ai-generation.cjs");
 const projects = require("./channel-projects.cjs");
 
+function testLargeModelTransport() {
+  const largeText = "Ömer'in kaynaklı günlük ayrıntısı. ".repeat(6000);
+  const node = { sourceType: "node", sourceKey: "large-story", entityId: "large-story",
+    kind: "story", name: "Günlük", summary: largeText, sourceVideoIds: ["real-video"] };
+  const bigRequest = {
+    contractVersion: 1, run: { id: 999 }, responseContract: { sections: [] },
+    input: {
+      narrator: { mode: "neutral" }, changes: [{ sourceType: "node", sourceKey: "large-story", snapshot: { ...node, summary: largeText } }],
+      allowedSources: [node], contextSources: [node],
+      baselineNarrative: [{ sectionKey: "old", body: largeText }],
+      relationContext: [{ summary: largeText }],
+      technicalGraphChanges: [{ summary: largeText }],
+    },
+  };
+  const unchanged = JSON.stringify(bigRequest);
+  assert(Buffer.byteLength(unchanged, "utf8") > 850000, "Test must exceed model transport threshold");
+  const messages = generation.buildMessages(bigRequest);
+  const transported = JSON.parse(messages[1].content.slice("INPUT_JSON:\n".length));
+  assert(Buffer.byteLength(messages[0].content + messages[1].content, "utf8") < 1048576,
+    "Compacted prompt must fit the provider limit");
+  assert.equal(JSON.stringify(bigRequest), unchanged, "Frozen request must not be mutated");
+  assert.equal(transported.input.changes[0].snapshot.summary, largeText, "New facts must survive compaction");
+  assert.equal(transported.input.allowedSources[0].summary, largeText, "Full allowed source facts must survive compaction");
+  assert.equal(transported.input.baselineNarrative[0].body, largeText, "Old book text must survive compaction");
+  assert.deepEqual(transported.input.contextSources[0].sourceVideoIds, ["real-video"]);
+  assert.equal(transported.input.contextSources[0].summary, undefined,
+    "Context duplicate is represented by allowed source identity only");
+  assert.deepEqual(transported.input.relationContext, []);
+  assert.deepEqual(transported.input.technicalGraphChanges, []);
+  assert.match(messages[0].content, /yinelenen teknik/);
+}
+
 async function main() {
+  testLargeModelTransport();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-narrative-ai-"));
   const databasePath = path.join(root, "channel-foundry-studio.sqlite");
   const db = new DatabaseSync(databasePath);

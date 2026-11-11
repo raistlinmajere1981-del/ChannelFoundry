@@ -12,6 +12,8 @@
     "displayName": "Ömer",
     "mode": "source_bound_first_person",
     "editorialNote": "Anlatımı kişisel bir araştırma ve yolculuk günlüğü olarak kur. Dil doğal, akıcı, samimi ve yer yer gizemli olsun; ansiklopedik, akademik veya haber metni üslubundan kaçın.\n\nAnlatıcının kendi deneyimlerini birinci şahısla aktar. Anlatıcıdan \"anlatıcı\", \"sunucu\" veya adıyla üçüncü şahıs olarak söz etme. Adı yalnız kaynakta gerçekten başka biri tarafından kullanılmışsa geçir.\n\nOlayları mümkün olduğunca yaşanma sırasıyla anlat. Görüşmeleri, karşılaşmaları, keşifleri ve öğrenilen bilgileri doğal bir hikâye akışında birleştir.\n\nBaşka kişilerin deneyimlerini, söylediklerini ve iddialarını anlatıcının kendi deneyimi gibi sunma. Bilginin kime ait olduğu anlaşılır olsun.\n\nGizemli ve metafizik unsurların atmosferini koru; ancak dramatizasyon, hayalî diyalog, uydurma duygu, düşünce veya olay ekleme. Belirsizlikleri kesinleştirme.\n\n\"Videoda aktarıldığına göre\", \"anlatıcı belirtmektedir\", \"kayıtlara göre\" gibi rapor dilini gereksiz yere tekrarlama. Kaynak atıflarını anlatımın doğal akışı içinde kullan.\n\nAynı bilgileri tekrar etme. Kısa, anlamlı paragraflar ve birbirine bağlanan anılar oluştur. Okuyucu, olayları dışarıdan inceleyen bir araştırmacı gibi değil, anlatıcının yolculuğuna tanıklık eden biri gibi hissetsin.",
-    "sourceEntityKeys": []
+    "sourceEntityKeys": [
+      "universe-character-096793ce1a67a7"
+    ]
   }
 }

@@ -127,4 +127,30 @@ assert.equal(status.counts.stale, 1);
 assert.equal(status.counts.discarded, 1);
 assert.equal(status.counts.activeSections, 1);
 
+// Recurring narrator's sources cannot turn an episode date into the entire archive.
+const provenanceDb = new DatabaseSync(':memory:');
+workspace.ensureSchema(provenanceDb);
+narrative.ensureSchema(provenanceDb);
+for (const [key, kind, ids] of [
+  ['story-dated', 'story', ['real-video']],
+  ['event-dated', 'event', ['event-video']],
+  ['character-recurring', 'character', ['real-video', 'event-video', 'unrelated-video']],
+]) {
+  provenanceDb.prepare(`INSERT INTO universe_workspace_nodes (
+    key,run_id,kind,name,summary,aliases_json,source_video_ids_json,payload_json,state
+  ) VALUES (?,1,?,?,?,'[]',?,'{}','approved')`).run(key, kind, key, key, JSON.stringify(ids));
+}
+const dateRun = narrative.prepareRun(provenanceDb);
+narrative.saveDraftSections(provenanceDb, dateRun.id, [
+  { key:'dated-story', title:'Günlük hikâye', body:'İlk gün olanları anlattım.', sourceKeys:['story-dated','character-recurring'] },
+  { key:'dated-event', title:'Olay hatırası', body:'Olayın ayrıntılarını hatırladım.', sourceKeys:['event-dated','character-recurring'] },
+  { key:'dated-fallback', title:'Kişi hatırası', body:'Kişiyle olan anıları aktardım.', sourceKeys:['character-recurring'] },
+]);
+const dateDrafts = new Map(provenanceDb.prepare("SELECT section_key AS key,source_video_ids_json AS videos FROM narrative_section_revisions WHERE run_id=?").all(dateRun.id)
+  .map(item=>[item.key,JSON.parse(item.videos)]));
+assert.deepEqual(dateDrafts.get('dated-story'),['real-video'], 'Story attribution must outrank ubiquitous character source dates');
+assert.deepEqual(dateDrafts.get('dated-event'),['event-video'], 'Event attribution must outrank ubiquitous character source dates');
+assert.deepEqual(dateDrafts.get('dated-fallback'),['real-video','event-video','unrelated-video'], 'Entity-only sections retain legacy fallback');
+provenanceDb.close();
+
 console.log("Narrative store keeps approved-universe input incremental, provenance-backed, stale-safe and revision-preserving without AI calls");

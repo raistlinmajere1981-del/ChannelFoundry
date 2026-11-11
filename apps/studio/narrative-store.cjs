@@ -205,11 +205,19 @@ function runSourceMap(db, runId) {
 }
 
 function sourceVideoIdsFor(sourceMap, sourceKeys) {
+  const sources = sourceKeys.map((sourceKey) => sourceMap.get(sourceKey)).filter(Boolean);
+  // Story sources identify the episode's actual narrative thread. A recurring
+  // participant (especially the channel owner) can occur in every video, so
+  // taking all character IDs would incorrectly date each chapter to the
+  // entire archive. Prefer story provenance, then event provenance; only
+  // fall back to general entities for sections without either.
+  const stories = sources.filter((source) => source.sourceType === 'node' && source.snapshot?.kind === 'story');
+  const events = sources.filter((source) => source.sourceType === 'node' && source.snapshot?.kind === 'event');
+  const chosen = stories.length ? stories : events.length ? events : sources;
   const result = [];
   const seen = new Set();
-  for (const sourceKey of sourceKeys) {
-    const source = sourceMap.get(sourceKey);
-    for (const videoId of source?.sourceVideoIds ?? []) {
+  for (const source of chosen) {
+    for (const videoId of source.sourceVideoIds ?? []) {
       const value = clean(videoId, 100);
       if (!value || seen.has(value)) continue;
       seen.add(value);

@@ -4,6 +4,8 @@ Köprü, bu ChatGPT sohbetindeki Nexa'nın yetkili terminal bağlantısı ile ku
 
 ## Günlük kullanım
 
+**İlk 50'lik gerçek içerik bloğu sabittir:** `channels/birdesengor/.local-data/studio/nexa-analysis/block-2026-11-09-50.json`. Pazartesi/perşembe/cumartesi yayınlanan, en az 20 dakikalık son 50 altyazılı video seçilmiştir. Her 10'lu grup kendi içinde eskiden yeniye işlenir. Aşağıdaki genel `next` komutu bütün arşivde en eskiden seçer; **sabit blok seçiminin yerine kullanılmaz**. İlk 10 zaten işlenmiştir; Evren birleştirmesi 10 video üzerinden, görsel üretimi ise 50 video sonunda planlanmıştır.
+
 Proje kökünde:
 
     node apps/studio/nexa-analysis-cli.cjs next --count 3
@@ -18,7 +20,7 @@ Her video için üç dosya oluşturur:
 
 Varsayılan dizin: channels/AKTIF-KANAL/.local-data/studio/nexa-analysis/. Kaynak altyazılar gerçek çalışma verisidir; Git'e eklenmemelidir.
 
-Nexa bütün altyazıyı okuyup yapılandırılmış çözümlemeyi hazırlar. Konuşmacının iddiaları olgu diye sunulmaz, özel isimler ve Arapça yazılar korunur. Destekçiler Evren muhatabı yapılmaz. Evidence alıntıları transkriptte birebir bulunmak zorundadır. Kaynakta zaman yoksa saniye uydurulmaz (0 kullanılır). Bilinmeyen alanlar uydurulmaz.
+Nexa bütün altyazıyı okuyup yapılandırılmış çözümlemeyi hazırlar. İçerikler anlatıcının kendi Evren'inin olayları olarak işlenir; çözümlemeye dışarıdan doğruluk, gerçek dünya uyarısı veya değer yargısı eklenmez. Kaynakta bulunmayan sahne, neden, kişi veya konuşma da uydurulmaz. Özel isimler ve Arapça yazılar korunur; kanonik karakter ve mekân adları `docs/BIRDESENGOR_ANLATI_TUTARLILIK_DEFTERI.md` üzerinden eşleştirilir. Ham altyazılar değiştirilmez. Destekçiler Evren muhatabı yapılmaz. Evidence alıntıları transkriptte birebir bulunmak zorundadır. Kaynakta zaman yoksa saniye uydurulmaz (0 kullanılır).
 
 Doğrula (veritabanına yazmaz):
 

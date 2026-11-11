@@ -12,7 +12,42 @@ function userDataPathFromDb(db) {
   return path.dirname(file);
 }
 
-function buildMessages(request) {
+// Keep the frozen Studio request intact. Only compact its transport copy for
+// large provider calls: graph edges contain no independent narrative evidence,
+// and unchanged context entities are already present in allowedSources.
+function compactModelRequest(request) {
+  const size = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
+  const targetBytes = 850000;
+  if (size(request) <= targetBytes) return request;
+  const input = { ...request.input, relationContext: [], technicalGraphChanges: [] };
+  const allowed = new Set((input.allowedSources ?? []).map((source) => source.sourceKey));
+  input.contextSources = (input.contextSources ?? []).map((source) =>
+    allowed.has(source.sourceKey)
+      ? { sourceType: source.sourceType, sourceKey: source.sourceKey,
+          kind: source.kind, name: source.name, entityId: source.entityId,
+          sourceVideoIds: source.sourceVideoIds }
+      : source);
+  let compact = { ...request, input };
+  if (size(compact) > targetBytes) {
+    // Modified node facts remain complete in input.changes[].snapshot;
+    // allowedSources needs the source identity for reference validation only.
+    const changed = new Set((input.changes ?? []).filter((source) => source.sourceType === "node")
+      .map((source) => source.sourceKey));
+    input.allowedSources = (input.allowedSources ?? []).map((source) => changed.has(source.sourceKey)
+      ? { sourceType: source.sourceType, sourceKey: source.sourceKey,
+          entityId: source.entityId, kind: source.kind, name: source.name,
+          aliases: source.aliases, sourceVideoIds: source.sourceVideoIds }
+      : source);
+    compact = { ...request, input };
+  }
+  if (size(compact) > targetBytes) {
+    throw new Error("Hikâyeleştir AI girdisi yinelenen teknik veriler ayıklandıktan sonra da çok büyük; kaynak içeriği kesilmeden daha küçük kaynak gruplarına ayrılmalı.");
+  }
+  return compact;
+}
+
+function buildMessages(originalRequest) {
+  const request = compactModelRequest(originalRequest);
   const identityEvidence = request.input?.evidencePolicy === "narrative-records-v2";
   return [
     {
@@ -20,6 +55,7 @@ function buildMessages(request) {
       content: [
         "Channel Foundry Studio için Hikâyeleştir editörüsün.",
         "Yalnız verilen frozen request içindeki onaylı Evren kayıtlarını ve baseline anlatıyı kullan; dış bilgi, tahmin veya yeni olay ekleme.",
+        ...(request !== originalRequest ? ["Büyük istek için yinelenen teknik relationContext/technicalGraphChanges listeleri taşımadan çıkarıldı; bunlardan olay türetilmez. contextSources içinde yalnız anahtar/kimlik bulunan öğelerin tam kayıt ayrıntıları allowedSources içindedir. changes[].snapshot yeni/değişen kayıtların tam olgusal içeriğidir. Gerekli ayrıntıları bu kaynaklardan eşleştir; metin uydurma."] : []),
         "Anlatıyı akıcı ve okunabilir hale getirebilirsin fakat kişinin niyetini, duygusunu, sebep-sonuç ilişkisini veya dramatik ayrıntıyı kaynakta yoksa uydurma.",
         identityEvidence
           ? "input.narrator.sourceEntityKeys editörün açıkça eşlediği kanal anlatıcısı kaynak ID'leridir; input.narratorSourceEntities bu onaylı character kayıtlarının frozen ID ve adlarıdır. input.narrator.mode source_bound_first_person ise yalnız eylemin öznesi açıkça bu mapped ID'lerden biri olduğunda ve kaynak o eylemi desteklediğinde ben diliyle yaz. Eşleme boşsa tüm kişiler için üçüncü şahıs kaynaklı tarafsız anlatım kullan. Kimin yaşadığı belirsizse üçüncü şahıs kaynaklı tarafsız aktar; birinci şahıs deneyim icat etme. Bir misafirin veya diğer kişilerin söylediklerini ona göre / videoda aktarıldığına göre diye ayır."
@@ -29,7 +65,7 @@ function buildMessages(request) {
           : "input.narrator.displayName kanal sahibinin kimliğidir; kendi günlüğünde varsayılan özne olarak Anlatıcı, sunucu veya bu adı (örneğin Ömer) üçüncü şahısta kullanma. Adı yalnız kaynakta gerektiğinde, örneğin başka biri kendisine adıyla hitap ettiğinde yaz. Kimlik ayarı tek başına bir kaynak deneyiminin kanal sahibine ait olduğunu kanıtlamaz.",
         "input.narrator.mode neutral ise üçüncü şahıs tarafsız üslubu sürdür. Kaynak doğruluğuyla çelişmeyen narrator.editorialNote üslup tercihlerini uygula; kaynak kanıtı yerine geçemez ve kaynak ile atıf kuralları her zaman önceliklidir.",
         "input.mainCharacters yalnız editörün önemli ve tekrar eden muhatap olarak işaretlediği onaylı kaynak kimlikleridir. Bunları anlatı belleğinde karakter sürekliliği, alias kontrolü ve bağlam için kullan; her bölümde yer almalarını zorunlu kılma. Ana karakter işareti rol, olay, ilişki, deneyim, doğrudan konuşma veya birinci şahıs anlatım kanıtı değildir. Kaynakta bulunmayan sahne ekleme.",
-        "Metafizik, paranormal veya tartışmalı iddiaları doğrulanmış dış gerçek gibi değil, anlatıcının deneyimi veya aktarılan iddia olarak ifade et.",
+        "Metafizik ve olağanüstü olaylar, anlatıcının kendi Evren'inin doğal parçalarıdır. Anlatıcıya ve konuklara ait sözleri doğru kişiye bağla. Kaynakta bulunmayan 'kanıtlanmamış iddia', 'gerçek dünyada doğrulanmadı' veya benzeri dış yorumlar ve uyarılar ekleme.",
         "sourceVideos.publishedAt yalnız video yayın tarihidir; olayın yaşandığı tarih değildir. Kaynak açıkça olay tarihini vermiyorsa günlük tarihi uydurma; kronolojiyi kaynakta belirtilen kadarıyla koru.",
         "Doğrudan deneyim, aktarılan bilgi ve kişisel yorum ayrımını her iddiada koru. Birinci şahıs bir alıntıda geçse bile konuşanın kanal sahibi olduğuna dair kanıt yoksa bunu anlatıcının yaşantısına dönüştürme. Kaynakta olmayan bana anlattı gibi bir iletişim olayı da ekleme; kaynağa göre / videoda aktarıldığına göre diye atfet.",
         "Kişisel yorum yalnız kaynakta açıkça anlatıcıya ait bir görüşse onun yorumu olarak yazılabilir. Belirsizlik, duyum ve iddia niteliğini kesin bilgiye çevirme. Her paragrafın olay ve deneyimleri section.sourceKeys ve sourceVideoIds üzerinden frozen kaynaklara geri izlenebilmeli.",

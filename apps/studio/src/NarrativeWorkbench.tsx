@@ -1,4 +1,3 @@
-import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
 import "./narrative-workbench.css";
@@ -70,9 +69,7 @@ export default function NarrativeWorkbench() {
   const notify = useAiWorkbenchNotice();
   const [status, setStatus] = useState<StudioNarrativeStatus | null>(null);
   const [busy, setBusy] = useState<BusyAction>("");
-  const [activeView, setActiveView] = useState<"narrative"|"outline"|"languages"|"sources">("narrative");
-  const [languageKind, setLanguageKind] = useState<"section"|"outline">("section");
-  const [languagesVisited, setLanguagesVisited] = useState(false);
+  const [activeView, setActiveView] = useState<"narrative"|"outline"|"sources">("narrative");
 
   const load = async () => {
     if (!bridge) return;
@@ -183,11 +180,10 @@ export default function NarrativeWorkbench() {
       {([
         ["narrative","Anlatı",drafts.length?drafts.length:memory.length],
         ["outline","İçindekiler",memory.length],
-        ["languages","Çeviriler",null],
         ["sources","Kaynaklar",sourceVideos.length],
       ] as const).map(([view,label,count])=><button type="button" role="tab" key={view}
         aria-selected={activeView===view} className={activeView===view?"active":""}
-        onClick={()=>{setActiveView(view);if(view==="languages")setLanguagesVisited(true);}}>{label}{count!==null&&<b>{number(count)}</b>}</button>)}
+        onClick={()=>setActiveView(view)}>{label}{count!==null&&<b>{number(count)}</b>}</button>)}
     </nav>
     <section className="narrative-view-body" role="tabpanel">
       {activeView==="sources" && <div className="narrative-sources-view">
@@ -230,14 +226,6 @@ export default function NarrativeWorkbench() {
 
     </div>}
     <div className="narrative-outline-view" hidden={activeView!=="outline"}><NarrativeOutlineWorkbench memory={memory}/></div>
-    {languagesVisited && <div className="narrative-languages-view" hidden={activeView!=="languages"}>
-      <div className="narrative-language-kind" role="tablist" aria-label="Yayın metni türü">
-        <button type="button" role="tab" aria-selected={languageKind==="section"} className={languageKind==="section"?"active":""} onClick={()=>setLanguageKind("section")}>Anlatı bölümleri</button>
-        <button type="button" role="tab" aria-selected={languageKind==="outline"} className={languageKind==="outline"?"active":""} onClick={()=>setLanguageKind("outline")}>İçindekiler</button>
-      </div>
-      <div hidden={languageKind!=="section"}><PublicationLanguageEditor embedded kind="section"/></div>
-      <div hidden={languageKind!=="outline"}><PublicationLanguageEditor embedded kind="outline"/></div>
-    </div>}
     </section>
   </div>;
 }

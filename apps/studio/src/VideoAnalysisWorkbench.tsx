@@ -1,4 +1,3 @@
-import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
 import {
@@ -216,7 +215,6 @@ export default function VideoAnalysisWorkbench() {
       </section>
 
       <section className="ai-review panel">
-        {activeVideoId && result && <PublicationLanguageEditor key={activeVideoId} kind="video" id={activeVideoId}/>}
         {activeVideo ? <>
           <div className="ai-review-head"><div><small>VİDEO ANLATI DOSYASI</small><h3>{activeVideo.title}</h3><p>{formatDate(activeVideo.publishedAt)} · {formatDuration(activeVideo.durationSeconds)}</p></div><span className={`analysis-state ${activeVideo.jobState || (activeVideo.hasAnalysis ? "done" : "idle")}`}>{stateLabel(activeVideo)}</span></div>
           {result ? <div className="ai-review-body">

@@ -145,16 +145,13 @@ try {
     if(width>780)assert(Math.abs(chapterLayout.label.y-chapterLayout.order.y)<3 && Math.abs(chapterLayout.order.bottom-chapterLayout.save.bottom)<3,'Chapter label/order/save must share a row');
     assert.equal(await page.locator('.narrative-outline details').count(),0);
     await page.screenshot({path:path.join(out,'outline-'+theme+'-'+width+'.png')});
-    await page.getByRole('tab',{name:'Çeviriler'}).click();
-    await page.getByRole('tab',{name:'İçindekiler'}).last().click();
-    assert.equal(await page.locator('.publication-language-editor.embedded:visible').count(),1);
-    assert.equal(await page.locator('.publication-language-editor summary').count(),0);
-    await page.screenshot({path:path.join(out,'translations-'+theme+'-'+width+'.png')});
+    assert.equal(await page.getByRole('tab',{name:'Çeviriler'}).count(),0,'Translations belong to Yayınlama, not Hikâyeleştir');
+    assert.equal(await page.locator('.publication-language-editor').count(),0,'Stage 05 must not mount publication language editors');
     results.push({width,theme,controls,measure});
   }
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(out, 'verification.json'), JSON.stringify({ results, errors, realDatabaseOpened: false }, null, 2));
-  console.log('PASS Stage05 React/IPC: compact top bar, no disclosure panels, direct content tabs, safe evidence ledger, readable TR/EN and outline; 1920/1366/390 light/dark. Artifacts:', out);
+  console.log('PASS Stage05 React/IPC: compact top bar, no disclosure panels, direct content tabs, safe evidence ledger, translations isolated to Publishing and outline; 1920/1366/390 light/dark. Artifacts:', out);
 } catch (error) {
   if (page) await page.screenshot({ path: path.join(out, 'failure.png'), fullPage: true }).catch(() => {});
   console.error('Browser verification did not pass. Artifacts:', out);

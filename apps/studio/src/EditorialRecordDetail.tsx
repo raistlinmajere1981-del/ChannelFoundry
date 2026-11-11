@@ -1,4 +1,3 @@
-import PublicationLanguageEditor from "./PublicationLanguageEditor";
 import { useEffect, useMemo, useState } from "react";
 import VisualProfileEditor from "./VisualProfileEditor";
 import { useVideoSourceCatalog, videoSourceTitle, videoSourceTitles } from "./video-source-labels";
@@ -163,7 +162,6 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
   };
 
   return <div className="record-detail-shell">
-    <PublicationLanguageEditor kind="entity" id={node.key}/>
     <header className="record-detail-head">
       <div className="record-detail-title"><small>{workspaceLabels[node.kind].toUpperCase()} · AI EVRENİ</small><h2>{node.name}</h2><div className="record-detail-facts"><span>{node.sourceVideoIds.length} kaynak</span><span>{related.length} ilişki</span><span>Güncelleme {formatDate(node.updatedAt)}</span></div></div>
       <div className="editor-actions"><button className="primary-button" disabled={busy} onClick={() => void save()}>{busy ? "Kaydediliyor…" : "Kaydet"}</button></div>
@@ -211,7 +209,7 @@ export function WorkspaceRecordDetail({ node, relations, allNodes, onReload, onS
         {details.length > 0 && <div className="record-source-notes"><h4>Kaynaklı ayrıntılar</h4>{details.map((detail, index) => <article key={`${detail.text}:${index}`}><span>{String(index + 1).padStart(2, "0")}</span><div><p>{detail.text}</p><small>{detail.sourceVideoIds.length ? videoSourceTitles(detail.sourceVideoIds, videoCatalog).join(" · ") : "Kaynak etiketi yok"}</small></div></article>)}</div>}
       </section>}
 
-      {tab === "visual" && <section className="record-detail-section record-visual-section"><VisualProfileEditor item={{ key: node.key, kind: node.kind, title: node.name }} seedVisual={visual} onStatus={onStatus}/></section>}
+      {tab === "visual" && <section className="record-detail-section record-visual-section"><VisualProfileEditor productionActions item={{ key: node.key, kind: node.kind, title: node.name }} seedVisual={visual} onStatus={onStatus}/></section>}
     </div>
   </div>;
 }
@@ -239,7 +237,7 @@ export function LegacyRecordDetail({ item, relations, allItems, onReload, onStat
     <div className="record-detail-body">
       {tab === "general" && <section className="record-detail-section"><div className="record-section-heading"><div><small>MANUEL KAYIT</small><h3>Temel içerik</h3></div></div><div className="editor-form record-general-form"><label><span>Başlık</span><input value={title} onChange={(event) => setTitle(event.target.value)}/></label><div className="form-two"><label><span>Bağlam / tarih</span><input value={meta} onChange={(event) => setMeta(event.target.value)}/></label><label><span>Durum</span><select value={status} onChange={(event) => setStatus(event.target.value as StudioPersistedItem["status"])}><option value="draft">Taslak</option><option value="published">Yayında</option></select></label></div><label><span>Özet</span><textarea className="record-summary-input" value={summary} onChange={(event) => setSummary(event.target.value)}/></label></div></section>}
       {tab === "relations" && <section className="record-detail-section"><div className="record-section-heading"><div><small>İLİŞKİLER</small><h3>Manuel bağlantılar</h3></div><span>{linked.length} bağlantı</span></div><div className="record-relation-list">{linked.map((entry) => <article key={entry.key}><div><small>{legacyLabels[entry.kind]}</small><strong>{entry.title}</strong><span>{entry.meta || "Yerel kayıt"}</span></div></article>)}{!linked.length && <div className="record-empty-panel">Henüz bağlantı yok.</div>}</div></section>}
-      {tab === "visual" && <section className="record-detail-section record-visual-section"><VisualProfileEditor item={item} onStatus={onStatus}/></section>}
+      {tab === "visual" && <section className="record-detail-section record-visual-section"><VisualProfileEditor productionActions item={item} onStatus={onStatus}/></section>}
     </div>
   </div>;
 }

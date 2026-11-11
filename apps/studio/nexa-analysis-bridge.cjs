@@ -80,7 +80,9 @@ function requestFor(db, videoId) {
   return {
     request: { schemaVersion: 1, bridgeVersion: BRIDGE_VERSION,
       source: item,
-      rules: ["Söylenmeyeni ekleme; anlatıcıya ait iddiaları olgu gibi yazma.",
+      rules: ["Anlatımı kendi Evren'inin içinde ele al; gerçek dünya doğrulama etiketleri veya dışarıdan yorum ekleme.",
+        "Söylenmeyeni ekleme; her sözü anlatıcıya, konuğa veya ilgili konuşmacıya bağla.",
+        "Kanonik adlar için docs/BIRDESENGOR_ANLATI_TUTARLILIK_DEFTERI.md sözlüğünü kullan; özgün altyazıyı değiştirme.",
         "Özel adları ve Arapça ifadeleri koru; belirsiz bilgileri uydurma.",
         "Kanıt alıntıları transkriptte birebir geçmeli; bilinmeyen zamanları 0 kullan.",
         "Destekçiler ve katkıda bulunanlar anlatı muhatapları değildir."],
