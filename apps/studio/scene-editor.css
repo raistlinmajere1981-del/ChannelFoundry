@@ -69,6 +69,12 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-visual-check{display:flex;align-items:center;gap:8px;font-size:11px;color:#c7d0d2}
 .scene-visual-check input{width:18px;flex:none}
 .scene-visual-tip{font-size:11px;color:var(--muted);margin:5px 0}
+.scene-source-preview{display:grid;place-items:center;width:100%;max-height:220px;min-height:90px;padding:9px;margin:10px 0;border:1px solid var(--line);border-radius:7px;background:repeating-conic-gradient(#605b5430 0 25%,#18140f40 0 50%) 50% / 20px 20px;overflow:hidden}
+.scene-source-preview img{display:block;max-width:100%;max-height:200px;object-fit:contain}
+.scene-source-warning{margin:8px 0;padding:8px 9px;border-left:2px solid #bc9254;color:#e3ca9f;font-size:11px;line-height:1.5}
+.scene-book-controls{border:1px solid var(--line);border-radius:6px;padding:6px 7px;margin:9px 0}
+.scene-book-controls>summary{cursor:pointer;font-size:12px;font-weight:650;color:#dac5a0;padding:2px 0 5px}
+.scene-book-controls>.field{margin:6px 0 9px}
 .scene-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
 .scene-photo[hidden]{display:none}
 .has-photo.scene-viewport::before{display:none}

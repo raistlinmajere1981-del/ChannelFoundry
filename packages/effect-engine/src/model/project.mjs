@@ -1,5 +1,6 @@
 import {effectRegistry,objectEffectRegistry,defaultParams,effectTrigger,allowedEffectTriggers} from '../registry/effects.mjs';
 import {isSimplePolygon} from './geometry.mjs';
+import {canCropVisual,validateVisualCrop} from './visual-crop.mjs';
 export const FORMAT='efekt-atolyesi';
 export const SCHEMA_VERSION=1;
 export const OBJECT_SCENE_VERSION=2;
@@ -66,7 +67,11 @@ function validateObjectScene(scene) {
   const unique = id => {string(id,'Kimlik',120); if(ids.has(id)) fail(`Tekrarlanan kimlik: ${id}`); ids.add(id);};
   const objects=new Map();
   for(const item of scene.objects) {
-    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea','veil'],'Nesne');
+    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea','veil','crop'],'Nesne');
+    if(item.crop!==undefined){
+      if(!canCropVisual(item))fail('Görsel kırpma yalnız bağımsız resimli nesnelerde düzenlenebilir.');
+      validateVisualCrop(item.crop);
+    }
     if(item.veil!==undefined){
       keys(item.veil,['enabled','transitionMs','residualOpacity','distortionPx','edgeOpacity'],'Görünmezlik');
       bool(item.veil.enabled,'Görünmezlik etkinliği');

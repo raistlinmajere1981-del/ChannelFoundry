@@ -1,18 +1,31 @@
 import {writeFile,unlink,chmod} from 'node:fs/promises';
-import {readFileSync,renameSync,statSync,realpathSync} from 'node:fs';
+import {readFileSync,renameSync,statSync,realpathSync,copyFileSync} from 'node:fs';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {importProject,validateProject,exportProject} from '../../packages/effect-engine/src/model/project.mjs';
 import {compileObjectScene} from '../../packages/effect-engine/src/runtime/object-compile.mjs';
+import {validateAssetOverrides} from './scene-asset-overrides.mjs';
+import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from './scene-physical-art.mjs';
+import {validateScenePresentation} from '../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export const BIRDESENGOR_SITE=resolve(dirname(fileURLToPath(import.meta.url)),'../../channels/birdesengor/web');
 export const SITE_SCENE='src/effects/birdesengor-effects.v2.json';
 const MANIFEST='src/scene/data/study.scene.json';
+const PRESENTATION='src/scene/data/scene-presentation.v1.json';
 const ADAPTER='src/effects/effectsAdapter.js';
 const PREVIEW='public/scene-assets/approved/room-effects-v4-2to1.webp';
 const ROOT='src/scene/SceneRoot.jsx';
 const STAGE_CSS='src/scene/study-foundation.css';
+// The book/camera/workshop presentation contract depends on these authored
+// styles. Include them in the optimistic source revision before staging.
+const PRESENTATION_STYLES=Object.freeze([
+ 'src/book/universe-tome.css','src/book/book-ribbons.css',
+ 'src/book/journal-pages.css','src/book/physical-books.css',
+ 'src/book/reading-controls.css','src/community/community-journal.css',
+ 'src/camera/camera-artwork.css','src/camera/camera-single-view.css',
+ 'src/vefk/physical-vefk.css',
+]);
 const CANDLE_HOST='src/effects/CandleEffects.jsx';
 const PASSIVE_HOST='src/effects/PassiveObjectEffects.jsx';
 const HOVER_HOST='src/effects/HoverObjectEffects.jsx';
@@ -92,7 +105,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
  };
  async function snapshot(){
   const entries=new Map();
-  for(const file of [SITE_SCENE,MANIFEST,ADAPTER,PREVIEW,STAGE_CSS])entries.set(file,read(file));
+  for(const file of [SITE_SCENE,MANIFEST,PRESENTATION,ADAPTER,PREVIEW,STAGE_CSS,...PRESENTATION_STYLES])entries.set(file,read(file));
   // Follow the actual scene's relative JS imports. Dormant effect components
   // elsewhere in src are NOT proof of a mounted runtime slot. A newly wired
   // hook requires a reviewed mount contract before this writer can admit it.
@@ -114,6 +127,13 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
       const file='public'+asset;entries.set(file,read(file));
     }
   }
+  // Approved foreground art belongs to independent mounted sources, not to
+  // the background scene photo. Track every byte in optimistic revision hash.
+  for(const asset of ALL_PHYSICAL_ART_PATHS){
+    if(!/^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(asset))
+      throw Error('Sahne görsel kataloğunda geçersiz kaynak yolu.');
+    entries.set('public'+asset,read('public'+asset));
+  }
   const chestGlowMask='public/scene-assets/chest/interior-light-mask.webp';
   entries.set(chestGlowMask,read(chestGlowMask));
   const daggerMask='public/scene-assets/dagger/dagger-blade-mask.webp';
@@ -122,8 +142,9 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   const adapter=await import('data:text/javascript;base64,'+entries.get(ADAPTER).toString('base64'));
   const manifest=JSON.parse(entries.get(MANIFEST).toString('utf8'));
   const scene=importProject(entries.get(SITE_SCENE).toString('utf8'));
+  const presentation=validateScenePresentation(JSON.parse(entries.get(PRESENTATION).toString('utf8')));
   const sourceHash=digest([...entries].map(([file,bytes])=>[file,bytes.toString('base64')]));
-  const state={scene,manifest,adapter,sourceHash,entries,mounted};
+  const state={scene,presentation,manifest,adapter,sourceHash,entries,mounted};
   validate(scene,state);
   return state;
  }
@@ -149,14 +170,15 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   }
   return result;
  }
- function validate(scene,state){
+ function validate(scene,state,presentation=state.presentation){
   validateProject(scene);compileObjectScene(scene);
+  validateScenePresentation(presentation);
   state.adapter.assertAuthoredScene(scene,state.manifest);
   return scene;
  }
- function readiness(scene,state){
+ function readiness(scene,state,presentation=state.presentation){
   const problems=[];
-  try{validate(scene,state);}catch(error){problems.push(error.message);}
+  try{validate(scene,state,presentation);}catch(error){problems.push(error.message);}
   const allowed=slots(state);
   for(const effect of scene.effects){
    const slot=allowed.get(effect.id);
@@ -170,48 +192,93 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   if(state.mounted.ready && enabledCount>mountedCount)problems.push('Etkin efekt sayısı doğrulanmış site yuvalarını aşıyor.');
   return {ready:problems.length===0,effectCount:scene.effects.length,enabledCount,mountedCount,problems};
  }
+ function focusTargets(state){return state.manifest.objects.filter(o=>['research-journal','community-journal','camera','vefk-stand'].includes(o.id))
+   .map(o=>({id:o.id,foundation:o.foundation}));}
+ function validateAssets(assets,state){return validateAssetOverrides(assets,state.manifest,state.entries);}
+ function previewArt(state){
+  return Object.entries(PHYSICAL_ART_SLOTS).flatMap(([objectId,slots])=>{
+    if(!state.manifest.objects.some(o=>o.id===objectId))
+      throw Error('Sahne görseli için nesne bulunamadı: '+objectId);
+    return slots.map(slot=>{
+      const bytes=state.entries.get('public'+slot.path);
+      if(!bytes||bytes.length>8*1024*1024||
+        bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')
+        throw Error('Ana nesne görseli geçersiz: '+slot.path);
+      return {objectId,path:slot.path,label:slot.label,
+        warning:slot.warning??'',
+        image:'data:image/webp;base64,'+bytes.toString('base64')};
+    });
+  });
+ }
  function previewObjects(state){
   const image=asset=>{
     const bytes=state.entries.get('public'+asset);
     if(!bytes||bytes.length>8*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Geçersiz nesne önizlemesi.');
     return 'data:image/webp;base64,'+bytes.toString('base64');
   };
-  return state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})}));
+  return state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})}));
  }
  async function preview(state){
   const bytes=state.entries.get(PREVIEW);
   if(bytes.length>16*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Site oda önizlemesi geçerli bir WebP olmalı.');
   return 'data:image/webp;base64,'+bytes.toString('base64');
  }
- async function stage(scene,expectedSourceHash){
+ async function stage(scene,expectedSourceHash,assets=[],presentation=null){
   const state=await snapshot();
-  if(!expectedSourceHash||expectedSourceHash!==state.sourceHash)throw Error('Site kaynağı değişmiş; güncel sahneyi yeniden açın. Eski taslak aktarılmadı.');
-  const report=readiness(scene,state);
+  if(!expectedSourceHash||expectedSourceHash!==state.sourceHash)
+    throw Error('Site kaynağı değişmiş; güncel sahneyi yeniden açın. Eski taslak aktarılmadı.');
+  const targetPresentation=presentation??state.presentation;
+  const report=readiness(scene,state,targetPresentation);
   if(!report.ready)throw Error('Site hazırlığı geçersiz: '+report.problems.join('\n'));
-  const contents=exportProject(scene),destination=path(SITE_SCENE);
-  const changed=contents!==state.entries.get(SITE_SCENE).toString('utf8');
-  if(changed){
-   const temp=destination+'.'+randomUUID()+'.tmp';
-   try{
-    const mode=statSync(destination).mode&0o777;
-    await writeFile(temp,contents,{mode,flag:'wx'});
-    await chmod(temp,mode);
-    // Final revision check and rename are synchronous: no yielded operation
-    // between checking all source inputs and replacing the one approved file.
-    const current=digest([...state.entries.keys()].map(file=>[file,read(file).toString('base64')]));
-    if(current!==expectedSourceHash)throw Error('Site kaynağı hazırlık sırasında değişmiş; dosya yazılmadı.');
-    renameSync(temp,destination);
-   }finally{await unlink(temp).catch(()=>{});}
-  }else{
-   // No-op staging must still reject a parallel source edit. Otherwise Admin
-   // could report an unchanged revision as prepared after its source drifted.
-   const current=digest([...state.entries.keys()].map(file=>[file,read(file).toString('base64')]));
-   if(current!==expectedSourceHash)throw Error('Site kaynağı hazırlık sırasında değişmiş; dosya yazılmadı.');
+  const uploaded=validateAssets(assets,state);
+  const contents=exportProject(scene);
+  const updates=new Map([[SITE_SCENE,Buffer.from(contents)],
+    [PRESENTATION,Buffer.from(JSON.stringify(targetPresentation,null,2)+'\n')],
+    ...uploaded.map(item=>['public'+item.path,item.bytes])]);
+  const changedFiles=[...updates].filter(([file,bytes])=>!bytes.equals(state.entries.get(file)));
+  const checkRevision=()=>digest([...state.entries.keys()].map(file=>[file,read(file).toString('base64')]));
+  const nonce=randomUUID();
+  const temporary=[];
+  const committed=[];
+  let rollbackFailed=false;
+  try{
+    // Prepare every replacement first. Nothing is installed until the entire
+    // reviewed source inventory still matches the exact loaded revision.
+    for(const [file,bytes] of changedFiles){
+      const destination=path(file),mode=statSync(destination).mode & 0o777;
+      const temp=destination+'.'+nonce+'.tmp',backup=destination+'.'+nonce+'.bak';
+      temporary.push({destination,temp,backup});
+      await writeFile(temp,bytes,{flag:'wx',mode});
+      await chmod(temp,mode);
+      copyFileSync(destination,backup);
+    }
+    if(checkRevision()!==expectedSourceHash)
+      throw Error('Site kaynağı hazırlık sırasında değişmiş; hiçbir kaynak dosya değiştirilmedi.');
+    try{
+      // Synchronous rename sequence, with original bytes kept for rollback.
+      for(const entry of temporary){
+        renameSync(entry.temp,entry.destination);
+        committed.push(entry);
+      }
+    }catch(error){
+      const failures=[];
+      for(const entry of [...committed].reverse()){
+        try{renameSync(entry.backup,entry.destination);}
+        catch(rollbackError){failures.push(rollbackError.message);}
+      }
+      if(failures.length){rollbackFailed=true;throw Error('Kaynak geri alma başarısız: '+failures.join('; ')+' / '+error.message);}
+      throw error;
+    }
+  }finally{
+    for(const entry of temporary){
+      await unlink(entry.temp).catch(()=>{});
+      if(!rollbackFailed)await unlink(entry.backup).catch(()=>{});
+    }
   }
-  // Return OUR revision, never adopt a parallel writer's later revision as
-  // this draft's base. A subsequent save/stage/load will detect that drift.
-  const nextEntries=[...state.entries].map(([file,bytes])=>[file,file===SITE_SCENE&&changed?Buffer.from(contents):bytes]);
-  return {changed,sourceHash:digest(nextEntries.map(([file,bytes])=>[file,bytes.toString('base64')])),readiness:report};
+  const nextEntries=[...state.entries].map(([file,bytes])=>[file,updates.get(file)??bytes]);
+  return {changed:changedFiles.length>0,changedFiles:changedFiles.map(([file])=>file),
+    sourceHash:digest(nextEntries.map(([file,bytes])=>[file,bytes.toString('base64')])),
+    readiness:report};
  }
- return {snapshot,validate,readiness,preview,previewObjects,stage};
+ return {snapshot,validate,validateAssets,readiness,preview,previewObjects,previewArt,focusTargets,stage};
 }

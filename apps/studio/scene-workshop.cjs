@@ -83,32 +83,38 @@ class SceneWorkshop {
   async load() {
     const source = await this.snapshot();
     const saved = readDraft(this.draftFile);
-    let scene = source.scene, origin = "site", note = "Güncel web sahnesi açıldı.";
+    let scene = source.scene, presentation = source.presentation, assets = [], origin = "site", note = "Güncel web sahnesi açıldı.";
     if (saved && saved.sourceHash === source.sourceHash) {
       try {
         validateIdentity(saved.scene);
-        this.site.validate(saved.scene, source);
-        scene = saved.scene; origin = "draft"; note = "Kayıtlı yerel taslak açıldı.";
+        this.site.validate(saved.scene, source, saved.presentation ?? source.presentation);
+        scene = saved.scene; presentation = saved.presentation ?? source.presentation;
+        assets = saved.assets ?? []; this.site.validateAssets?.(assets, source);
+        origin = "draft"; note = "Kayıtlı yerel taslak açıldı.";
       } catch { note = "Eski taslak geçersiz; güncel web sahnesi açıldı."; }
     } else if (saved) note = "Site kaynağı değişmiş; eski taslak yerine güncel sahne açıldı.";
     return {
-      scene, origin, sourceHash: source.sourceHash, note,
+      scene, presentation, assets, origin, sourceHash: source.sourceHash, note,
       readiness: this.site.readiness(scene, source), siteSource: true,
       previewImage: await this.site.preview(source),
       previewObjects: this.site.previewObjects(source),
+      previewArt: this.site.previewArt?.(source) ?? [],
+      focusTargets: this.site.focusTargets?.(source) ?? [],
     };
   }
-  async save({ scene, expectedSourceHash }) {
+  async save({ scene, presentation = null, assets = [], expectedSourceHash }) {
     return this.locked(async () => {
       this.approved = null;
       validateIdentity(scene);
       const source = await this.snapshot();
       if (!expectedSourceHash || expectedSourceHash !== source.sourceHash)
         throw new Error("Web sahnesi değişmiş. Düzenleyiciyi yenilemeden kayıt yapılamaz.");
-      this.site.validate(scene, source);
-      const readiness = this.site.readiness(scene, source);
+      const targetPresentation = presentation ?? source.presentation;
+      this.site.validate(scene, source, targetPresentation);
+      this.site.validateAssets?.(assets, source);
+      const readiness = this.site.readiness(scene, source, targetPresentation);
       if (!readiness.ready) throw new Error("Sahne doğrulanamadı: " + readiness.problems.join("; "));
-      atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: source.sourceHash, scene }, null, 2) + "\n");
+      atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: source.sourceHash, scene, assets, presentation: targetPresentation }, null, 2) + "\n");
       return { ok: true, sourceHash: source.sourceHash, draftHash: digest(scene), readiness,
         message: "Efekt taslağı kaydedildi; web kaynağı ve canlı site değişmedi." };
     });
@@ -121,11 +127,12 @@ class SceneWorkshop {
       if (!draft || draft.sourceHash !== source.sourceHash)
         throw new Error("Güncel kaynakla kaydedilmiş taslak yok. Önce Kaydet kullanılmalı.");
       validateIdentity(draft.scene);
-      this.site.validate(draft.scene, source);
-      const readiness = this.site.readiness(draft.scene, source);
+      this.site.validate(draft.scene, source, draft.presentation ?? source.presentation);
+      const readiness = this.site.readiness(draft.scene, source, draft.presentation ?? source.presentation);
       if (!readiness.ready) throw new Error("Sahne kaynak dosyasına hazır değil: " + readiness.problems.join("; "));
-      const staged = await this.site.stage(draft.scene, source.sourceHash);
-      atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: staged.sourceHash, scene: draft.scene }, null, 2) + "\n");
+      this.site.validateAssets?.(draft.assets ?? [], source);
+      const staged = await this.site.stage(draft.scene, source.sourceHash, draft.assets ?? [], draft.presentation ?? source.presentation);
+      atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: staged.sourceHash, scene: draft.scene, assets: draft.assets ?? [], presentation: draft.presentation ?? source.presentation }, null, 2) + "\n");
       return { ok: true, ...staged, draftHash: digest(draft.scene),
         message: staged.changed ? "BirDeSenGör yerel efekt sahnesi hazırlandı. Canlıya yayın yapılmadı."
           : "Web sahnesi zaten güncel. Canlıya yayın yapılmadı." };
@@ -138,9 +145,10 @@ class SceneWorkshop {
       const draft = readDraft(this.draftFile);
       if (!draft || draft.sourceHash !== source.sourceHash)
         throw new Error("Ön kontrol için güncel taslağın kaydedilmiş ve siteye hazırlanmış olması gerekiyor.");
-      this.site.validate(draft.scene, source);
-      const readiness = this.site.readiness(draft.scene, source);
-      if (!readiness.ready || digest(draft.scene) !== digest(source.scene))
+      this.site.validate(draft.scene, source, draft.presentation ?? source.presentation);
+      const readiness = this.site.readiness(draft.scene, source, draft.presentation ?? source.presentation);
+      if (!readiness.ready || digest(draft.scene) !== digest(source.scene) ||
+        JSON.stringify(draft.presentation ?? null) !== JSON.stringify(source.presentation ?? null))
         throw new Error("Taslak ve yerel web sahnesi eşit/doğrulanmış olmalı. Önce Siteye hazırla.");
       onProgress('Yerel site derlemesi doğrulanıyor…');
       await this.runner.build();
@@ -152,6 +160,7 @@ class SceneWorkshop {
       const after = await this.snapshot();
       const latest = readDraft(this.draftFile);
       if (after.sourceHash !== source.sourceHash || digest(latest?.scene) !== digest(draft.scene) ||
+        JSON.stringify(latest?.presentation ?? null) !== JSON.stringify(draft.presentation ?? null) ||
         latest?.sourceHash !== source.sourceHash)
         throw new Error("Ön kontrol sırasında kaynak veya taslak değişti; yeni kontrol gerekiyor.");
       const token = randomUUID();
@@ -169,7 +178,8 @@ class SceneWorkshop {
       const source = await this.snapshot();
       const draft = readDraft(this.draftFile);
       if (approved.sourceHash !== source.sourceHash || draft?.sourceHash !== source.sourceHash ||
-        digest(draft?.scene) !== approved.draftHash || digest(source.scene) !== approved.draftHash)
+        digest(draft?.scene) !== approved.draftHash || digest(source.scene) !== approved.draftHash ||
+        JSON.stringify(draft?.presentation ?? null) !== JSON.stringify(source.presentation ?? null))
         throw new Error("Onaydan sonra web sahnesi veya kayıtlı taslak değişti. Yayın engellendi.");
       onProgress('Site derlemesi hazırlanıyor…');
       await this.runner.build();

@@ -60,7 +60,7 @@ export default function SceneWorkshop() {
       const reply = await bridge.sceneWorkshopLoad();
       await request("studio:load", {
         scene: reply.scene, previewImage: reply.previewImage,
-        previewObjects: reply.previewObjects, siteSource: true,
+        previewObjects: reply.previewObjects, previewArt: reply.previewArt, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: true,
       });
       sourceHash.current = reply.sourceHash;
       setReadiness(reply.readiness);
@@ -115,7 +115,7 @@ export default function SceneWorkshop() {
     const before = revision.current;
     const reply = await request("studio:get");
     const saved = await bridge.sceneWorkshopSave({
-      scene: reply.scene as StudioSceneDocument, expectedSourceHash: sourceHash.current,
+      scene: reply.scene as StudioSceneDocument, assets: reply.assets ?? [], presentation: reply.presentation, expectedSourceHash: sourceHash.current,
     });
     sourceHash.current = saved.sourceHash;
     setReadiness(saved.readiness);

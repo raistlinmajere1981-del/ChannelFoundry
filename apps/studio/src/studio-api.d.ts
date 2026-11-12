@@ -45,7 +45,7 @@ type StudioSceneDocument = {
 };
 type StudioSceneReadiness = { ready: boolean; effectCount: number; enabledCount: number; mountedCount: number; problems: string[] };
 type StudioSceneWorkshopLoad = { scene: StudioSceneDocument; origin: "site" | "draft"; sourceHash: string; note: string;
-  readiness: StudioSceneReadiness; siteSource: true; previewImage: string; previewObjects: unknown[] };
+  readiness: StudioSceneReadiness; siteSource: true; previewImage: string; previewObjects: unknown[]; previewArt:{objectId:string;path:string;label:string;warning:string;image:string}[]; assets: {path:string;dataUrl:string}[]; presentation:Record<string,unknown>; focusTargets:{id:string;foundation:{x:number;y:number}}[] };
 type StudioSceneWorkshopSave = { ok: true; sourceHash: string; draftHash: string; readiness: StudioSceneReadiness; message: string };
 type StudioSceneWorkshopPrepare = { ok: true; changed: boolean; sourceHash: string; draftHash: string;
   readiness: StudioSceneReadiness; message: string };
@@ -411,7 +411,7 @@ type StudioCommunitySession = {
 interface Window {
   channelFoundryStudio?: {
     sceneWorkshopLoad(): Promise<StudioSceneWorkshopLoad>;
-    sceneWorkshopSave(input: { scene: StudioSceneDocument; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
+    sceneWorkshopSave(input: { scene: StudioSceneDocument; assets?: {path:string;dataUrl:string}[]; presentation?:Record<string,unknown>; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
     sceneWorkshopPrepare(): Promise<StudioSceneWorkshopPrepare>;
     sceneWorkshopPreflight(): Promise<StudioSceneWorkshopPreflight>;
     sceneWorkshopDeploy(input: { token: string }): Promise<{ ok: true; message: string }>;

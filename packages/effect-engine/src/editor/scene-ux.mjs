@@ -1,4 +1,5 @@
 import {objectEffectRegistry} from '../registry/effects.mjs';
+import {canCropVisual} from '../model/visual-crop.mjs';
 
 // UI labels alias the canonical presets; never derive values from current state.
 export const sceneProfiles = Object.freeze([
@@ -25,8 +26,8 @@ export function basicControls(type) {
 // The editor cannot create new publishable slots or move the source photograph.
 // The authoritative mounted-site validation remains in birdesengor-site.mjs.
 export function assertSiteStructure(next,source) {
-  const objects=scene=>scene.objects.map(({id,pose,visible,anchors,motionLayers})=>({
-    id, ...((id==='stone-specimen'&&motionLayers?.includes('rock'))||(id==='ceremonial-robe'&&motionLayers?.includes('fabric'))||(id==='ceremonial-dagger'&&motionLayers?.includes('blade'))||(id==='archive-chest'&&motionLayers?.includes('lid'))?{}:{pose}), visible,anchors,motionLayers
+  const objects=scene=>scene.objects.map(({id,pose,visible,anchors,motionLayers,crop})=>({
+    id, ...(canCropVisual({id,motionLayers})?{}:{pose,crop}), visible,anchors,motionLayers
   }));
   const appearance=scene=>scene.objects.filter(o=>o.id!=='ceremonial-robe').map(o=>[o.id,o.veil]);
   if(JSON.stringify(appearance(next))!==JSON.stringify(appearance(source)))throw new Error('Görünmezlik yalnız kaftanda düzenlenebilir.');

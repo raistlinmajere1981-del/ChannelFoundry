@@ -6,16 +6,35 @@ import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTrig
 import {anchorScenePoint,effectScenePoint} from '../runtime/object-scene.mjs';
 import {bindObjectScene} from '../runtime/object-overlay.mjs';
 import {drawRefractedSilhouette} from '../runtime/robe-refraction.mjs';
+import {canCropVisual,visualClipStyle,EMPTY_CROP,DEFAULT_ROBE_DESK_Y} from '../model/visual-crop.mjs';
+import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../model/scene-presentation.mjs';
 
 let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
+let presentation=defaultScenePresentation(),presentationDevice='desktop';
+let focusTargets=new Map(),focusPreview=false;
 let previewHandle=null,previewFrame=null;
-let previewObjects=new Map();
+let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
 let zoom=1,visualMode=false,linkVisual=true,previewRobeVeiled=false;
-const editableVisual=item=>siteSource&&((item?.id==='stone-specimen'&&item.motionLayers?.includes('rock'))||(item?.id==='ceremonial-robe'&&item.motionLayers?.includes('fabric'))||(item?.id==='ceremonial-dagger'&&item.motionLayers?.includes('blade'))||(item?.id==='archive-chest'&&item.motionLayers?.includes('lid')));
+const editableVisual=item=>siteSource&&canCropVisual(item);
 const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
-const ROBE_DESK_Y=.57;
-const robeClip=pose=>Math.max(0,Math.min(100,(pose.y+pose.height-ROBE_DESK_Y)/pose.height*100));
+const replacementSource=(asset,original)=>assetReplacements.get(asset)?.dataUrl??original;
+function visualAssetSlots(item){
+  const artwork=previewObjects.get(item?.id);
+  const detached=artwork
+    ?[{path:artwork.asset,label:'Temel görsel',image:artwork.image,warning:''},
+      ...(artwork.layers??[]).map(layer=>({
+        path:layer.asset,label:'Hareketli katman · '+layer.id,image:layer.image,warning:''
+      }))]
+    :[];
+  return [...detached,...(artworkSlots.get(item?.id)??[])];
+}
+function selectedVisualAsset(item){
+  const slots=visualAssetSlots(item);
+  const path=assetChoices.get(item?.id);
+  return slots.find(entry=>entry.path===path)??slots.find(entry=>entry.label.startsWith('Hareketli'))??slots[0];
+}
+
 const objectElements=new Map(),markerElements=new Map();
 const history=new History();
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
@@ -64,13 +83,23 @@ function selectForDrag(next){
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
   renderLists();renderObjectInspector();renderEffectInspector();renderStageSelection();
 }
+function recordHistory(before,key=null){history.record({scene:before,presentation},key);}
+function mutatePresentation(action,key=null){
+  if(!siteSource||!presentation)return false;
+  try{
+    const next=structuredClone(presentation);
+    action(next);validateScenePresentation(next);
+    recordHistory(scene,key);presentation=next;draw();
+    status('Odak görünümü güncellendi; ayarlar taslakta.');changed();return true;
+  }catch(e){error(e);draw();return false;}
+}
 function mutate(action,key=null){
   if(!scene)return false;
   try{
     const next=structuredClone(scene);
     action(next);
     validateScene(next);
-    history.record(scene,key);
+    recordHistory(scene,key);
     scene=next;
     draw();
     status(embedded?'Değişiklik yapıldı.':'Değişiklik uygulandı. JSON dışa aktararak kaydedin.');
@@ -108,7 +137,7 @@ function renderLists(){
   $('#effect-list').replaceChildren(...(effectRows.length?effectRows:[el('p',{class:'scene-empty',text:siteSource?'Bu nesneye bağlı site efekti yok.':'Bu nesnede efekt yok; desteklenen bir tür ekleyin.'})]));
   $('#add-effect-controls').hidden=siteSource;
   $('#add-effect').disabled=!object()?.anchors.length;
-  $('#source-note').textContent=siteSource?'Taş, kaftan, hançer ve sandığın bağımsız görselleri yerleştirilebilir. Diğer nesneler fotoğrafın parçasıdır.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
+  $('#source-note').textContent=siteSource?'Taş, kaftan, hançer ve sandık katmanları taşınabilir. Kitap, kamera ve Çizim Atölyesi görselleri Kaynak görsel alanından değiştirilebilir; oda fotoğrafı sabit kalır.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
   $('#site-effects-note').hidden=!siteSource;
   document.querySelector('.scene-local-badge').textContent=siteSource?'Site kaynağı':'Yerel';
 }
@@ -161,6 +190,217 @@ function renderVisualInspector(){
     button('−0,1% Y',()=>adjust({y:round(item.pose.y-.001)},'visual:'+item.id+':y'),{id:'visual-up'}),
     button('+0,1% Y',()=>adjust({y:round(item.pose.y+.001)},'visual:'+item.id+':y'),{id:'visual-down'})));
   host.append(button('Yerleşimi sıfırla',()=>adjust({...base},'visual:'+item.id+':reset'),{id:'visual-reset'}));
+}
+function renderPresentationInspector(){
+  const item=object(),parent=$('#focus-presentation-settings'),host=$('#focus-presentation-inspector');
+  parent.hidden=!(siteSource&&presentation&&FOCUS_OBJECT_IDS.includes(item?.id));
+  // Re-rendering a control value must not collapse the currently edited group.
+  const expanded=new Map(host.dataset.activeObject===item?.id
+    ?[...host.querySelectorAll('details[data-panel-key]')].map(node=>[node.dataset.panelKey,node.open])
+    :[]);
+  host.dataset.activeObject=item?.id??'';
+  host.replaceChildren();
+  if(parent.hidden)return;
+  const details=(key,label,open=true)=>el('details',{
+    class:'scene-book-controls','data-panel-key':key,
+    open:expanded.has(key)?expanded.get(key):open,
+  },el('summary',{text:label}));
+  const id=item.id,profile=presentation.objects[id],view=profile[presentationDevice];
+  const set=(key,value,device=null)=>mutatePresentation(data=>{
+    if(device)data.objects[id][device][key]=value;
+    else data.objects[id][key]=value;
+  },'presentation:'+id+':'+(device??'time')+':'+key);
+  host.append(el('p',{class:'scene-visual-tip',text:'Bu ayarlar ziyaretçi hareketini yönetir; efekt ve içerik verilerinden ayrıdır.'}));
+  host.append(field('Cihaz görünümü',el('select',{
+    id:'presentation-device','aria-label':'Sunum cihaz görünümü',
+    onchange:event=>{presentationDevice=event.target.value;renderPresentationInspector();}
+  },...[['desktop','Masaüstü'],['mobile','Mobil']].map(([value,label])=>
+    el('option',{value,text:label,selected:value===presentationDevice})))));
+  for(const [key,label] of [
+    ['focusMs','Yaklaşma süresi (ms)'],['returnMs','Odaya dönüş (ms)'],
+    ['detailMs',id==='camera'?'LCD açılışı (ms)':id==='vefk-stand'?'Katalog geçişi (ms)':'Kapak açılışı (ms)']
+  ])host.append(numberInput(label,profile[key],value=>set(key,value),
+    {id:'presentation-'+key,min:key==='detailMs'?100:300,max:key==='detailMs'?2000:1800,step:20}));
+  host.append(el('p',{class:'scene-visual-tip',text:'Oda yaklaşması ve öne çıkan nesne ayrı katmanlardır. Yakınlık ölçeği gerçek kamera / kitap / çizim yüzeyine uygulanır.'}));
+  for(const [key,label,min,max] of [
+    ['roomZoom','Oda yakınlığı (%)',75,160],['nearZoom','Nesne yakınlığı (%)',70,140]
+  ])host.append(numberInput(label,round(view[key]*100),value=>set(key,round(value/100),presentationDevice),
+    {id:'presentation-'+key,min,max,step:1}));
+  for(const [key,label] of [
+    ['roomShiftX','Oda kaydırma X (%)'],['roomShiftY','Oda kaydırma Y (%)'],
+    ['nearShiftX','Nesne kaydırma X (%)'],['nearShiftY','Nesne kaydırma Y (%)']
+  ])host.append(numberInput(label,view[key],value=>set(key,round(value),presentationDevice),
+    {id:'presentation-'+key,min:-15,max:15,step:.1}));
+  if(BOOK_OBJECT_IDS.includes(id)){
+    const book=profile.book,device=presentationDevice;
+    const editBook=(key,value,child=null)=>mutatePresentation(data=>{
+      const target=data.objects[id].book;
+      if(child)target[child][key]=value;
+      else target[key]=value;
+    },'book:'+id+':'+(child??'paper')+':'+key);
+    const physical=details('book-cover','Kapak ve sayfalar');
+    for(const [key,label,min,max,step] of [
+      ['turnMs','Sayfa çevirme (ms)',300,1600,20],
+      ['thickness','Grabfold yaprak kalınlığı',10,50,1],
+      ['pageRatio','Masaüstü sayfa oranı (%)',70,93,1],
+      ['mobilePageRatio','Mobil sayfa oranı (%)',50,68,1],
+      ['depthDesktop','Masaüstü kapak derinliği (px)',32,72,1],
+      ['depthMobile','Mobil kapak derinliği (px)',14,30,1],
+    ]){
+      const ratio=key.includes('Ratio');
+      physical.append(numberInput(label,ratio?round(book[key]*100):book[key],
+        value=>editBook(key,ratio?round(value/100):value),{
+          id:'book-'+key,min,max,step,
+        }));
+    }
+    host.append(physical);
+    const reading=details('book-reading','Okuma alanı · '+(device==='desktop'?'Masaüstü':'Mobil'));
+    for(const [axis,label,min,max] of [
+      ['X','Yatay iç boşluk (%)',5,13],
+      ['Y','Dikey iç boşluk (%)',device==='mobile'?5:4,device==='mobile'?12:11]
+    ]){
+      const key='readingPad'+axis+(device==='desktop'?'Desktop':'Mobile');
+      reading.append(numberInput(label,book[key],value=>editBook(key,round(value)),{
+        id:'book-'+key,min,max,step:.5,
+      }));
+    }
+    host.append(reading);
+    const adornment=details('book-adornment',id==='research-journal'?'Yeşil/kırmızı ayraçlar':'Deri kenar indeksleri');
+    if(id==='research-journal'){
+      const key=device==='desktop'?'Desktop':'Mobile';
+      for(const [name,label,min,max,step] of [
+        ['offset'+key,'Yatay konum farkı (px)',-20,20,1],
+        ['width'+key,'Kumaş genişliği (px)',device==='desktop'?42:35,device==='desktop'?60:48,1],
+      ])adornment.append(numberInput(label,book.ribbon[name],value=>editBook(name,value,'ribbon'),{
+        id:'book-ribbon-'+name,min,max,step,
+      }));
+    }else{
+      const key=device==='desktop'?'Desktop':'Mobile';
+      for(const [name,label,min,max,step] of [
+        ['top'+key,'Üstten yerleşim (%)',device==='desktop'?8:2,device==='desktop'?42:30,.5],
+        ['gap'+key,'İndeks aralığı (px)',device==='desktop'?4:6,device==='desktop'?24:28,1],
+      ])adornment.append(numberInput(label,book.indexes[name],value=>editBook(name,value,'indexes'),{
+        id:'book-index-'+name,min,max,step,
+      }));
+    }
+    host.append(adornment);
+    host.append(el('p',{class:'scene-visual-tip',text:'Kapak derinliği 3B izdüşümü, sayfa oranı gerçek Grabfold ölçülerini değiştirir. Kitap, ayraç ve indeksleri webin yakın görünümünde kontrol etmek gerekir.'}));
+  }
+  if(PHYSICAL_DEVICE_IDS.includes(id)){
+    const device=presentationDevice,physical=profile.physical[device];
+    const setPhysical=(key,value)=>mutatePresentation(data=>{
+      data.objects[id].physical[device][key]=value;
+    },'physical:'+id+':'+device+':'+key);
+    const group=(name,settings,opened=false)=>{
+      const section=details('physical-'+name,name,opened);
+      for(const [key,label,min,max,step,percent] of settings){
+        section.append(numberInput(label,percent?round(physical[key]*100):physical[key],
+          value=>setPhysical(key,percent?round(value/100):value),
+          {id:'physical-'+key,min,max,step}));
+      }
+      host.append(section);
+    };
+    if(id==='camera'){
+      group('LCD gövdeye yerleşim',[
+        ['offsetX','Yatay kaydır (px)',-24,24,1,false],
+        ['offsetY','Dikey kaydır (px)',-18,18,1,false],
+        ['widthScale','LCD genişliği (%)',94,106,1,true],
+        ['heightScale','LCD yüksekliği (%)',94,106,1,true],
+      ],true);
+      group('LCD iç boşluklar',[
+        ['bezelPaddingX','Çerçeve yan boşluğu (px)',8,40,1,false],
+        ['bezelPaddingY','Çerçeve üst boşluğu (px)',12,40,1,false],
+        ['contentPadding','İçerik kenar boşluğu (px)',7,22,1,false],
+      ]);
+      group('Arşiv ve oynatıcı',[
+        ['archiveWidth','Arşiv paneli genişliği (px)',250,420,5,false],
+        ['videoMinHeight','Video asgari yüksekliği (px)',180,275,5,false],
+      ]);
+      host.append(el('p',{class:'scene-visual-tip',text:'Menteşe ve LCD yerleşimi ortak hesaplanır. Arşiv panelinin genişliği yalnız masaüstündeki yan yana görünümü etkiler.'}));
+    }else{
+      group('Parşömen ve mürekkep',[
+        ['paperX','Parşömen X (px)',-28,28,1,false],
+        ['paperY','Parşömen Y (px)',-28,28,1,false],
+        ['paperScale','Parşömen ölçeği (%)',92,108,1,true],
+      ],true);
+      group('Donanım yerleşimi',[
+        ['inkwellX','Mürekkep kabı X (px)',-28,28,1,false],
+        ['inkwellY','Mürekkep kabı Y (px)',-28,28,1,false],
+        ['topRailX','Üst düğmeler X (px)',-22,22,1,false],
+        ['topRailY','Üst düğmeler Y (px)',-18,18,1,false],
+        ['rulerX','Zaman cetveli X (px)',-22,22,1,false],
+        ['rulerY','Zaman cetveli Y (px)',-18,18,1,false],
+      ]);
+      group('Katalog kapağı',[
+        ['catalogX','Katalog X (px)',-24,24,1,false],
+        ['catalogY','Katalog Y (px)',-24,24,1,false],
+      ]);
+      host.append(el('p',{class:'scene-visual-tip',text:'Parşömen, çizim ve okuma yüzeyi aynı dönüşümü kullanır. Divitin dinlenme ucu mürekkep kabını, maske ise katalog çerçevesini izler.'}));
+    }
+  }
+  host.append(el('div',{class:'scene-visual-actions'},
+    button(focusPreview?'2B önizlemeyi kapat':'2B oda yaklaşmasını göster',()=>{
+      focusPreview=!focusPreview;draw();
+    },{id:'presentation-preview',disabled:!focusTargets.has(id),'aria-pressed':String(focusPreview)})));
+  host.append(el('p',{class:'scene-visual-tip',text:'Bu yalnız oda fotoğrafının 2B kadraj denemesidir; kitap, LCD ve parşömen gerçek açılma önizlemesi değildir.'}));
+  host.append(el('div',{class:'scene-visual-actions'},
+    button('Bu nesneyi sıfırla',()=>mutatePresentation(s=>{
+      s.objects[id]=structuredClone(defaultScenePresentation().objects[id]);
+    },'presentation:'+id+':reset'),{id:'presentation-reset'})));
+  host.append(el('p',{class:'scene-visual-tip',text:'Masaüstü ve mobil bağımsız kaydedilir. Azaltılmış hareket seçimi bu süreleri kullanmaz; açılma/geri dönüş güvenli kalır.'}));
+}
+function renderSourceInspector(){
+  const item=object(),parent=$('#visual-source-settings'),host=$('#visual-source-inspector');
+  parent.hidden=!siteSource||!visualAssetSlots(item).length;
+  host.replaceChildren();
+  if(parent.hidden)return;
+  const slots=visualAssetSlots(item),chosen=selectedVisualAsset(item);
+  host.append(field('Kaynak katman',el('select',{id:'visual-source-slot',
+    'aria-label':'Değiştirilecek görsel katmanı',
+    onchange:event=>{assetChoices.set(item.id,event.target.value);renderSourceInspector();}},
+    ...slots.map(entry=>el('option',{value:entry.path,text:entry.label,selected:entry.path===chosen.path})))));
+  host.append(el('p',{class:'scene-visual-tip',text:chosen.path}));
+  const source=replacementSource(chosen.path,chosen.image);
+  if(source&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(source)){
+    host.append(el('div',{class:'scene-source-preview'},
+      el('img',{src:source,alt:chosen.label,decoding:'async',draggable:false})));
+  }
+  if(chosen.warning)host.append(el('p',{class:'scene-source-warning',text:chosen.warning}));
+  if(['archive-chest','ceremonial-dagger'].includes(item.id))host.append(el('p',{class:'scene-visual-tip',
+    text:'Bu nesnede efekt için ayrı bir maske dosyası var. Yeni resim farklı şekilli ise mevcut efekt maskesi ayrıca güncellenmelidir.'}));
+  const modified=assetReplacements.has(chosen.path);
+  host.append(el('p',{class:'scene-visual-tip',text:modified
+    ?'Yeni kaynak taslakta · Kaydet ve Siteye hazırla işlemleriyle yerel kaynak değişecek.'
+    :'Orijinal dosya kullanılıyor. PNG/JPEG/WebP seçimi şeffaf WebP kaynağına dönüştürülür.'}));
+  host.append(el('div',{class:'scene-visual-actions'},
+    button('Resim seç…',()=>$('#visual-source-file').click(),{id:'visual-source-import'}),
+    button('Taslak değişimini kaldır',()=>{
+      if(assetReplacements.delete(chosen.path)){changed();draw();status('Kaynak değişikliği taslaktan kaldırıldı. Webdeki mevcut dosya korunur.');}
+    },{id:'visual-source-restore',disabled:!modified})));
+}
+function renderCropInspector(){
+  const item=object(),parent=$('#visual-crop-settings'),host=$('#visual-crop-inspector');
+  parent.hidden=!editableVisual(item);host.replaceChildren();
+  if(parent.hidden)return;
+  const defaultDesk=item.id==='ceremonial-robe'?DEFAULT_ROBE_DESK_Y:null;
+  const crop=item.crop??{...EMPTY_CROP,deskY:defaultDesk};
+  const update=(key,value)=>mutate(s=>{
+    const target=s.objects.find(o=>o.id===item.id);
+    target.crop={...EMPTY_CROP,deskY:defaultDesk,...target.crop,[key]:value};
+  },'crop:'+item.id+':'+key);
+  host.append(el('p',{class:'scene-visual-tip',text:'Kaynak fotoğrafı değiştirmeden görünür kenarları kırpar. Masa çizgisi seçiliyse nesne taşınırken örtülen alan otomatik güncellenir.'}));
+  for(const [key,label] of [['top','Üstten'],['right','Sağdan'],['bottom','Alttan'],['left','Soldan']]){
+    host.append(numberInput(label+' (%)',Math.round(crop[key]*1000)/10,
+      value=>update(key,round(value/100)),{id:'visual-crop-'+key,min:0,max:95,step:.5}));
+  }
+  host.append(checkField('Masanın arkasını gizle',crop.deskY!==null,
+    checked=>update('deskY',checked?(defaultDesk??.57):null),{id:'visual-crop-desk-enabled'}));
+  if(crop.deskY!==null)host.append(numberInput('Masa sınırı · sahne Y (%)',
+    round(crop.deskY*100),value=>update('deskY',round(value/100)),
+    {id:'visual-crop-desk-y',min:0,max:100,step:.5}));
+  host.append(button('Kırpmayı sıfırla',()=>mutate(s=>{
+    delete s.objects.find(o=>o.id===item.id).crop;
+  },'crop:'+item.id+':reset'),{id:'visual-crop-reset'}));
 }
 function renderVeilInspector(){
   const item=object(),host=$('#robe-veil-inspector'),parent=$('#robe-veil-settings');
@@ -297,7 +537,7 @@ function buildObject(item){
     transform:`rotate(${item.pose.rotation}deg)`,zIndex:String(100+Math.round(item.pose.depth))
   });
   node.dataset.visualEditable=String(editableVisual(item));
-  if(item.id==='ceremonial-robe')node.style.clipPath='inset(0 0 '+robeClip(item.pose)+'% 0)';
+  if(item.id==='ceremonial-robe')Object.assign(node.style,visualClipStyle(item,DEFAULT_ROBE_DESK_Y));
   node.addEventListener('pointerdown',event=>{
     if(visualMode&&editableVisual(item)&&event.button===0)beginVisualDrag(event,item,node);
   });
@@ -311,15 +551,15 @@ function buildObject(item){
     node.append(lens);
   }
   if(artwork){
-    const fixed=el('img',{src:artwork.image,alt:'',class:'scene-motion-fixed'});
-    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',filter:'brightness(.72) saturate(.72)',...(item.id==='archive-chest'?{width:'150%',zIndex:'1'}:{})});node.append(fixed);
+    const fixed=el('img',{src:replacementSource(artwork.asset,artwork.image),alt:'',class:'scene-motion-fixed'});
+    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',filter:'brightness(.72) saturate(.72)',...(item.id==='archive-chest'?{width:'150%',zIndex:'1',...visualClipStyle(item)}:{})});node.append(fixed);
   }
   for(const id of item.motionLayers??[]){
     const layer=el('span',{'data-effect-layer':id,'aria-hidden':'true'});
     Object.assign(layer.style,{position:'absolute',inset:0,width:item.id==='archive-chest'?'150%':'100%',
-      height:'100%',pointerEvents:'none',...(item.id==='archive-chest'?{zIndex:'3',transformStyle:'preserve-3d'}:{})});
+      height:'100%',pointerEvents:'none',...(item.id==='archive-chest'?{zIndex:'3',transformStyle:'preserve-3d'}:{}),...(item.id==='ceremonial-robe'?{}:visualClipStyle(item))});
     const picture=artwork?.layers.find(entry=>entry.id===id);
-    if(picture){const image=el('img',{src:picture.image,alt:''});const b=picture.box;Object.assign(image.style,{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,filter:'brightness(.7) saturate(.7)'});layer.append(image);}
+    if(picture){const image=el('img',{src:replacementSource(picture.asset,picture.image),alt:''});const b=picture.box;Object.assign(image.style,{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,filter:'brightness(.7) saturate(.7)'});layer.append(image);}
     else {const sample=el('span');Object.assign(sample.style,{position:'absolute',left:'49%',top:'10%',width:'2%',height:'50%',background:'#b68d4b',borderRadius:'50%'});layer.append(sample);}
     node.append(layer);
   }
@@ -434,6 +674,33 @@ function renderStage(){
   renderMarkers();
   refreshRobePreview();
 }
+function applyFocusPreview(){
+  const target=focusTargets.get(objectId);
+  const show=Boolean(focusPreview&&siteSource&&target&&presentation);
+  let transform='';
+  if(show){
+    const view=presentation.objects[objectId][presentationDevice];
+    const weight=2/14;
+    const scale=1.025+(.06+weight*.003)*view.roomZoom;
+    const x=(.5-target.x)*(5.4+weight*.3)+view.roomShiftX;
+    const y=(.5-target.y)*(3+weight*.2)+view.roomShiftY;
+    transform=`translate(${x}%, ${y}%) scale(${scale})`;
+  }
+  const root=$('#scene-viewport');
+  root.classList.toggle('presentation-preview',show);
+  for(const selector of ['#scene-photo','#scene-objects','#scene-markers']){
+    const node=$(selector);
+    node.style.transform=transform;
+    node.style.transformOrigin='50% 50%';
+    node.style.transition=show?'transform 450ms cubic-bezier(.22,.72,.22,1)':'transform 220ms ease';
+    if(selector!=='#scene-photo')node.style.pointerEvents=show?'none':'';
+  }
+  $('#coordinate-help').textContent=show
+    ?'2B oda kadraj denemesi · gerçekte kitap, LCD ve Çizim Atölyesi ön planda ayrı hareket eder. Değişiklikler yalnız Kaydet ile taslak olur.'
+    :siteSource
+      ?'Görsel Taşı: bağımsız taş, kaftan, hançer ve sandık katmanlarını yerleştir. Yakınlaştırma yalnız önizlemeyi büyütür.'
+      :'Yerel önizleme; yakınlaştırma kaynak pozisyonlarını değiştirmez.';
+}
 function draw(){
   if(!scene)return;
   const focusId=document.activeElement?.id;
@@ -452,9 +719,13 @@ function draw(){
   renderLists();
   renderObjectInspector();
   renderVisualInspector();
+  renderPresentationInspector();
+  renderSourceInspector();
+  renderCropInspector();
   renderVeilInspector();
   renderEffectInspector();
   renderStage();
+  applyFocusPreview();
   updateHistoryButtons();
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
   for(const [node,top] of scrolls)node.scrollTop=top;
@@ -497,7 +768,7 @@ function endVisualDrag(event){
   window.removeEventListener('pointermove',moveVisualDrag);
   window.removeEventListener('pointerup',endVisualDrag);
   window.removeEventListener('pointercancel',endVisualDrag);
-  if(d.changed){history.record(d.before,'visual:'+d.id+':drag');changed();}
+  if(d.changed){recordHistory(d.before,'visual:'+d.id+':drag');changed();}
   draw();
 }
 function beginHitDrag(event,item,node){
@@ -531,7 +802,7 @@ function endHitDrag(event){
   window.removeEventListener('pointermove',moveHitDrag);
   window.removeEventListener('pointerup',endHitDrag);
   window.removeEventListener('pointercancel',endHitDrag);
-  if(hitDrag.changed){history.record(hitDrag.before);changed();}
+  if(hitDrag.changed){recordHistory(hitDrag.before);changed();}
   hitDrag=null;draw();
 }
 function beginDrag(event,item){
@@ -572,13 +843,13 @@ function endDrag(event){
   window.removeEventListener('pointermove',moveDrag);
   window.removeEventListener('pointerup',endDrag);
   window.removeEventListener('pointercancel',endDrag);
-  if(drag.changed){history.record(drag.before);changed();status('Efekt hedef kaydırması güncellendi.');}
+  if(drag.changed){recordHistory(drag.before);changed();status('Efekt hedef kaydırması güncellendi.');}
   drag=null;
   draw();
 }
 function install(next,message,{resetHistory=false}={}){
   validateScene(next);
-  if(scene)history.record(scene);
+  if(scene)recordHistory(scene);
   scene=next;
   if(resetHistory){history.past.length=0;history.future.length=0;}
   objectId=scene.objects[0]?.id??null;
@@ -593,19 +864,61 @@ function installPreview(packet){
   for(const artwork of packet.previewObjects??[]){
     const owner=packet.scene.objects.find(o=>o.id===artwork.objectId);
     const validImage=value=>typeof value==='string'&&value.length<12*1024*1024&&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(value);
-    if(!owner||previewObjects.has(owner.id)||!validImage(artwork.image)||!Array.isArray(artwork.layers))throw Error('Geçersiz nesne görseli.');
+    if(!owner||previewObjects.has(owner.id)||!validImage(artwork.image)||!Array.isArray(artwork.layers)||!/^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(artwork.asset))throw Error('Geçersiz nesne görseli.');
     const ids=new Set();
     for(const layer of artwork.layers){
       const b=layer.box;
-      if(!owner.motionLayers?.includes(layer.id)||ids.has(layer.id)||!validImage(layer.image)||!b||Object.keys(b).length!==4||!['x','y','width','height'].every(k=>Number.isFinite(b[k])&&b[k]>=0&&b[k]<=1)||b.x+b.width>1||b.y+b.height>1)throw Error('Geçersiz hareket görseli.');
+      if(!owner.motionLayers?.includes(layer.id)||ids.has(layer.id)||!validImage(layer.image)||!/^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(layer.asset)||!b||Object.keys(b).length!==4||!['x','y','width','height'].every(k=>Number.isFinite(b[k])&&b[k]>=0&&b[k]<=1)||b.x+b.width>1||b.y+b.height>1)throw Error('Geçersiz hareket görseli.');
       ids.add(layer.id);
     }
     previewObjects.set(owner.id,artwork);
   }
   if(preview!==undefined&&(typeof preview!=='string'||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(preview)))throw new Error('Site önizleme görseli geçersiz.');
+  assetReplacements=new Map();assetChoices=new Map();
+  artworkSlots=new Map();
+  const approvedSources=new Set([...previewObjects].filter(([id])=>canCropVisual(
+    packet.scene.objects.find(o=>o.id===id))).flatMap(([,art])=>[
+      art.asset,...art.layers.map(layer=>layer.asset)
+    ]));
+  const usedArtPaths=new Set();
+  for(const record of packet.previewArt??[]){
+    const validImage=value=>typeof value==='string'&&value.length<12*1024*1024
+      &&/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(value);
+    if(!record||!FOCUS_OBJECT_IDS.includes(record.objectId)||
+      !packet.scene.objects.some(o=>o.id===record.objectId)||
+      typeof record.path!=='string'||
+      !/^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(record.path)||
+      usedArtPaths.has(record.path)||approvedSources.has(record.path)||
+      typeof record.label!=='string'||record.label.length>100||
+      typeof record.warning!=='string'||record.warning.length>300||
+      !validImage(record.image))
+      throw Error('Geçersiz ana görsel önizleme kaynağı.');
+    usedArtPaths.add(record.path);approvedSources.add(record.path);
+    const list=artworkSlots.get(record.objectId)??[];
+    list.push({path:record.path,label:record.label,warning:record.warning,image:record.image});
+    artworkSlots.set(record.objectId,list);
+  }
+  for(const replacement of packet.assets??[]){
+    if(!replacement||typeof replacement.path!=='string'||!approvedSources.has(replacement.path)
+      ||typeof replacement.dataUrl!=='string'
+      ||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(replacement.dataUrl)
+      ||replacement.dataUrl.length>12*1024*1024||assetReplacements.has(replacement.path))
+      throw Error('Geçersiz kaynak görsel taslağı.');
+    assetReplacements.set(replacement.path,replacement);
+  }
   siteSource=packet.siteSource===true;
   sourceScene=siteSource?structuredClone(packet.scene):null;
+  presentation=validateScenePresentation(structuredClone(packet.presentation??defaultScenePresentation()));
   previewRobeVeiled=false;
+  focusPreview=false;
+  focusTargets=new Map();
+  for(const target of packet.focusTargets??[]){
+    if(!FOCUS_OBJECT_IDS.includes(target.id)||focusTargets.has(target.id)||
+      !Number.isFinite(target.foundation?.x)||!Number.isFinite(target.foundation?.y)||
+      target.foundation.x<0||target.foundation.x>1||target.foundation.y<0||target.foundation.y>1)
+      throw Error('Geçersiz odak önizleme hedefi.');
+    focusTargets.set(target.id,target.foundation);
+  }
   $('#advanced-settings').open=false;
   const photo=$('#scene-photo');
   photo.onload=()=>{$('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);fitStage();};
@@ -624,8 +937,9 @@ function loadText(text,message,options){
 }
 function travel(direction){
   if(!scene)return;
-  const next=history[direction](scene);
-  scene=validateScene(next);
+  const next=history[direction]({scene,presentation});
+  scene=validateScene(next.scene);
+  presentation=validateScenePresentation(next.presentation);
   draw();
   status(direction==='undo'?'Geri alındı.':'Yinelendi.');
   changed();
@@ -644,6 +958,53 @@ $('#add-effect').onclick=()=>{
     s.effects.push({id,type,target:{kind:'sceneObject',objectId:owner.id,anchorId:point.id,...(objectEffectRegistry[type].output==='motion'?{layerId:owner.motionLayers[0]}:{}),offset:{x:0,y:0},scale:1,depth:0},enabled:true,seed:`${type}-${uid().slice(0,8)}`,params:defaultObjectParams(type)});
     effectId=id;
   });
+};
+async function localImageToWebp(file,selected){
+  if(!file||file.size>30*1024*1024||(!/^image\/(png|jpeg|webp)$/.test(file.type)
+    && !/\.(png|jpe?g|webp)$/i.test(file.name)))
+    throw Error('Yalnız 30 MB altındaki PNG, JPEG veya WebP resimleri seçilebilir.');
+  const bitmap=await createImageBitmap(file);
+  try{
+    if(bitmap.width<1||bitmap.height<1)throw Error('Resmin ölçüleri geçersiz.');
+    const fixedBook=/^\/scene-assets\/books\/scene-closed\/(?:evren|topluluk)-master-closed(?:-en)?\.webp$/.test(selected?.path??'');
+    if(fixedBook&&Math.abs(bitmap.width/bitmap.height-1.5)>.018)
+      throw Error('Kapalı kitap görseli 3:2 oranında olmalı; eski saydam siluet ve tıklama bölgesi aynı kalmalı.');
+    if(!fixedBook&&selected?.image&&/^\/scene-assets\/(?:books|camera|vefk)\//.test(selected.path)){
+      const reference=new Image();
+      reference.src=selected.image;
+      await reference.decode();
+      const drift=Math.abs((bitmap.width/bitmap.height)/(reference.naturalWidth/reference.naturalHeight)-1);
+      if(drift>.1)throw Error('Bu fiziksel görselin en/boy oranı orijinal dosyayla uyumlu olmalı.');
+    }
+    const factor=Math.min(1,4096/bitmap.width,4096/bitmap.height,
+      Math.sqrt(12e6/(bitmap.width*bitmap.height)));
+    const canvas=document.createElement('canvas');
+    canvas.width=fixedBook?1536:Math.max(1,Math.round(bitmap.width*factor));
+    canvas.height=fixedBook?1024:Math.max(1,Math.round(bitmap.height*factor));
+    canvas.getContext('2d',{alpha:true}).drawImage(bitmap,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.94));
+    canvas.width=canvas.height=0;
+    if(!blob||blob.type!=='image/webp'||blob.size>8*1024*1024)
+      throw Error('WebP dönüşümü başarısız veya çıktı 8 MB sınırını aşıyor.');
+    return await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(Error('Resim okunamadı.'));
+      reader.onload=()=>resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }finally{bitmap.close();}
+}
+$('#visual-source-file').onchange=async event=>{
+  const file=event.target.files?.[0],selected=selectedVisualAsset(object());
+  event.target.value='';
+  if(!file)return;
+  try{
+    if(!siteSource||!selected)throw Error('Değiştirilebilir bir görsel seçin.');
+    const dataUrl=await localImageToWebp(file,selected);
+    assetReplacements.set(selected.path,{path:selected.path,dataUrl});
+    changed();draw();
+    status('Görsel taslakta değiştirildi. Kaydet → Siteye hazırla ile kaynak dosyaya aktarın.');
+  }catch(e){error(e);}
 };
 $('#object-filter').onchange=event=>{objectFilter=event.target.value;renderLists();};
 const panelTabs=[...document.querySelectorAll('[data-mobile-panel]')];
@@ -771,7 +1132,7 @@ if(embedded){
       }catch(e){error(e);notify('studio:error',{message:e.message||String(e),requestId:event.data.requestId});}
     }
     if(event.data.type==='studio:get'){
-      try{validateScene(scene);notify('studio:data',{requestId:event.data.requestId,scene:structuredClone(scene)});}
+      try{validateScene(scene);notify('studio:data',{requestId:event.data.requestId,scene:structuredClone(scene),assets:[...assetReplacements.values()],presentation:structuredClone(presentation)});}
       catch(e){notify('studio:error',{requestId:event.data.requestId,message:e.message||String(e)});}
     }
   });
