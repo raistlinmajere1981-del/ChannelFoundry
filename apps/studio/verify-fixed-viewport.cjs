@@ -32,7 +32,7 @@ for(const rule of [
   /\.ai-stage-content \.ai-source-rows\{[\s\S]*?overflow-y:auto;/,
   /\.ai-stage-content \.analysis-curation-detail\{[\s\S]*?overflow-y:auto;/,
   /\.settings-page>\.studio-settings-surface\{[\s\S]*?overflow-y:auto;/,
-  /\.community-admin-view :where\(\.community-forum-thread-list,\.community-forum-thread-detail\)/,
+  /\.community-console :where\(\.community-console-list,\.community-console-detail\)/,
 ])assert.match(frame,rule);
 assert.ok(!/overflow-y\s*:\s*auto/.test(frame.match(/\.studio-content\.pipeline-content\{[^}]+\}/)[0]),"outer workspace must never own scrolling");
 assert.ok(frame.includes('grid-template-areas:"selection pagination view submit"'),"AI toolbar actions must fit one row");

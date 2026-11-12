@@ -216,14 +216,14 @@ export default function StudioPipeline() {
       <section className="studio-content pipeline-content" aria-label="Çalışma alanı" data-workspace-section={active}>
         {error && active !== "AI Atölyesi" && <div className="storage-warning studio-workspace-error" role="alert">Studio uyarısı: {error}</div>}
         <Suspense fallback={<SectionLoading section={active}/> }>
-          {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} onNavigate={activateSection}/>}
+          {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} activeProjectId={activeProjectId} onNavigate={activateSection}/>}
           {active === "Video Arşivi" && <VideoArchive/>}
           {active === "Altyazı Araştırma" && <SubtitleResearch/>}
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
           {active === "Vefk Atölyesi" && <VefkWorkshop/>}
           {active === "Sahne Atölyesi" && <SceneWorkshop/>}
           {active === "Kayıt Dosyaları" && <EditorialWorkspaceV2 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
-          {active === "Topluluk" && <CommunityAdmin/>}
+          {active === "Topluluk" && <CommunityAdmin key={activeProjectId} projectId={activeProjectId}/>}
           {active === "Yayınlama" && <PublishCenter items={studioItems} relations={relations} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus}/>}
           {active === "Ayarlar" && <Settings databaseInfo={databaseInfo} catalog={catalogStats} workspaceStatus={workspaceStatus}/>}
         </Suspense>
@@ -268,6 +268,11 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 }
 
 function SectionLoading({ section }: { section: Section }) {
+  if (section === "Topluluk") return <section className="community-console-state panel" role="status" aria-live="polite">
+    <span className="community-console-spinner" aria-hidden="true"/>
+    <h2>Topluluk hazırlanıyor</h2>
+    <p>Yönetici bağlantısı doğrulanıyor, konular ve ilk mesajlar yükleniyor…</p>
+  </section>;
   return <div className="pipeline-loading"><span>{section}</span><strong>Çalışma alanı hazırlanıyor…</strong></div>;
 }
 

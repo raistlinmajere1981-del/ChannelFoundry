@@ -159,8 +159,8 @@ export default function SubtitleResearch() {
     return next;
   }, [excludeTerms, excludeDraft]);
 
-  const addTerm = (value = draftTerm) => {
-    const term = normalizeTerm(value);
+  const addTerm = () => {
+    const term = normalizeTerm(draftTerm);
     if (!term) return;
     if (term.length > 200) return setError("Bir terim en fazla 200 karakter olabilir.");
     if (terms.some((entry) => termKey(entry) === termKey(term))) return setDraftTerm("");
@@ -321,7 +321,7 @@ export default function SubtitleResearch() {
 }
 
 function TermBuilder({ terms, draft, setDraft, addTerm, removeTerm, onEnter }: { terms: string[]; draft: string; setDraft(value: string): void; addTerm(): void; removeTerm(term: string): void; onEnter(event: KeyboardEvent<HTMLInputElement>, action: () => void): void }) {
-  return <div className="subtitle-term-builder"><label className="subtitle-query-field"><span>Kelime veya ifade</span><div className="subtitle-term-input-row"><input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addTerm)} placeholder="Terim yaz ve Enter'a bas…"/><button className="secondary-button" type="button" onClick={addTerm}>Ekle</button></div></label><div className="subtitle-term-chips">{terms.map((term) => <button type="button" key={termKey(term)} onClick={() => removeTerm(term)}>{term}<b>×</b></button>)}{!terms.length && <small>Terim eklenmedi.</small>}</div></div>;
+  return <div className="subtitle-term-builder"><label className="subtitle-query-field"><span>Kelime veya ifade</span><div className="subtitle-term-input-row"><input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => onEnter(event, addTerm)} placeholder="Terim yaz ve Enter'a bas…"/><button className="secondary-button" type="button" onClick={() => addTerm()}>Ekle</button></div></label><div className="subtitle-term-chips">{terms.map((term) => <button type="button" key={termKey(term)} onClick={() => removeTerm(term)}>{term}<b>×</b></button>)}{!terms.length && <small>Terim eklenmedi.</small>}</div></div>;
 }
 function ReportMetrics({ report }: { report: ResearchReport }) {
   return <div className="subtitle-report-metrics"><Metric label="Taranan altyazı" value={report.transcriptCount} note="yerel arşiv"/><Metric label={report.searchType === "relationship" ? "Kavram grubu" : "Aranan terim"} value={report.searchType === "relationship" ? report.groups.length : report.terms.length} note={report.searchType === "relationship" ? distanceLabel(report.proximity.distance, report.proximity.unit) : report.searchMode}/><Metric label="Eşleşen video" value={report.videoCount} note="sonuç bulunan"/><Metric label={report.searchType === "relationship" ? "İlişki örneği" : "Toplam kullanım"} value={report.searchType === "relationship" ? report.relationCount : report.totalOccurrences} note={report.matchMode}/></div>;

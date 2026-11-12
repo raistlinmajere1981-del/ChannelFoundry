@@ -216,12 +216,13 @@ html,body,#root{
 /* Research: compact term sheet, taller relation builder; only results scroll vertically. */
 .pipeline-content>.subtitle-research-page{
   display:grid;
-  grid-template-rows:clamp(295px,29vh,315px) minmax(0,1fr);
+  /* Compact search sheet; selected terms occupy exactly one row. */
+  grid-template-rows:325px minmax(0,1fr);
   gap:var(--studio-workspace-gap);
   overflow:hidden;
 }
 .pipeline-content>.subtitle-research-page--relationship{
-  grid-template-rows:clamp(435px,48vh,500px) minmax(0,1fr);
+  grid-template-rows:clamp(475px,55vh,535px) minmax(0,1fr);
 }
 .pipeline-content .subtitle-research-page>.subtitle-search-panel{
   position:relative;
@@ -266,6 +267,29 @@ html,body,#root{
   overflow-y:auto;
   overscroll-behavior:contain;
   align-content:start;
+}
+/* Term search chips stay on a single line; extra terms scroll sideways. */
+.subtitle-research-page--terms .subtitle-term-builder{
+  grid-template-rows:auto 34px;
+  gap:6px;
+}
+.subtitle-research-page--terms .subtitle-term-builder>.subtitle-term-chips{
+  display:flex;
+  flex-wrap:nowrap;
+  align-items:center;
+  align-content:center;
+  min-width:0;
+  min-height:34px;
+  height:34px;
+  max-height:34px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  scrollbar-width:thin;
+}
+.subtitle-research-page--terms .subtitle-term-builder>.subtitle-term-chips>button{
+  flex:0 0 auto;
+  white-space:nowrap;
 }
 .subtitle-research-page .relation-builder{
   display:grid;
@@ -347,8 +371,9 @@ html,body,#root{
 .subtitle-research-page .subtitle-control-grid label>span{font-size:9px}
 .subtitle-research-page .subtitle-search-error{position:absolute;bottom:8px;left:12px;right:12px;z-index:3}
 @media(max-width:980px){
-  .pipeline-content>.subtitle-research-page{grid-template-rows:clamp(340px,40vh,390px) minmax(0,1fr)}
-  .pipeline-content>.subtitle-research-page--relationship{grid-template-rows:clamp(500px,63vh,550px) minmax(0,1fr)}
+  .pipeline-content>.subtitle-research-page{grid-template-rows:385px minmax(0,1fr)}
+  /* Reserve a visible row for relationship chips even when filters wrap. */
+  .pipeline-content>.subtitle-research-page--relationship{grid-template-rows:clamp(545px,70vh,590px) minmax(0,1fr)}
   .pipeline-content .subtitle-research-page .subtitle-control-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   .subtitle-research-page .subtitle-search-submit{grid-column:4;grid-row:3}
   .subtitle-research-page .subtitle-presets select{width:150px}
@@ -540,32 +565,22 @@ html,body,#root{
   overscroll-behavior:contain;
   padding:0 3px 7px 0;
 }
-/* Community: compose and forum each scroll independently. */
-.pipeline-content>.community-admin-view{
-  display:grid;
-  grid-template-rows:auto auto minmax(160px,.9fr) minmax(190px,1.1fr);
-  gap:var(--studio-workspace-gap);
-  overflow:hidden;
-}
-.community-admin-view>.community-admin-compose-panel{
-  min-height:0;
-  overflow-y:auto;
-}
-.community-admin-view>.community-forum-admin-panel{
+/* Community: one workbench with independent list and detail scrolling. */
+.pipeline-content>.community-admin-view.community-console{
   display:flex;
-  min-height:0;
   flex-direction:column;
+  gap:0;
+  min-width:0;
+  min-height:0;
   overflow:hidden;
 }
-.community-admin-view .community-forum-admin-layout{
-  display:grid;
+.community-console .community-console-body{
   flex:1 1 auto;
   min-height:0;
-  overflow:hidden;
 }
-.community-admin-view :where(.community-forum-thread-list,.community-forum-thread-detail){
+.community-console :where(.community-console-list,.community-console-detail){
   min-height:0;
-  overflow-y:auto;
+  overscroll-behavior:contain;
 }
 /* Publication: two independent production cards within the same fixed panel. */
 .pipeline-content>.publish-center{
@@ -582,7 +597,7 @@ html,body,#root{
   overscroll-behavior:contain;
 }
 @media(max-width:1280px){
-  .pipeline-content>.community-admin-view{grid-template-rows:auto auto minmax(145px,.9fr) minmax(185px,1.1fr)}
+  .pipeline-content>.community-admin-view.community-console{display:flex}
 }
 @media(max-height:760px){
   .studio-brand{min-height:48px;padding-bottom:10px}
