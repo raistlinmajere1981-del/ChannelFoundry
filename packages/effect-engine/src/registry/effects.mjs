@@ -6,6 +6,10 @@ import {createGlow} from '../runtime/effects/glow.mjs';
 import {createMetalGlint} from '../runtime/effects/metal-glint.mjs';
 import {createWaterRipple} from '../runtime/effects/water-ripple.mjs';
 import {createPendulumSway} from '../runtime/effects/pendulum-sway.mjs';
+import {createStoneDrop} from '../runtime/effects/stone-drop.mjs';
+import {createStoneTremor} from '../runtime/effects/stone-tremor.mjs';
+import {createDaggerShadow} from '../runtime/effects/dagger-shadow.mjs';
+import {createChestLid,createChestLight} from '../runtime/effects/chest-opening.mjs';
 import {createSmoke} from '../runtime/effects/smoke.mjs';
 import {polygonBounds} from '../model/geometry.mjs';
 
@@ -64,6 +68,84 @@ const objectCommon = [
   number('speed','Hız',1,.05,3,.05),
 ];
 export const objectEffectRegistry = Object.freeze({
+  'chest-lid-open': {
+    label:'Sandık aralanması',description:'Kapak yavaşça aralanır, kısa süre açık durur ve yerine döner.',
+    create:createChestLid,targetKinds:['sceneObject'],placement:'center',trigger:'pulse',output:'motion',
+    controls:[number('openAngle','Kapak açısı (°)',12,2,25,.5),
+      number('lift','Kapak yükselmesi',.055,0,.18,.005),
+      number('duration','Süre (s)',2.2,.8,4,.05),
+      number('speed','Hız',1,.5,2,.05),
+      number('hold','Açık bekleme payı',.24,0,.45,.01)],
+    presets:{
+      Sakin:{openAngle:7,lift:.03,duration:2.4,speed:.9,hold:.25},
+      Doğal:{openAngle:12,lift:.055,duration:2.2,speed:1,hold:.24},
+      Canlı:{openAngle:18,lift:.09,duration:2,speed:1.1,hold:.23},
+    },
+    compile(object,target,params){return {...params,openAngle:params.openAngle*target.scale,lift:params.lift*target.scale};},
+  },
+  'chest-light-leak': {
+    label:'İçeriden ışık',description:'Kapak aralanırken sandığın ağzından kısa, sıcak kehribar ışık sızar.',
+    create:createChestLight,targetKinds:['sceneObject'],placement:'center',trigger:'pulse',
+    controls:[number('width','Işık genişliği',1,.5,1,.05),
+      number('height','Işık yüksekliği',1,.5,1,.05),
+      number('opacity','Işık şiddeti',.73,0,1,.01),
+      number('spread','Işık yayılımı',.8,.2,1.5,.05),
+      number('duration','Süre (s)',2.2,.8,4,.05),
+      number('speed','Hız',1,.5,2,.05),
+      number('hold','Açık bekleme payı',.24,0,.45,.01)],
+    presets:{
+      Sakin:{opacity:.42,spread:.65,duration:2.4,speed:.9,hold:.25},
+      Doğal:{opacity:.73,spread:.8,duration:2.2,speed:1,hold:.24},
+      Canlı:{opacity:.95,spread:1.05,duration:2,speed:1.1,hold:.23},
+    },
+    compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
+  },
+  'dagger-shadow': {
+    label:'Yabancı yansıma',
+    description:'Hançerin parlak bıçak yüzeyinden geçen belirsiz, karanlık insan silueti.',
+    create:createDaggerShadow,targetKinds:['sceneObject'],placement:'center',trigger:'pulse',
+    controls:[number('width','Maske genişliği',1,.6,1,.01),
+      number('height','Maske yüksekliği',1,.6,1,.01),
+      number('opacity','Siluet şiddeti',.73,0,1,.01),
+      number('speed','Geçiş hızı',1,.5,2,.05),
+      number('duration','Geçiş süresi (s)',1.9,.7,4,.05),
+      number('figureScale','Siluet genişliği',.95,.3,2,.05)],
+    presets:{
+      Sakin:{opacity:.44,speed:.85,duration:2.3,figureScale:.75},
+      Doğal:{opacity:.73,speed:1,duration:1.9,figureScale:.95},
+      Canlı:{opacity:.92,speed:1.15,duration:1.55,figureScale:1.25},
+    },
+    compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
+  },
+  'stone-tremor': {
+    label:'Taş titreşimi', description:'Damla temasından sonra yeşim taşında kısa, sönümlü fiziksel titreşim.',
+    create:createStoneTremor, targetKinds:['sceneObject'], placement:'center', trigger:'pulse', output:'motion',
+    controls:[number('amplitude','Titreşim açısı (derece)',.85,.1,4,.05),
+      number('frequency','Titreşim frekansı (Hz)',11,3,20,.5),
+      number('damping','Sönümleme (s⁻¹)',4.5,1,12,.5),
+      number('duration','Süre (s)',1.55,.8,3,.05),
+      number('speed','Hız',1,.5,2,.05)],
+    presets:{
+      Sakin:{amplitude:.4,frequency:9,damping:6,duration:1.75,speed:.9},
+      Doğal:{amplitude:.85,frequency:11,damping:4.5,duration:1.55,speed:1},
+      Canlı:{amplitude:1.5,frequency:13,damping:3.5,duration:1.35,speed:1.15},
+    },
+    compile(object,target,params){return {...params,amplitude:params.amplitude*target.scale};},
+  },
+  'stone-drop': {
+    label:'Tek damla', description:'Tek su damlası, temas halkası ve taşın üzerindeki kısa titreşim izi.',
+    create:createStoneDrop, targetKinds:['sceneObject'], placement:'center', trigger:'pulse',
+    controls:[number('width','Etki genişliği',.82,.1,1,.01),number('height','Etki yüksekliği',.95,.1,1,.01),
+      number('opacity','Şiddet',.65,0,1,.01),number('speed','Hız',1,.5,2,.05),
+      number('duration','Süre (s)',1.55,.8,3,.05),number('dropSize','Damla boyutu',1,.3,2,.05),
+      number('tremor','Titreşim izi',.24,0,1,.01)],
+    presets:{
+      Sakin:{opacity:.42,speed:.9,duration:1.75,dropSize:.75,tremor:.12},
+      Doğal:{opacity:.65,speed:1,duration:1.55,dropSize:1,tremor:.24},
+      Canlı:{opacity:.85,speed:1.15,duration:1.35,dropSize:1.25,tremor:.4},
+    },
+    compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
+  },
   'pendulum-sway': {
     label:'Sarkaç Salınımı', description:'Sabit askıdan başlayan, giderek sönen açısal hareket.',
     create:createPendulumSway, targetKinds:['sceneObject'], placement:'center', trigger:'pulse', output:'motion',

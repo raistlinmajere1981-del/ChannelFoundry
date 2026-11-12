@@ -55,9 +55,9 @@ test("Channel Foundry reads canonical live scene without writing web or Admin da
   const current = await site.snapshot();
   assert.ok(BIRDESENGOR_SITE.endsWith("/ChannelFoundry/channels/birdesengor/web"));
   assert.equal(current.scene.sceneId, "birdesengor-study-v2");
-  assert.equal(current.scene.effects.length, 17);
+  assert.equal(current.scene.effects.length, 22);
   assert.deepEqual(site.readiness(current.scene, current), {
-    ready: true, effectCount: 17, enabledCount: 9, mountedCount: 17, problems: [],
+    ready: true, effectCount: 22, enabledCount: 14, mountedCount: 22, problems: [],
   });
   validateIdentity(current.scene);
   const valid = structuredClone(current.scene);
@@ -68,7 +68,7 @@ test("Channel Foundry reads canonical live scene without writing web or Admin da
     const service = new SceneWorkshop({ userDataDir: temporary, site, runner: {} });
     const loaded = await service.load();
     assert.equal(loaded.origin, "site");
-    assert.equal(loaded.readiness.effectCount, 17);
+    assert.equal(loaded.readiness.effectCount, 22);
     assert.match(loaded.previewImage, /^data:image\/webp;base64,/);
     assert.ok(Array.isArray(loaded.previewObjects));
     await assert.rejects(service.save({
@@ -163,11 +163,26 @@ test("real site source stages atomically in isolated clone and rejects a stale r
     const source = await isolated.snapshot();
     const scene = structuredClone(source.scene);
     scene.effects[0].seed += "-isolated";
+    scene.objects.find(o=>o.id==="stone-specimen").pose.y += .012;
+    scene.objects.find(o=>o.id==="stone-specimen").hitArea.y += .012;
+    scene.objects.find(o=>o.id==="ceremonial-robe").veil.distortionPx=3.2;
+    scene.objects.find(o=>o.id==="ceremonial-robe").pose.y+=.014;
+    scene.objects.find(o=>o.id==="archive-chest").pose.y+=.012;
+    scene.objects.find(o=>o.id==="archive-chest").hitArea.y+=.012;
+    scene.effects.find(e=>e.id==="archive-chest-light-leak").params.opacity=.52;
     assert.equal(isolated.readiness(scene, source).ready, true);
     const result = await isolated.stage(scene, source.sourceHash);
     assert.equal(result.changed, true);
     assert.equal((await isolated.snapshot()).sourceHash, result.sourceHash);
-    assert.equal(JSON.parse(fs.readFileSync(path.join(temp, SITE_SCENE), "utf8")).effects[0].seed, scene.effects[0].seed);
+    const stagedScene=JSON.parse(fs.readFileSync(path.join(temp,SITE_SCENE),"utf8"));
+    assert.equal(stagedScene.effects[0].seed,scene.effects[0].seed);
+    assert.equal(stagedScene.objects.find(o=>o.id==="stone-specimen").pose.y,
+      scene.objects.find(o=>o.id==="stone-specimen").pose.y,'visual pose persists in the single staged file');
+    assert.equal(stagedScene.objects.find(o=>o.id==="ceremonial-robe").veil.distortionPx,3.2);
+    assert.equal(stagedScene.objects.find(o=>o.id==="ceremonial-robe").pose.y,
+      scene.objects.find(o=>o.id==="ceremonial-robe").pose.y,'robe placement and veil settings stage together');
+    assert.equal(stagedScene.objects.find(o=>o.id==="archive-chest").pose.y,scene.objects.find(o=>o.id==="archive-chest").pose.y,'chest position stages');
+    assert.equal(stagedScene.effects.find(e=>e.id==="archive-chest-light-leak").params.opacity,.52,'chest light settings stage');
     await assert.rejects(isolated.stage(scene, source.sourceHash), /Site kaynağı değişmiş/);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });

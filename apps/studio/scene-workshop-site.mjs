@@ -10,7 +10,7 @@ export const BIRDESENGOR_SITE=resolve(dirname(fileURLToPath(import.meta.url)),'.
 export const SITE_SCENE='src/effects/birdesengor-effects.v2.json';
 const MANIFEST='src/scene/data/study.scene.json';
 const ADAPTER='src/effects/effectsAdapter.js';
-const PREVIEW='public/scene-assets/approved/room-natural-sash-2to1.webp';
+const PREVIEW='public/scene-assets/approved/room-effects-v4-2to1.webp';
 const ROOT='src/scene/SceneRoot.jsx';
 const STAGE_CSS='src/scene/study-foundation.css';
 const CANDLE_HOST='src/effects/CandleEffects.jsx';
@@ -26,7 +26,7 @@ function verifiedMounts(entries){
  const code=file=>entries.get(file)?.toString('utf8')??'';
  const scene=code(ROOT),candle=code(CANDLE_HOST),passive=code(PASSIVE_HOST),hover=code(HOVER_HOST),hook=code(EFFECT_HOOK),css=code(STAGE_CSS);
  const checks={
-  'V2 has positioned passive hosts':scene.includes("className={AMBIENT_EFFECT_IDS.has(object.id) ? 'study-effect-host'")
+  'V2 has positioned passive hosts':scene.includes("AMBIENT_EFFECT_IDS.has(object.id) ? 'study-effect-host'")
     && scene.includes('ambientHostStyle(object)') && scene.includes('normalizedRoomPose(object)'),
   'Candle component mounted in room':/<CandleEffects\s+mode=\{candleEffectMode\(candleState\)\}/.test(scene)
     && scene.includes("from '../effects/CandleEffects.jsx'"),
@@ -114,6 +114,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
       const file='public'+asset;entries.set(file,read(file));
     }
   }
+  const chestGlowMask='public/scene-assets/chest/interior-light-mask.webp';
+  entries.set(chestGlowMask,read(chestGlowMask));
+  const daggerMask='public/scene-assets/dagger/dagger-blade-mask.webp';
+  entries.set(daggerMask,read(daggerMask));
   const mounted=verifiedMounts(entries);
   const adapter=await import('data:text/javascript;base64,'+entries.get(ADAPTER).toString('base64'));
   const manifest=JSON.parse(entries.get(MANIFEST).toString('utf8'));
@@ -172,7 +176,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     if(!bytes||bytes.length>8*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Geçersiz nesne önizlemesi.');
     return 'data:image/webp;base64,'+bytes.toString('base64');
   };
-  return state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),box:layer.box}))}));
+  return state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})}));
  }
  async function preview(state){
   const bytes=state.entries.get(PREVIEW);

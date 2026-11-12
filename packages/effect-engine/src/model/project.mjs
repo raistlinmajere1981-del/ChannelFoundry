@@ -66,7 +66,15 @@ function validateObjectScene(scene) {
   const unique = id => {string(id,'Kimlik',120); if(ids.has(id)) fail(`Tekrarlanan kimlik: ${id}`); ids.add(id);};
   const objects=new Map();
   for(const item of scene.objects) {
-    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea'],'Nesne'); unique(item.id); string(item.name,'Nesne adı'); bool(item.visible,'Nesne görünürlüğü');
+    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea','veil'],'Nesne');
+    if(item.veil!==undefined){
+      keys(item.veil,['enabled','transitionMs','residualOpacity','distortionPx','edgeOpacity'],'Görünmezlik');
+      bool(item.veil.enabled,'Görünmezlik etkinliği');
+      integer(item.veil.transitionMs,0,3000,'Görünmezlik geçişi');
+      num(item.veil.residualOpacity,0,.3,'Görünmezlikte kumaş izi');
+      num(item.veil.distortionPx,0,7,'Optik kırılma');
+      num(item.veil.edgeOpacity,0,.35,'Siluet kenarı');
+    } unique(item.id); string(item.name,'Nesne adı'); bool(item.visible,'Nesne görünürlüğü');
     if(item.hitArea!==undefined){
       keys(item.hitArea,['x','y','width','height'],'Tıklama alanı');
       const area=item.hitArea;

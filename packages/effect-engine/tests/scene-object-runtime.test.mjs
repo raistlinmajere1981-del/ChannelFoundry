@@ -111,7 +111,7 @@ function overlayContext(canvas,width=120,height=180){
 }
 
 test('object effect registry exposes bounded controls and presets for scene objects only',()=>{
-  assert.deepEqual(Object.keys(objectEffectRegistry).sort(),['flame','glow','metal-glint','pendulum-sway','smoke','water-ripple']);
+  assert.deepEqual(Object.keys(objectEffectRegistry).sort(),['chest-lid-open','chest-light-leak','dagger-shadow','flame','glow','metal-glint','pendulum-sway','smoke','stone-drop','stone-tremor','water-ripple']);
   for(const [type,entry] of Object.entries(objectEffectRegistry)){
     assert.deepEqual(entry.targetKinds,['sceneObject']);
     assert.ok(['bottom','center'].includes(entry.placement));

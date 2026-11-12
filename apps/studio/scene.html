@@ -45,6 +45,13 @@
           <button type="button" id="show-object-areas" aria-pressed="false" title="Nesnelerin sahne yerleşim çerçevelerini göster veya gizle">Nesne Alanı</button>
           <button type="button" id="show-hit-areas" aria-pressed="true" title="Tıklanabilir alanları göster veya gizle">Tıklama Alanı</button>
           <button type="button" id="show-effects" aria-pressed="true">Efektler</button>
+          <button type="button" id="show-markers" aria-pressed="true" aria-controls="scene-markers">İşaretler</button>
+          <button type="button" id="visual-edit-mode" aria-pressed="false">Görsel Taşı</button>
+          <div class="scene-zoom-controls" role="group" aria-label="Sahne yakınlaştırma">
+            <button type="button" id="zoom-out" aria-label="Uzaklaştır">−</button>
+            <button type="button" id="zoom-fit" aria-label="Sahneye sığdır">100%</button>
+            <button type="button" id="zoom-in" aria-label="Yakınlaştır">+</button>
+          </div>
           <button type="button" id="undo" aria-label="Geri al" title="Geri al (Ctrl/⌘ Z)">↶</button>
           <button type="button" id="redo" aria-label="Yinele" title="Yinele (Ctrl/⌘ Shift Z)">↷</button>
           <button type="button" id="play" aria-pressed="true">Ⅱ Duraklat</button>
@@ -65,6 +72,14 @@
     <aside id="inspector-panel" class="scene-panel scene-inspector" aria-label="Nesne ve efekt özellikleri">
       <div class="scene-panel-heading"><span class="scene-eyebrow">EFEKT AYARLARI</span></div>
       <h2 id="selected-object-name">Bir nesne seçin</h2>
+      <details id="visual-placement-settings" class="scene-advanced" open hidden>
+        <summary>Görsel yerleşimi</summary>
+        <section id="visual-inspector"></section>
+      </details>
+      <details id="robe-veil-settings" class="scene-advanced" open hidden>
+        <summary>Kaftan · Görünmezlik</summary>
+        <section id="robe-veil-inspector"></section>
+      </details>
       <details id="hit-area-settings" class="scene-advanced" open hidden>
         <summary>Tıklanabilir alan</summary>
         <section id="hit-inspector"></section>
@@ -77,7 +92,7 @@
         <p class="scene-help">Yerel sahnede yalnız Alev, Işık halesi ve Duman desteklenir.</p>
       </div>
       <section id="effect-inspector"></section>
-      <p id="site-effects-note" class="scene-help" hidden>Siteye bağlanmış efekt yuvaları ve tıklanabilir alanlar düzenlenebilir. Yeni efekt türleri için web motoru entegrasyonu gerekir.</p>
+      <p id="site-effects-note" class="scene-help" hidden>Efekt ve tıklama alanları, taş/kaftan/hançer/sandık yerleşimi ve nesnelerin tıklama efektleri düzenlenebilir. Yeni efekt türleri web entegrasyonu gerektirir.</p>
       <details id="advanced-settings" class="scene-advanced">
         <summary>İnce ayarlar</summary>
         <section id="effect-advanced"></section>

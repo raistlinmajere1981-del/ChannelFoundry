@@ -54,7 +54,21 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 
 .scene-stage-column{min-width:0;display:flex;flex-direction:column;gap:8px}
 .scene-stage-well{display:grid;place-items:center;min-height:0;aspect-ratio:16/9;max-height:760px;background:#101416;border-radius:10px;overflow:hidden}
-.scene-stage-well .scene-viewport{min-height:0;max-height:none}
+.scene-stage-well .scene-viewport{min-height:0;max-height:none;margin:auto;flex:none}
+.scene-stage-well{display:flex;align-items:safe center;justify-content:safe center;overflow:auto;scrollbar-gutter:stable;overscroll-behavior:contain}
+.scene-zoom-controls{display:flex;gap:2px;align-items:center;padding:2px;border:1px solid var(--line);border-radius:7px}
+.scene-zoom-controls button{min-width:29px;min-height:27px;padding:3px 6px}
+#zoom-fit{min-width:52px}
+.visual-edit-mode .scene-marker{pointer-events:none}
+.visual-edit-mode .scene-hit-area,.visual-edit-mode .scene-hit-area.selected{pointer-events:none}
+.visual-edit-mode .scene-object[data-visual-editable=true]{cursor:grab;touch-action:none}
+.visual-edit-mode .scene-object[data-visual-editable=true]:active{cursor:grabbing}
+.visual-edit-mode.hide-object-areas .scene-object[data-visual-editable=true].selected{border:1px dashed #efbd7a!important;box-shadow:0 0 0 2px #c68d5255!important}
+.scene-visual-actions{display:flex;gap:6px;margin:8px 0}
+.scene-visual-actions button{flex:1;min-width:0;font-size:11px}
+.scene-visual-check{display:flex;align-items:center;gap:8px;font-size:11px;color:#c7d0d2}
+.scene-visual-check input{width:18px;flex:none}
+.scene-visual-tip{font-size:11px;color:var(--muted);margin:5px 0}
 .scene-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
 .scene-photo[hidden]{display:none}
 .has-photo.scene-viewport::before{display:none}
@@ -75,6 +89,7 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-objects,.scene-markers{position:absolute;inset:0}
 .scene-objects{z-index:1}
 .scene-markers{z-index:5;pointer-events:none}
+.hide-effect-markers .scene-markers{display:none}
 .scene-object{position:absolute;transform-origin:center;overflow:visible;border:1px solid #7a8c92;border-radius:6px;background:#243136c9;color:#e9eff0;cursor:pointer;min-width:8px;min-height:8px;transition:border-color .12s,box-shadow .12s}
 .scene-object:hover{border-color:#b8d4d9}
 .scene-object.selected{border-color:var(--accent);box-shadow:0 0 0 2px #e9a24b44,0 0 22px #e9a24b2e}

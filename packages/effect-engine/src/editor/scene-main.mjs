@@ -5,11 +5,17 @@ import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../mod
 import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../registry/effects.mjs';
 import {anchorScenePoint,effectScenePoint} from '../runtime/object-scene.mjs';
 import {bindObjectScene} from '../runtime/object-overlay.mjs';
+import {drawRefractedSilhouette} from '../runtime/robe-refraction.mjs';
 
 let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
 let previewHandle=null,previewFrame=null;
 let previewObjects=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
+let zoom=1,visualMode=false,linkVisual=true,previewRobeVeiled=false;
+const editableVisual=item=>siteSource&&((item?.id==='stone-specimen'&&item.motionLayers?.includes('rock'))||(item?.id==='ceremonial-robe'&&item.motionLayers?.includes('fabric'))||(item?.id==='ceremonial-dagger'&&item.motionLayers?.includes('blade'))||(item?.id==='archive-chest'&&item.motionLayers?.includes('lid')));
+const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
+const ROBE_DESK_Y=.57;
+const robeClip=pose=>Math.max(0,Math.min(100,(pose.y+pose.height-ROBE_DESK_Y)/pose.height*100));
 const objectElements=new Map(),markerElements=new Map();
 const history=new History();
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
@@ -102,9 +108,82 @@ function renderLists(){
   $('#effect-list').replaceChildren(...(effectRows.length?effectRows:[el('p',{class:'scene-empty',text:siteSource?'Bu nesneye bağlı site efekti yok.':'Bu nesnede efekt yok; desteklenen bir tür ekleyin.'})]));
   $('#add-effect-controls').hidden=siteSource;
   $('#add-effect').disabled=!object()?.anchors.length;
-  $('#source-note').textContent=siteSource?'Nesne yerleşimi ve görünürlüğü site kaynağına aittir. Mevcut efektleri düzenleyebilirsiniz.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
+  $('#source-note').textContent=siteSource?'Taş, kaftan, hançer ve sandığın bağımsız görselleri yerleştirilebilir. Diğer nesneler fotoğrafın parçasıdır.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
   $('#site-effects-note').hidden=!siteSource;
   document.querySelector('.scene-local-badge').textContent=siteSource?'Site kaynağı':'Yerel';
+}
+function moveVisual(sceneCopy,id,nextPose,linked=linkVisual){
+  const target=sceneCopy.objects.find(o=>o.id===id);
+  if(!target||!editableVisual(target))throw Error('Bu nesnede bağımsız görsel yerleşimi yok.');
+  const before={...target.pose};
+  const pose={...before,...nextPose};
+  pose.x=round(clamp(pose.x,0,1-pose.width));
+  pose.y=round(clamp(pose.y,0,1-pose.height));
+  if(linked&&target.hitArea){
+    const hit=target.hitArea,ratioX=pose.width/before.width,ratioY=pose.height/before.height;
+    const width=round(hit.width*ratioX),height=round(hit.height*ratioY);
+    hit.x=round(clamp(pose.x+(hit.x-before.x)*ratioX,0,1-width));
+    hit.y=round(clamp(pose.y+(hit.y-before.y)*ratioY,0,1-height));
+    hit.width=width;hit.height=height;
+  }
+  if(!linked){
+    for(const fx of sceneCopy.effects.filter(e=>e.target.objectId===id)){
+      const point=effectScenePoint(target,fx);
+      const a=target.anchors.find(entry=>entry.id===fx.target.anchorId);
+      fx.target.offset.x=round((point.x-pose.x)/pose.width-a.x);
+      fx.target.offset.y=round((point.y-pose.y)/pose.height-a.y);
+    }
+  }
+  target.pose=pose;
+}
+function renderVisualInspector(){
+  const root=$('#visual-placement-settings'),host=$('#visual-inspector'),item=object();
+  root.hidden=!editableVisual(item);host.replaceChildren();
+  if(!editableVisual(item))return;
+  const base=visualBase(item);
+  const adjust=(fields,key)=>mutate(s=>moveVisual(s,item.id,fields),key);
+  host.append(el('p',{class:'scene-visual-tip',text:'Görsel Taşı modunda fareyle sürükle; ok tuşları 0,1%, Shift+ok 1% hareket ettirir.'}));
+  for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)']]){
+    host.append(numberInput(label,round(item.pose[key]*100),value=>adjust({[key]:round(value/100)},'visual:'+item.id+':'+key),
+      {id:'visual-'+key,min:0,max:100,step:.1,'data-testid':'visual-'+key}));
+  }
+  const scale=round(item.pose.width/base.width*100);
+  host.append(numberInput('Görsel ölçeği (%)',scale,value=>{
+    const factor=clamp(value,30,250)/100,width=round(base.width*factor),height=round(base.height*factor);
+    const cx=item.pose.x+item.pose.width/2,cy=item.pose.y+item.pose.height/2;
+    adjust({width,height,x:round(cx-width/2),y:round(cy-height/2)},'visual:'+item.id+':scale');
+  },{id:'visual-scale',min:30,max:250,step:1,'data-testid':'visual-scale'}));
+  host.append(el('label',{class:'scene-visual-check'},
+    el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
+      onchange:event=>{linkVisual=event.target.checked;}}),
+    el('span',{text:'Efekt ve tıklama alanını birlikte taşı'})));
+  host.append(el('div',{class:'scene-visual-actions'},
+    button('−0,1% Y',()=>adjust({y:round(item.pose.y-.001)},'visual:'+item.id+':y'),{id:'visual-up'}),
+    button('+0,1% Y',()=>adjust({y:round(item.pose.y+.001)},'visual:'+item.id+':y'),{id:'visual-down'})));
+  host.append(button('Yerleşimi sıfırla',()=>adjust({...base},'visual:'+item.id+':reset'),{id:'visual-reset'}));
+}
+function renderVeilInspector(){
+  const item=object(),host=$('#robe-veil-inspector'),parent=$('#robe-veil-settings');
+  parent.hidden=!(siteSource&&item?.id==='ceremonial-robe');
+  host.replaceChildren();
+  if(parent.hidden)return;
+  const settings=item.veil;
+  host.append(el('label',{class:'scene-visual-check'},
+    el('input',{type:'checkbox',id:'robe-veil-enabled',checked:settings.enabled,
+      onchange:event=>mutate(s=>{s.objects.find(o=>o.id===item.id).veil.enabled=event.target.checked;})}),
+    el('span',{text:'Tıklama ile görünmezlik etkin'})));
+  for(const [key,label,min,max,step] of [
+    ['transitionMs','Geçiş süresi (ms)',0,3000,50],
+    ['residualOpacity','Kumaş izi (0–0,30)',0,.3,.005],
+    ['distortionPx','Optik kırılma (piksel)',0,7,.1],
+    ['edgeOpacity','Siluet kenarı (0–0,35)',0,.35,.01]
+  ])host.append(numberInput(label,settings[key],
+      value=>mutate(s=>{s.objects.find(o=>o.id===item.id).veil[key]=value;},'robe:veil:'+key),
+      {id:'robe-veil-'+key,min,max,step}));
+  host.append(button(previewRobeVeiled?'Görünür durumu dene':'Görünmezliği dene',
+    ()=>{previewRobeVeiled=!previewRobeVeiled;draw();},
+    {id:'robe-veil-preview'}));
+  host.append(el('p',{class:'scene-visual-tip',text:'Önizleme durumu kayda girmez. Askı ve masa fotoğrafı sabit kalır.'}));
 }
 function renderObjectInspector(){
   const host=$('#object-inspector'),hitHost=$('#hit-inspector'),item=object();
@@ -122,7 +201,7 @@ function renderObjectInspector(){
     }
   }
   if(siteSource){
-    host.append(el('p',{class:'scene-help',text:'Nesne yerleşimi ve bağlantıları sabittir. Tıklanabilir alan, web sahnesine hazırlamada uygulanır.'}));
+    host.append(el('p',{class:'scene-help',text:'Bağımsız taş ve kaftan görselleri üstteki yerleşim alanından taşınabilir. Bağlantılar sabit kalır.'}));
     return;
   }
   host.append(
@@ -217,14 +296,28 @@ function buildObject(item){
     left:`${item.pose.x*100}%`,top:`${item.pose.y*100}%`,width:`${item.pose.width*100}%`,height:`${item.pose.height*100}%`,
     transform:`rotate(${item.pose.rotation}deg)`,zIndex:String(100+Math.round(item.pose.depth))
   });
+  node.dataset.visualEditable=String(editableVisual(item));
+  if(item.id==='ceremonial-robe')node.style.clipPath='inset(0 0 '+robeClip(item.pose)+'% 0)';
+  node.addEventListener('pointerdown',event=>{
+    if(visualMode&&editableVisual(item)&&event.button===0)beginVisualDrag(event,item,node);
+  });
   const artwork=previewObjects.get(item.id);
+  if(artwork && item.id==='ceremonial-robe'){
+    const veil=item.veil;
+    const lens=el('canvas',{class:'scene-robe-preview-refraction','aria-hidden':'true'});
+    Object.assign(lens.style,{position:'absolute',inset:0,width:'100%',height:'100%',
+      pointerEvents:'none',opacity:previewRobeVeiled?'1':'0',
+      filter:'drop-shadow(0 0 1.2px rgba(177,207,207,'+veil.edgeOpacity+'))'});
+    node.append(lens);
+  }
   if(artwork){
     const fixed=el('img',{src:artwork.image,alt:'',class:'scene-motion-fixed'});
-    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',filter:'brightness(.72) saturate(.72)'});node.append(fixed);
+    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',filter:'brightness(.72) saturate(.72)',...(item.id==='archive-chest'?{width:'150%',zIndex:'1'}:{})});node.append(fixed);
   }
   for(const id of item.motionLayers??[]){
     const layer=el('span',{'data-effect-layer':id,'aria-hidden':'true'});
-    Object.assign(layer.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'});
+    Object.assign(layer.style,{position:'absolute',inset:0,width:item.id==='archive-chest'?'150%':'100%',
+      height:'100%',pointerEvents:'none',...(item.id==='archive-chest'?{zIndex:'3',transformStyle:'preserve-3d'}:{})});
     const picture=artwork?.layers.find(entry=>entry.id===id);
     if(picture){const image=el('img',{src:picture.image,alt:''});const b=picture.box;Object.assign(image.style,{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,filter:'brightness(.7) saturate(.7)'});layer.append(image);}
     else {const sample=el('span');Object.assign(sample.style,{position:'absolute',left:'49%',top:'10%',width:'2%',height:'50%',background:'#b68d4b',borderRadius:'50%'});layer.append(sample);}
@@ -236,7 +329,15 @@ function buildObject(item){
     dot.style.left=`${point.x*100}%`;dot.style.top=`${point.y*100}%`;node.append(dot);
   }
   node.addEventListener('click',()=>selectObject(item.id));
-  node.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();selectObject(item.id);}});
+  node.addEventListener('keydown',event=>{
+    if(visualMode&&editableVisual(item)&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+      event.preventDefault();
+      const step=event.shiftKey?.01:.001;
+      const dx=(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0);
+      const dy=(event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0);
+      mutate(s=>moveVisual(s,item.id,{x:round(item.pose.x+dx),y:round(item.pose.y+dy)}),'visual:'+item.id+':keyboard');
+    }else if(event.key==='Enter'||event.key===' '){event.preventDefault();selectObject(item.id);}
+  });
   return node;
 }
 function renderMarkers(){
@@ -273,9 +374,46 @@ function bindPreview(pulseId=null){
   try{
     const selected={...scene,effects:scene.effects.filter(item=>objectEffectRegistry[item.type].trigger!=='pulse'||item.id===pulseId)};
     previewHandle=bindObjectScene(selected,id=>objectElements.get(id),{expectedSceneId:scene.sceneId,interactive:true});
+    const bladeMask=previewObjects.get('ceremonial-dagger')?.bladeMask;
+    if(bladeMask){
+      for(const canvas of objectElements.get('ceremonial-dagger')?.querySelectorAll('canvas.object-effect-overlay')??[]){
+        canvas.style.maskImage='url("'+bladeMask+'")';
+        canvas.style.webkitMaskImage='url("'+bladeMask+'")';
+        canvas.style.maskSize='100% 100%';
+        canvas.style.webkitMaskSize='100% 100%';
+        canvas.style.maskRepeat='no-repeat';
+        canvas.style.maskMode='alpha';
+      }
+    }
+    const chestMask=previewObjects.get('archive-chest')?.lightMask;
+    if(chestMask){
+      for(const canvas of objectElements.get('archive-chest')?.querySelectorAll('canvas.object-effect-overlay')??[]){
+        canvas.style.maskImage='url("'+chestMask+'")';
+        canvas.style.webkitMaskImage='url("'+chestMask+'")';
+        canvas.style.maskSize='100% 100%';
+        canvas.style.webkitMaskSize='100% 100%';
+        canvas.style.maskRepeat='no-repeat';
+        canvas.style.maskMode='alpha';
+        canvas.style.zIndex='2';
+      }
+    }
     if(!playing)previewHandle.setPaused(true);
     previewHandle.setEnabled(showEffects);
   }catch(e){previewHandle=null;error(e);}
+}
+function refreshRobePreview(){
+  const item=scene?.objects.find(o=>o.id==='ceremonial-robe');
+  if(!item)return;
+  const node=objectElements.get(item.id);
+  const canvas=node?.querySelector('.scene-robe-preview-refraction');
+  const image=node?.querySelector('[data-effect-layer="fabric"] img');
+  if(!node||!image)return;
+  image.style.opacity=previewRobeVeiled?String(item.veil.residualOpacity):'1';
+  if(!previewRobeVeiled||!canvas)return;
+  const photo=$('#scene-photo');
+  Promise.all([photo.decode(),image.decode()]).then(()=>{
+    if(canvas.isConnected)drawRefractedSilhouette(canvas,photo,image,item.pose,item.veil.distortionPx);
+  }).catch(()=>{});
 }
 function renderStage(){
   previewHandle?.destroy();previewHandle=null;
@@ -294,6 +432,7 @@ function renderStage(){
   }
   bindPreview();
   renderMarkers();
+  refreshRobePreview();
 }
 function draw(){
   if(!scene)return;
@@ -312,6 +451,8 @@ function draw(){
   $('#scene-seed').value=scene.seed;
   renderLists();
   renderObjectInspector();
+  renderVisualInspector();
+  renderVeilInspector();
   renderEffectInspector();
   renderStage();
   updateHistoryButtons();
@@ -322,7 +463,43 @@ function updateHistoryButtons(){
   $('#undo').disabled=!history.past.length;
   $('#redo').disabled=!history.future.length;
 }
-let drag=null,hitDrag=null;
+let drag=null,hitDrag=null,visualDrag=null;
+function beginVisualDrag(event,item,node){
+  if(visualDrag)return;
+  event.preventDefault();event.stopPropagation();
+  objectId=item.id;effectId=scene.effects.find(e=>e.target.objectId===item.id)?.id??null;
+  const rect=$('#scene-viewport').getBoundingClientRect();
+  visualDrag={id:item.id,pointerId:event.pointerId,original:structuredClone(item.pose),
+    startX:event.clientX,startY:event.clientY,width:rect.width,height:rect.height,
+    changed:false,before:structuredClone(scene),node};
+  node.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove',moveVisualDrag);
+  window.addEventListener('pointerup',endVisualDrag);
+  window.addEventListener('pointercancel',endVisualDrag);
+}
+function moveVisualDrag(event){
+  if(!visualDrag||event.pointerId!==visualDrag.pointerId)return;
+  const d=visualDrag,dx=(event.clientX-d.startX)/d.width,dy=(event.clientY-d.startY)/d.height;
+  const next=structuredClone(d.before);
+  try{
+    moveVisual(next,d.id,{x:round(d.original.x+dx),y:round(d.original.y+dy)});
+    validateScene(next);
+  }catch(e){error(e);return;}
+  if(JSON.stringify(next)===JSON.stringify(scene))return;
+  scene=next;d.changed=true;
+  const pose=next.objects.find(o=>o.id===d.id).pose;
+  Object.assign(d.node.style,{left:pose.x*100+'%',top:pose.y*100+'%'});
+  status('Görsel: '+Math.round(pose.x*1000)/10+'% / '+Math.round(pose.y*1000)/10+'%');
+}
+function endVisualDrag(event){
+  if(!visualDrag||event.pointerId!==visualDrag.pointerId)return;
+  const d=visualDrag;visualDrag=null;
+  window.removeEventListener('pointermove',moveVisualDrag);
+  window.removeEventListener('pointerup',endVisualDrag);
+  window.removeEventListener('pointercancel',endVisualDrag);
+  if(d.changed){history.record(d.before,'visual:'+d.id+':drag');changed();}
+  draw();
+}
 function beginHitDrag(event,item,node){
   if(event.button!==undefined&&event.button!==0)return;
   event.preventDefault();event.stopPropagation();
@@ -428,6 +605,7 @@ function installPreview(packet){
   if(preview!==undefined&&(typeof preview!=='string'||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(preview)))throw new Error('Site önizleme görseli geçersiz.');
   siteSource=packet.siteSource===true;
   sourceScene=siteSource?structuredClone(packet.scene):null;
+  previewRobeVeiled=false;
   $('#advanced-settings').open=false;
   const photo=$('#scene-photo');
   photo.onload=()=>{$('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);fitStage();};
@@ -435,8 +613,9 @@ function installPreview(packet){
   if(preview)photo.src=preview;else photo.removeAttribute('src');
   photo.hidden=!preview||!showPhoto;
   $('#scene-viewport').classList.toggle('has-photo',Boolean(preview)&&showPhoto);
+  $('#visual-edit-mode').disabled=!siteSource;
   $('#show-photo').disabled=!preview;
-  $('#coordinate-help').textContent=siteSource?'Güncel oda fotoğrafı. Nesneyi seçin; turuncu hedefi sürükleyerek efekti hizalayın. Kitap/kamera/vefk yakınlaşması bu önizlemeye dahil değildir.':'Yerel sahne önizlemesi. Turuncu hedefi sürükleyerek yalnız efekt kaydırmasını değiştirin.';
+  $('#coordinate-help').textContent=siteSource?'Görsel Taşı: bağımsız taş, kaftan, hançer ve sandık katmanlarını yerleştir. Yakınlaştırma yalnız önizlemeyi büyütür.':'Yerel önizleme; yakınlaştırma kaynak pozisyonlarını değiştirmez.';
 }
 function loadText(text,message,options){
   const next=importProject(text);
@@ -509,11 +688,34 @@ $('#show-effects').onclick=()=>{
   showEffects=!showEffects;previewHandle?.setEnabled(showEffects);
   $('#show-effects').setAttribute('aria-pressed',String(showEffects));
 };
+$('#show-markers').onclick=()=>{
+  const hidden=$('#scene-viewport').classList.toggle('hide-effect-markers');
+  $('#show-markers').setAttribute('aria-pressed',String(!hidden));
+};
+$('#visual-edit-mode').onclick=()=>{
+  visualMode=!visualMode;
+  $('#scene-viewport').classList.toggle('visual-edit-mode',visualMode);
+  $('#visual-edit-mode').setAttribute('aria-pressed',String(visualMode));
+};
+function setZoom(value){
+  zoom=clamp(value,.5,3);
+  $('#zoom-fit').textContent=Math.round(zoom*100)+'%';
+  $('#zoom-out').disabled=zoom<=.5;
+  $('#zoom-in').disabled=zoom>=3;
+  fitStage();
+}
+$('#zoom-out').onclick=()=>setZoom(round(zoom-.25));
+$('#zoom-in').onclick=()=>setZoom(round(zoom+.25));
+$('#zoom-fit').onclick=()=>setZoom(1);
+document.querySelector('.scene-stage-well').addEventListener('wheel',event=>{
+  if(!(event.ctrlKey||event.metaKey))return;
+  event.preventDefault();setZoom(round(zoom+(event.deltaY<0?.25:-.25)));
+},{passive:false});
 function fitStage(){
   const well=document.querySelector('.scene-stage-well');
   const photo=$('#scene-photo');
   const ratio=!photo.hidden&&photo.naturalWidth?photo.naturalWidth/photo.naturalHeight:(scene?.viewport.width??1600)/(scene?.viewport.height??900);
-  const width=Math.min(well.clientWidth,well.clientHeight*ratio);
+  const width=Math.min(well.clientWidth,well.clientHeight*ratio)*zoom;
   Object.assign($('#scene-viewport').style,{width:`${width}px`,height:`${width/ratio}px`});
 }
 new ResizeObserver(fitStage).observe(document.querySelector('.scene-stage-well'));
@@ -590,4 +792,5 @@ window.__sceneEditor={
   inspect:()=>previewHandle?.inspect()??null,
   selectObject,
   selectEffect,
+  zoom:()=>zoom,
 };

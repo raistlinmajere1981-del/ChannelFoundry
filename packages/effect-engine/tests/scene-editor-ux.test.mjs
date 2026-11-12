@@ -10,7 +10,7 @@ test('all daily profiles use exact canonical presets, are deterministic and pres
   for(const type of Object.keys(objectEffectRegistry))for(const profile of sceneProfiles){
     const scene=fixture(),effect=scene.effects[0];
     effect.type=type;effect.params={...defaultObjectParams(type),...objectEffectRegistry[type].presets.Doğal};
-    if(type==='pendulum-sway'){scene.objects.find(o=>o.id===effect.target.objectId).motionLayers=['pendant'];effect.target.layerId='pendant';}
+    if(['pendulum-sway','stone-tremor','chest-lid-open'].includes(type)){scene.objects.find(o=>o.id===effect.target.objectId).motionLayers=['pendant'];effect.target.layerId='pendant';}
     const before=structuredClone(effect);
     applySceneProfile(effect,profile.key);
     assert.deepEqual(effect.params,{...before.params,...objectEffectRegistry[type].presets[profile.key]});
@@ -20,14 +20,14 @@ test('all daily profiles use exact canonical presets, are deterministic and pres
     const first=exportProject(scene);applySceneProfile(effect,profile.key);
     assert.equal(exportProject(scene),first,'reapplying never compounds parameter values');
     assert.deepEqual(importProject(first),scene);
-    effect.params[type==='pendulum-sway'?'amplitude':'opacity']-=.013;
+    effect.params[type==='chest-lid-open'?'openAngle':(['pendulum-sway','stone-tremor'].includes(type)?'amplitude':'opacity')]-=.013;
     assert.equal(profileForEffect(effect),'Özel');
   }
 });
 test('daily controls reference only real type-specific canonical parameters and ranges',()=>{
   for(const type of Object.keys(objectEffectRegistry)){
     const controls=basicControls(type),canonical=objectEffectRegistry[type].controls;
-    assert.ok(controls.some(control=>control.key===(type==='pendulum-sway'?'amplitude':'opacity')));
+    assert.ok(controls.some(control=>control.key===(type==='chest-lid-open'?'openAngle':(['pendulum-sway','stone-tremor'].includes(type)?'amplitude':'opacity'))));
     for(const control of controls){
       const expected=canonical.find(item=>item.key===control.key);
       assert.ok(expected);assert.equal(control.min,expected.min);assert.equal(control.max,expected.max);assert.equal(control.step,expected.step);
@@ -56,6 +56,17 @@ test('site source allows parameter/offset edits but rejects invented slots, type
   }
 });
 
+test('site visual pose editing allows the isolated rock only',()=>{
+  const original=fixture();
+  // The fixture does not contain the rock, so use the real authored site scene.
+  const fromSite=JSON.parse(readFileSync(new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url),'utf8'));
+  const next=structuredClone(fromSite);
+  next.objects.find(o=>o.id==='stone-specimen').pose.y+=.012;
+  assert.doesNotThrow(()=>assertSiteStructure(next,fromSite));
+  next.objects.find(o=>o.id==='metal-pendulum').pose.y+=.01;
+  assert.throws(()=>assertSiteStructure(next,fromSite),/Nesne yerleşimi/);
+  void original;
+});
 test('normalized room hit areas are validated and independent of editor pose', async () => {
   const {validateProject}=await import('../src/model/project.mjs');
   const {readFileSync}=await import('node:fs');
@@ -78,6 +89,6 @@ test('Studio accepts editing hit areas without unlocking object poses or effect 
  const changed=structuredClone(original);
  changed.objects.find(item=>item.id==='archive-chest').hitArea.y+=.01;
  assert.doesNotThrow(()=>assertSiteStructure(changed,original));
- changed.objects.find(item=>item.id==='archive-chest').pose.x+=.01;
+ changed.objects.find(item=>item.id==='guardian-sword-left').pose.x+=.01;
  assert.throws(()=>assertSiteStructure(changed,original),/Nesne yerleşimi/);
 });
