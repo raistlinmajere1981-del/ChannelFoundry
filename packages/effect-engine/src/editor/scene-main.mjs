@@ -671,7 +671,8 @@ function renderRoomObjects(){
   for(const [id,record] of roomObjects){
     const owner=scene.objects.find(entry=>entry.id===id);
     if(!owner)continue;
-    const node=el('button',{type:'button',class:'scene-room-figure scene-room-figure--'+record.kind,
+    const visualKind=record.kind==='device'?(id==='camera'?'camera':'vefk'):record.kind;
+    const node=el('button',{type:'button',class:'scene-room-figure scene-room-figure--'+visualKind,
       'data-room-object':id,'data-selected':String(objectId===id),
       'aria-label':owner.name+' · oda görünümünde seç',
       onclick:()=>selectObject(id)});

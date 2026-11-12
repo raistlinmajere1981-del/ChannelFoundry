@@ -49,7 +49,30 @@ try{
    assert.ok(Math.abs(result.left-basis.x)<.0001&&Math.abs(result.top-basis.y)<.0001,record.id+' placement is from web coordinates');
    assert.ok(Math.abs(result.width-basis.width)<.0001,record.id+' size is from web coordinates');
    assert.ok(result.rectWidth>5,record.id+' image has physical visible width');
-   if(record.id==='vefk-stand')assert.equal(result.imgCount,4,'frame, vellum, quill and inkpot compose one device');
+   if(record.id==='camera'){
+     const cameraSize=await page.locator('[data-room-object="camera"]').evaluate(node=>{
+       const picture=node.querySelector('img'),outer=node.getBoundingClientRect(),image=picture.getBoundingClientRect();
+       return {outerW:outer.width,outerH:outer.height,imageW:image.width,imageH:image.height,position:getComputedStyle(picture).position};
+     });
+     assert.equal(cameraSize.position,'static','camera body is the one fitted image within its own footprint');
+     assert.ok(Math.abs(cameraSize.imageW-cameraSize.outerW)<2);
+     assert.ok(Math.abs(cameraSize.imageH-cameraSize.outerH)<2);
+   }
+   if(record.id==='vefk-stand'){
+     const diag=await page.locator('[data-room-object="vefk-stand"]').evaluate(node=>{
+       const viewport=document.querySelector('#scene-viewport').getBoundingClientRect();
+       return {viewport:{w:viewport.width,h:viewport.height},outer:{w:node.getBoundingClientRect().width,h:node.getBoundingClientRect().height,top:node.getBoundingClientRect().top,left:node.getBoundingClientRect().left},images:[...node.querySelectorAll('img')].map(img=>{const r=img.getBoundingClientRect(),cs=getComputedStyle(img);return{class:img.className,source:img.getAttribute('src')?.slice(0,50),natural:[img.naturalWidth,img.naturalHeight],rect:{w:r.width,h:r.height,x:r.x,y:r.y},style:{width:cs.width,height:cs.height,position:cs.position,transform:cs.transform}};})};
+     });
+     assert.equal(result.imgCount,4,'frame, vellum, quill and inkpot compose one device');
+     for(const image of diag.images){
+       assert.equal(image.style.position,'absolute',image.class+' must be positioned within the chassis');
+       assert.ok(image.rect.w>1&&image.rect.h>1,image.class+' must be visible');
+       assert.ok(image.rect.w<=diag.outer.w*1.04,image.class+' must never overflow the chassis width');
+       assert.ok(image.rect.h<=diag.outer.h*1.04,image.class+' must never overflow the chassis height');
+     }
+     assert.ok(diag.images.some(image=>image.class==='scene-room-paper'&&image.rect.w<diag.outer.w*.86),
+       'parchment is a contained panel, not an older room-sized fullscreen overlay');
+   }
  }
  await page.locator('#show-room-objects').click();
  assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),0,'room object toggle only affects preview');
