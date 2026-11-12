@@ -20,7 +20,7 @@ function video(db,id,date,names=['Açık Sponsor']) {
   return {videoId:id,publishedAt:date,publicationStatus:'published',analysisStatus:'complete'};
 }
 test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no raster/text overlays',async()=>{
-  const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names:['Çağrı & Şule']}});
+  const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',publishedAt:'2026-11-09',names:['Çağrı & Şule']}});
   assert.equal(core.validateVefk(doc).ok,true);assert.equal(doc.construction.kind,'manualPaths');
   assert.equal(doc.geometry.paths.length,doc.drawPlan.strokes.length);
   assert.ok(doc.geometry.paths.some(p=>p.id.startsWith('portrait.hatch.')));
@@ -29,6 +29,7 @@ test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no ra
   assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.index.')).length,12);
   assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.cipher.')).length,8);
   const text=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('');
+  assert.equal(text.startsWith('9Kasım2026'),true,'the real publication date replaces the old sponsor label');
   assert.match(text,/Çağrı&Şule/);
   for(const p of doc.geometry.paths)assert.match(p.d,/^[MLZ0-9. +\-]+$/);
   const {createVefkPlayer}=await import('../../docs/contracts/vefk-site-consumer.mjs');
@@ -45,10 +46,10 @@ test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no ra
 });
 test('large sponsor label and name wrap losslessly within the expanded drawing surface',()=>{
   const names=['Çağrı Şule Çok Uzun Destekçi Adı ve Ortakları','A'.repeat(70)];
-  const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names}});
+  const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',publishedAt:'2026-11-09',names}});
   assert.equal(core.validateVefk(doc).ok,true);
   const paths=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.'));
-  assert.equal(paths.map(p=>p.semanticValue).join(''),('Son bölümün destekçisi:'+names.join(' · ')).replace(/\s+/g,''));
+  assert.equal(paths.map(p=>p.semanticValue).join(''),('9 Kasım 2026'+names.join(' · ')).replace(/\s+/g,''));
   const bounds=ps=>ps.flatMap(p=>Array.from(p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g),m=>[+m[1],+m[2]]));
   for(const [x,y] of bounds(paths)) {
     assert.ok(x>=90 && x<=910,`sponsor x ${x}`);
@@ -57,7 +58,7 @@ test('large sponsor label and name wrap losslessly within the expanded drawing s
   assert.ok(doc.geometry.viewBox[3]>800,'long names expand the surface');
   const short=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names:['Tufan Akkaya']}});
   const namePoints=bounds(short.geometry.paths.filter(p=>p.ink==='sponsorName'));
-  assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>40,'name uses larger 46-unit outlines');
+  assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>60,'name uses enlarged 68-unit outlines');
   assert.equal(core.validateVefk(drawing.makeDocument()).ok,true,'fallback uses the existing document contract');
 });
 test('portrait and economical seal retain loading proportions and exclude surrounding page content',()=>{
@@ -102,6 +103,7 @@ test('only explicit confirmations/manual sponsors from the latest approved publi
     const old=video(db,'ABCDEFGHIJK','2026-01-01',['Eski Sponsor']);
     const last=video(db,'BCDEFGHIJKL','2026-01-02',[]);
     assert.deepEqual(drawing.sponsorFor(db,[old,last]).names,[],'default confirm is not explicit approval');
+    assert.equal(drawing.sponsorFor(db,[old,last]).publishedAt,'2026-01-02','the selected episode carries its publication date');
     const item=editorial.editorialPackage(db,last.videoId).items.find(i=>i.category==='sponsor');
     editorial.saveReview(db,{videoId:last.videoId,state:'curated',decisions:{[item.key]:'confirm'},manualSponsors:['Çağrı']});
     assert.deepEqual(drawing.sponsorFor(db,[old,last]).names,['Ham aday','Çağrı']);
@@ -150,6 +152,22 @@ test('normal publication build synchronizes sponsor and signed catalog; unpublis
     assert.equal(next.vefkCatalog.entries[0].revision,3);assert.match(next.vefkCatalog.entries[0].document.accessibility.matrixText,/Henüz Yayınlanmayan/);
   }finally{db.close();}
 });
+test('publication date is drawn from the approved episode and corrections create one new revision',()=>{
+  const db=fixture();try {
+    const source=video(db,'ABCDEFGHIJK','2026-01-02',['Altınay Ruhsal Uyanış']);
+    const first=drawing.synchronize(db,[source],{install:true});
+    assert.equal(first.sponsor.publishedAt,'2026-01-02');
+    assert.match(first.document.accessibility.matrixText,/^2 Ocak 2026 Altınay Ruhsal Uyanış$/);
+    const updated={...source,publishedAt:'2026-01-03'};
+    const second=drawing.synchronize(db,[updated]);
+    assert.equal(second.revision,first.revision+1);
+    assert.match(second.document.accessibility.matrixText,/^3 Ocak 2026 Altınay Ruhsal Uyanış$/);
+    assert.notEqual(second.document.contentHash,first.document.contentHash);
+    assert.equal(second.document.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('').startsWith('3Ocak2026'),true);
+    assert.equal(drawing.synchronize(db,[updated]).changed,false,'unchanged publication date must not create another revision');
+  }finally{db.close();}
+});
+
 test('unsupported sponsor glyphs fail explicitly rather than silently changing the final drawing',()=>{
   assert.throws(()=>drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names:['漢字']}}),/konturu bulunamadı/);
 });

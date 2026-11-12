@@ -8,7 +8,16 @@ const catalog = require('./vefk-publication.cjs');
 const artwork = require('./channel-drawing/artwork.json');
 const letters = require('./channel-drawing/letter-outlines.json');
 const ID = 'birdesengor-channel-drawing';
-const f = n => String(Math.round(n * 100) / 100);
+const SPONSOR_NAME_SIZE = 68;
+// One-tenth unit glyph precision preserves visual fidelity and keeps complex
+// Turkish letter outlines inside the existing 8192-character SVG path limit.
+const f = n => String(Math.round(n * 10) / 10);
+const publicationDateLabel = value => {
+  const timestamp = Date.parse(value ?? '');
+  return Number.isFinite(timestamp)
+    ? new Intl.DateTimeFormat('tr-TR', {day:'numeric',month:'long',year:'numeric',timeZone:'Europe/Istanbul'}).format(timestamp)
+    : 'Yayın tarihi belirtilmedi';
+};
 
 function sponsorFor(db, publishedVideos, now = Date.now()) {
   // The caller supplies the existing publication allowlist, never raw discovery.
@@ -30,9 +39,9 @@ function sponsorFor(db, publishedVideos, now = Date.now()) {
       const text = String(name).trim().normalize('NFC');
       if (text && !names.some(n => n.toLocaleLowerCase('tr-TR') === text.toLocaleLowerCase('tr-TR'))) names.push(text);
     }
-    return { videoId: latest.videoId, names };
+    return { videoId: latest.videoId, publishedAt: latest.publishedAt, names };
   }
-  return { videoId: '', names: [] };
+  return { videoId: '', publishedAt: '', names: [] };
 }
 function textLines(text, maxWidth, size) {
   const width = s => Array.from(s).reduce((total,c) => {
@@ -53,10 +62,11 @@ function textLines(text, maxWidth, size) {
   return lines.map(value=>({text:value,width:width(value)}));
 }
 function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
-  const sponsorText = sponsor.names.length ? 'Son bölümün destekçisi: '+sponsor.names.join(' · ') : 'Destekçilerimize teşekkürler';
+  const dateHeading = sponsor.names.length ? publicationDateLabel(sponsor.publishedAt) : '';
+  const sponsorText = sponsor.names.length ? dateHeading+' '+sponsor.names.join(' · ') : 'Destekçilerimize teşekkürler';
   const lines = sponsor.names.length
-    ? [ { text:'Son bölümün destekçisi:', size:34, baseline:666, ink:'letter' },
-        ...textLines(sponsor.names.join(' · '),820,46).map((line,row)=>({...line,size:46,baseline:732+row*64,ink:'sponsorName'})) ]
+    ? [ { text:dateHeading, size:34, baseline:666, ink:'letter' },
+        ...textLines(sponsor.names.join(' · '),820,SPONSOR_NAME_SIZE).map((line,row)=>({...line,size:SPONSOR_NAME_SIZE,baseline:732+row*82,ink:'sponsorName'})) ]
     : textLines(sponsorText,820,38).map((line,row)=>({...line,size:38,baseline:700+row*56,ink:'letter'}));
   const paths=artwork.paths.map(p=>({...p}));
   let charIndex=0;
@@ -88,7 +98,7 @@ function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
   markers.push({id:'hold',atMs:cursor});
   return core.createVefk({id:ID,revision,schemaVersion:2,title:'Sponsorluk',language:'tr',kind:'manualPaths',geometry,
     drawPlan:{timeUnit:'ms',durationMs:cursor+1500,markers,strokes},
-    description:"Sponsorluk için hakandemir@gmail.com adresinden Hakan'a ulaşabilirsiniz.",
+    description:"Sponsorluk için hakandemir.mefor@gmail.com adresinden Hakan'a ulaşabilirsiniz.",
     provenance:{kind:'manual',references:[artwork.source,artwork.sealSource.source],notes:
       `Portre kaynağı SHA-256: ${artwork.sha256}; kırpım [${artwork.crop.join(', ')}]. Gerçek fotoğrafın üç eşik seviyesindeki konturları ve iki yönlü ince gravür taramaları; az çizgili şematik yüz yerine kaynak benzerliği ve ton ayrıntısı önceliklidir. Mühür geometri kaynağı SHA-256: ${artwork.sealSource.sha256}. Loading portre/mühür yarıçap oranı ${artwork.sealSource.portraitRadius}/${artwork.sealSource.outerRadius}; ortak ölçek ${artwork.sealSource.scale}. Altı kaynak halka sınırı, 12 indeks işareti, sekiz özgün bölme işareti ve dört kilit pimi. Yazı, alt çizgi, ışık halesi ve dış bezeme referansa dahil değil. Sponsor kaynağı: ${sponsor.videoId || 'onaylanmış yayın yok'}; yalnız açıkça onaylanan veya elle girilen sponsorlar. Yazı konturları: Noto Serif (SIL OFL 1.1).`},
     accessibility:{summary:'İşaretli dairesel mühür içinde şapkalı ve sakallı portre, altta büyük harflerle '+sponsorText+'.',matrixText:sponsorText},
