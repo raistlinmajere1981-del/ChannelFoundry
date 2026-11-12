@@ -13,7 +13,7 @@
 .ops-primary-next em{display:block;margin-top:13px;color:#b99b5e;font-size:10px;font-style:normal}
 .ops-primary-next.attention{border-color:rgba(171,82,65,.36);background:linear-gradient(135deg,rgba(171,82,65,.09),rgba(255,255,255,.01))}
 .ops-primary-next.ready{border-color:rgba(93,144,103,.34);background:linear-gradient(135deg,rgba(93,144,103,.07),rgba(255,255,255,.01))}
-.ops-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.ops-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px}
 .ops-metric{appearance:none;position:relative;min-height:96px;padding:14px 34px 14px 16px;display:grid;gap:3px;border-color:var(--ops-line);background:var(--ops-panel);color:var(--ops-text);text-align:left;cursor:pointer;transition:border-color .16s ease,background .16s ease,transform .16s ease}
 .ops-metric:hover,.ops-metric:focus-visible{transform:translateY(-1px);border-color:rgba(192,162,99,.28);background:#11161d;outline:none}
 .ops-metric>span{color:#6e7988;font-size:9px}

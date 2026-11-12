@@ -1,7 +1,8 @@
 import TranslationStatus from "./TranslationStatus";
 import SitePulse from "./SitePulse";
+import { readCommunitySummary } from "./community-summary-cache";
 
-type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Yayınlama" | "Ayarlar";
+type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Topluluk" | "Yayınlama" | "Ayarlar";
 type DashboardItem = StudioPersistedItem & { relatedCount: number };
 type ActionTone = "attention" | "active" | "review" | "ready" | "quiet";
 type EditorialStats = StudioAiAnalysisStats & { editorialPending?: number; curated?: number; excluded?: number };
@@ -29,6 +30,7 @@ type Props = {
   workspaceNodes: StudioUniverseWorkspaceNode[];
   workspaceStatus: StudioUniverseWorkspaceStatus | null;
   publicationInfo: StudioPublicationInfo | null;
+  activeProjectId: string;
   onNavigate: (section: DashboardTarget) => void;
 };
 
@@ -58,7 +60,8 @@ function buildRecent(workspaceNodes: StudioUniverseWorkspaceNode[]): RecentWork[
     }));
 }
 
-export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceNodes, workspaceStatus, publicationInfo, onNavigate }: Props) {
+export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceNodes, workspaceStatus, publicationInfo, activeProjectId, onNavigate }: Props) {
+  const community = readCommunitySummary(activeProjectId);
   const editorialStats = aiStats as EditorialStats;
   const incremental = mergeStatus as MergeStatus | null;
   const editorialWorkspace = workspaceStatus as WorkspaceStatus | null;
@@ -118,6 +121,7 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
       <Metric label="AI kuyruğu" value={aiQueue} note={aiStats.analyzed ? `${aiStats.analyzed} çözümleme tamam` : ""} target="AI Atölyesi" onNavigate={onNavigate}/>
       <Metric label="Karar bekleyen" value={editorialPending + workspaceReview} note={editorialPending + workspaceReview ? `${editorialPending} ayıklama · ${workspaceReview} Evren` : ""} target="AI Atölyesi" onNavigate={onNavigate}/>
       <Metric label="Yayına hazır" value={readyToPublish} note={readyRelations ? `${readyRelations} public bağlantı` : ""} target="Yayınlama" onNavigate={onNavigate}/>
+      <Metric label="Topluluk" value={community?.threads ?? "—"} note={community ? `${community.posts} mesaj${community.members != null ? ` · ${community.members} üye` : ""} · son görüntülenen` : "Topluluk açılınca güncellenir"} target="Topluluk" onNavigate={onNavigate}/>
     </section>
     <section className="panel ops-flow-panel"><div className="ops-section-head"><div><h3>Üretim hattı</h3></div>{(aiStats.errors > 0 || catalog.total > 0) && <span>{aiStats.errors ? `${aiStats.errors} AI hatası` : `${catalog.total} katalog videosu`}</span>}</div><div className="ops-flow">{pipeline.map((step) => <button key={step.label} className={step.state} onClick={() => onNavigate(step.target)}><span className="ops-flow-index">{step.index}</span><div><small>{step.label}</small><strong>{formatNumber(step.value)}</strong>{(step.value > 0 || step.state === "waiting" || step.state === "error") && <p>{step.note}</p>}</div><i aria-hidden="true"/></button>)}</div></section>
     <TranslationStatus onNavigate={onNavigate}/>
@@ -129,6 +133,6 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
   </div>;
 }
 
-function Metric({ label, value, note, target, onNavigate }: { label: string; value: number; note: string; target: DashboardTarget; onNavigate: (section: DashboardTarget) => void }) {
-  return <button className="ops-metric" onClick={() => onNavigate(target)}><span>{label}</span><strong>{formatNumber(value)}</strong>{note && <small>{note}</small>}<em>→</em></button>;
+function Metric({ label, value, note, target, onNavigate }: { label: string; value: number | string; note: string; target: DashboardTarget; onNavigate: (section: DashboardTarget) => void }) {
+  return <button className="ops-metric" onClick={() => onNavigate(target)}><span>{label}</span><strong>{typeof value === "number" ? formatNumber(value) : value}</strong>{note && <small>{note}</small>}<em>→</em></button>;
 }

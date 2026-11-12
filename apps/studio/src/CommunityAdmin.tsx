@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { saveCommunitySummary } from "./community-summary-cache";
 
 type CommunityUserView = StudioCommunityUser & {
   email?: string | null;
@@ -74,7 +75,7 @@ function specialAccess(user: CommunityUserView) {
   return Boolean(user.specialAccess ?? user.researchAccess);
 }
 
-export default function CommunityAdmin() {
+export default function CommunityAdmin({ projectId = "" }: { projectId?: string }) {
   const bridge = window.channelFoundryStudio;
   const command = bridge?.communitySetResearch as unknown as CommunityCommand | undefined;
   const [session, setSession] = useState<StudioCommunitySession | null>(null);
@@ -93,11 +94,34 @@ export default function CommunityAdmin() {
   const [postVisibility, setPostVisibility] = useState<ComposerVisibility>("community");
   const [postAttachment, setPostAttachment] = useState<File | null>(null);
   const [fileKey, setFileKey] = useState(0);
+  const [bootState, setBootState] = useState<"loading" | "ready" | "unavailable" | "error">("loading");
+  const [bootRetry, setBootRetry] = useState(0);
+  const [view, setView] = useState<"threads" | "users">("threads");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [threadFilter, setThreadFilter] = useState<"all" | "community" | "special" | "locked">("all");
+  const [userFilter, setUserFilter] = useState<"all" | "active" | "suspended" | "special">("all");
+  const [threadPage, setThreadPage] = useState(1);
+  const [userPage, setUserPage] = useState(1);
+  const [postPage, setPostPage] = useState(1);
+  const LIST_PAGE_SIZE = 40;
+  const POSTS_PAGE_SIZE = 40;
 
   const loadUsers = async () => {
     if (!bridge) throw new Error("Community yönetim köprüsü bulunamadı.");
-    const result = await bridge.communityUsers();
-    setUsers(result.users as CommunityUserView[]);
+    setUsersLoading(true);
+    try {
+      const result = await bridge.communityUsers();
+      const next = result.users as CommunityUserView[];
+      setUsers(next);
+      setUsersLoaded(true);
+      setSelectedUserId((previous) => previous && next.some((user) => user.id === previous) ? previous : next[0]?.id ?? null);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   const loadThread = async (threadId: number) => {
@@ -124,64 +148,91 @@ export default function CommunityAdmin() {
     return nextSelected;
   };
 
+  // StudioPipeline lazy-loads this component only when Topluluk is selected.
+  // Keep the whole first view behind one loading surface until authentication,
+  // topic list and the selected topic have completed. Members are fetched on demand.
   useEffect(() => {
     let cancelled = false;
     const boot = async () => {
-      if (!bridge) return;
+      if (!bridge || !command) { setBootState("unavailable"); return; }
+      setBootState("loading");
+      setError(null);
       try {
-        const nextSession = await bridge.communityAdminConnect();
+        const cached = await bridge.communitySession();
+        const nextSession = cached.connected ? cached : await bridge.communityAdminConnect();
         if (cancelled) return;
         setSession(nextSession);
-        if (nextSession.connected) {
-          await Promise.all([loadUsers(), loadForum()]);
-        }
+        if (!nextSession.connected) { setBootState("unavailable"); return; }
+        const result = await command({ action: "forumThreads" });
+        const nextThreads = (result.threads as ForumThreadSummary[] | undefined) ?? [];
+        const firstId = nextThreads[0]?.id ?? null;
+        const firstDetail = firstId ? await command({ action: "forumThread", threadId: firstId }) : null;
+        if (cancelled) return;
+        setThreads(nextThreads);
+        setSelectedThreadId(firstId);
+        setSelectedThread(firstDetail ? (firstDetail.thread as ForumThreadDetail ?? null) : null);
+        setBootState("ready");
       } catch (bootError) {
-        if (!cancelled) setError(errorText(bootError));
+        if (cancelled) return;
+        setError(errorText(bootError));
+        setBootState("error");
       }
     };
     void boot();
     return () => { cancelled = true; };
-  }, []);
+  }, [bootRetry]);
 
   useEffect(() => {
-    if (!session?.connected || !selectedThreadId || !command) return;
+    if (bootState !== "ready" || view !== "users" || usersLoaded) return;
+    void loadUsers().catch((reason) => setError(errorText(reason)));
+  }, [view, bootState, usersLoaded]);
+
+  useEffect(() => {
+    if (bootState !== "ready" || view !== "threads" || composeOpen || !selectedThreadId || !command) return;
+    if (selectedThread?.id === selectedThreadId) return;
     let cancelled = false;
-    setForumBusy(true);
-    void loadThread(selectedThreadId)
-      .catch((loadError) => {
-        if (!cancelled) {
-          setSelectedThread(null);
-          setError(errorText(loadError));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setForumBusy(false);
-      });
+    setThreadLoading(true);
+    void command({ action: "forumThread", threadId: selectedThreadId })
+      .then((result) => { if (!cancelled) { setSelectedThread(result.thread as ForumThreadDetail ?? null); setPostPage(1); } })
+      .catch((reason) => { if (!cancelled) setError(errorText(reason)); })
+      .finally(() => { if (!cancelled) setThreadLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedThreadId, session?.connected]);
+  }, [selectedThreadId, view, bootState, composeOpen]);
 
   const metrics = useMemo(() => ({
     total: users.length,
-    special: users.filter((user) => specialAccess(user) && user.status === "active").length,
-    suspended: users.filter((user) => user.status === "suspended").length,
     threads: threads.length,
     posts: threads.reduce((sum, thread) => sum + thread.postCount, 0),
   }), [threads, users]);
 
+  // Dashboard reads only this small local snapshot, never the community API.
+  useEffect(() => {
+    if (bootState === "ready") saveCommunitySummary(projectId, {
+      threads: metrics.threads, posts: metrics.posts,
+      ...(usersLoaded ? { members: metrics.total } : {}),
+    });
+  }, [bootState, projectId, metrics.threads, metrics.posts, metrics.total, usersLoaded]);
+
   const filteredUsers = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
-    if (!term) return users;
-    return users.filter((user) => `${user.displayName} ${user.username} ${user.email ?? ""}`.toLocaleLowerCase("tr-TR").includes(term));
-  }, [query, users]);
+    return users.filter((user) => {
+      if (userFilter === "active" && user.status !== "active") return false;
+      if (userFilter === "suspended" && user.status !== "suspended") return false;
+      if (userFilter === "special" && !specialAccess(user) && user.role !== "admin") return false;
+      return !term || `${user.displayName} ${user.username} ${user.email ?? ""}`.toLocaleLowerCase("tr-TR").includes(term);
+    });
+  }, [query, users, userFilter]);
 
   const filteredThreads = useMemo(() => {
     const term = forumQuery.trim().toLocaleLowerCase("tr-TR");
-    if (!term) return threads;
-    return threads.filter((thread) =>
-      `${thread.title} ${thread.author.displayName} ${thread.author.username} ${thread.visibility}`
-        .toLocaleLowerCase("tr-TR")
-        .includes(term));
-  }, [forumQuery, threads]);
+    return threads.filter((thread) => {
+      if (threadFilter === "locked" && !thread.locked) return false;
+      if (threadFilter === "community" && thread.visibility !== "community") return false;
+      if (threadFilter === "special" && thread.visibility !== "special") return false;
+      return !term || `${thread.title} ${thread.author.displayName} ${thread.author.username} ${thread.visibility}`
+        .toLocaleLowerCase("tr-TR").includes(term);
+    });
+  }, [forumQuery, threads, threadFilter]);
 
   const changeSpecial = async (user: CommunityUserView) => {
     if (!bridge) return;
@@ -254,8 +305,11 @@ export default function CommunityAdmin() {
       setNotice(postVisibility === "special"
         ? "Özel paylaşım yayınlandı. Yalnızca özel yetkili üyeler görebilir."
         : "Topluluk paylaşımı yayınlandı.");
-      await Promise.all([loadUsers(), loadForum(createdThreadId)]);
-      if (createdThreadId) setSelectedThreadId(createdThreadId);
+      setSelectedThread(null);
+      setUsersLoaded(false); // Refresh member activity only when the Üyeler tab is opened.
+      await loadForum(createdThreadId);
+      setComposeOpen(false);
+      setThreadPage(1);
     } catch (postError) {
       setError(errorText(postError));
     } finally {
@@ -313,7 +367,8 @@ export default function CommunityAdmin() {
       setNotice(`“${selectedThread.title}” konusu silindi.`);
       setSelectedThread(null);
       setSelectedThreadId(null);
-      await Promise.all([loadUsers(), loadForum(null)]);
+      setUsersLoaded(false);
+      await loadForum(null);
     } catch (deleteError) {
       setError(errorText(deleteError));
     } finally {
@@ -330,7 +385,8 @@ export default function CommunityAdmin() {
     try {
       await command({ action: "deletePost", postId: post.id });
       setNotice("Forum mesajı silindi.");
-      await Promise.all([loadThread(selectedThread.id), loadUsers(), loadForum(selectedThread.id)]);
+      setUsersLoaded(false);
+      await Promise.all([loadThread(selectedThread.id), loadForum(selectedThread.id)]);
     } catch (deleteError) {
       setError(errorText(deleteError));
     } finally {
@@ -338,177 +394,202 @@ export default function CommunityAdmin() {
     }
   };
 
-  if (!bridge) {
-    return <section className="community-admin-empty panel">
-      <small>COMMUNITY</small>
-      <h2>Yönetim köprüsü bulunamadı.</h2>
-      <p>Bu ekran yalnızca Electron Studio içinde çalışır.</p>
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
+  const threadPages = Math.max(1, Math.ceil(filteredThreads.length / LIST_PAGE_SIZE));
+  const userPages = Math.max(1, Math.ceil(filteredUsers.length / LIST_PAGE_SIZE));
+  const visibleThreads = filteredThreads.slice((Math.min(threadPage, threadPages) - 1) * LIST_PAGE_SIZE, Math.min(threadPage, threadPages) * LIST_PAGE_SIZE);
+  const visibleUsers = filteredUsers.slice((Math.min(userPage, userPages) - 1) * LIST_PAGE_SIZE, Math.min(userPage, userPages) * LIST_PAGE_SIZE);
+  const displayedThread = selectedThread?.id === selectedThreadId ? selectedThread : null;
+  const postPages = Math.max(1, Math.ceil((displayedThread?.posts.length ?? 0) / POSTS_PAGE_SIZE));
+  const visiblePosts = displayedThread?.posts.slice((Math.min(postPage, postPages) - 1) * POSTS_PAGE_SIZE, Math.min(postPage, postPages) * POSTS_PAGE_SIZE) ?? [];
+
+  if (!bridge || !command) {
+    return <section className="community-console-state panel" role="alert"><h2>Topluluk bağlantısı bulunamadı</h2><p>Bu bölüm yalnızca Studio içinde çalışır.</p></section>;
+  }
+
+  if (bootState === "loading") {
+    return <section className="community-console-state panel" role="status" aria-live="polite">
+      <span className="community-console-spinner" aria-hidden="true"/>
+      <h2>Topluluk hazırlanıyor</h2>
+      <p>Yönetici bağlantısı doğrulanıyor, konular ve ilk mesajlar yükleniyor…</p>
     </section>;
   }
 
-  if (!session?.connected) {
-    return <section className="community-admin-unavailable panel">
-      <small>FORUM YÖNETİMİ</small>
-      <h2>Yönetici bağlantısı gerekli.</h2>
-      <p>{session?.lastError || "Forum yönetim işlemlerini kullanmak için Ayarlar sayfasında yönetici bağlantısını bir kez yapılandır."}</p>
-      <button className="primary-button" onClick={() => void bridge.navigate("Ayarlar")}>Yönetici bağlantısını ayarla</button>
+  if (bootState !== "ready") {
+    return <section className="community-console-state panel" role="alert">
+      <h2>{bootState === "unavailable" ? "Yönetici bağlantısı gerekli" : "Topluluk yüklenemedi"}</h2>
+      <p>{error || session?.lastError || "Yönetici bağlantısı Ayarlar bölümünden yapılandırılabilir."}</p>
+      <button type="button" className="secondary-button" onClick={() => { setBootState("loading"); setBootRetry((value) => value + 1); }}>Tekrar bağlan</button>
     </section>;
   }
 
-  return <section className="community-admin-view">
-    <div className="community-admin-heading">
-      <span className={error ? "community-inline-status error" : notice ? "community-inline-status success" : "community-inline-status"} aria-live="polite">{error ?? notice ?? ""}</span>
-      <div className="community-admin-session">
-        <span className="local-dot" />
-        <div><small>FORUM YÖNETİCİSİ</small><strong>{session.username}</strong></div>
-        <button className="text-button" onClick={() => void bridge.navigate("Ayarlar")}>Bağlantı ayarları</button>
+  return <section className="community-admin-view community-console" aria-label="Topluluk yönetimi">
+    <header className="community-console-header">
+      <div className="community-console-tabs" role="tablist" aria-label="Topluluk çalışma alanı">
+        <button type="button" id="community-topics-tab" role="tab" aria-selected={view === "threads"} aria-controls="community-console-workspace"
+          className={view === "threads" ? "active" : ""} onClick={() => { setView("threads"); setComposeOpen(false); }}>Konular <span>{metrics.threads}</span></button>
+        <button type="button" id="community-users-tab" role="tab" aria-selected={view === "users"} aria-controls="community-console-workspace"
+          className={view === "users" ? "active" : ""} onClick={() => setView("users")}>Üyeler <span>{usersLoaded ? metrics.total : "—"}</span></button>
       </div>
-    </div>
-
-    <div className="community-admin-metrics">
-      <article className="metric-card"><span>Üyeler</span><strong>{metrics.total}</strong><small>{metrics.suspended} üyelik erişime kapalı</small></article>
-      <article className="metric-card"><span>Özel yetki</span><strong>{metrics.special}</strong><small>Özel paylaşımları görebilen</small></article>
-      <article className="metric-card"><span>Konular</span><strong>{metrics.threads}</strong><small>Forumda kayıtlı başlık</small></article>
-      <article className="metric-card"><span>Mesajlar</span><strong>{metrics.posts}</strong><small>Başlangıç + yanıtlar</small></article>
-    </div>
-
-    <section className="panel community-admin-compose-panel">
-      <header>
-        <div><small>YÖNETİCİ PAYLAŞIMI</small><h3>Forumda yeni başlık aç</h3><p>Topluluk paylaşımı tüm aktif üyelere; özel paylaşım yalnızca özel yetkili üyelere görünür.</p></div>
-        <span className={postVisibility === "special" ? "community-visibility special" : "community-visibility"}>{postVisibility === "special" ? "ÖZEL" : "TOPLULUK"}</span>
-      </header>
-      <form onSubmit={submitPost}>
-        <label><span>Başlık</span><input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} minLength={4} maxLength={140} required /></label>
-        <label className="community-compose-visibility"><span>Paylaşım alanı</span><select value={postVisibility} onChange={(event) => setPostVisibility(event.target.value as ComposerVisibility)}><option value="community">Topluluk</option><option value="special">Özel</option></select></label>
-        <label className="community-compose-message"><span>Mesaj</span><textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} minLength={2} maxLength={12000} rows={5} required /></label>
-        <label className="community-compose-file"><span>Dosya · isteğe bağlı · en fazla 12 MB</span><input key={fileKey} type="file" accept=".pdf,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.zip,.docx,.xlsx,.pptx" onChange={(event) => setPostAttachment(event.target.files?.[0] || null)} /></label>
-        <div className="community-compose-actions"><span>{postAttachment ? `${postAttachment.name} · ${(postAttachment.size / 1024 / 1024).toFixed(1)} MB` : "Dosya eklenmedi"}</span><button className="primary-button" type="submit" disabled={busy}>{busy ? "Yayınlanıyor…" : "Foruma yayınla"}</button></div>
-      </form>
-    </section>
-
-    <section className="panel community-forum-admin-panel">
-      <div className="community-admin-toolbar">
-        <div><small>FORUM İÇERİĞİ</small><h3>Gönderilen mesajlar</h3></div>
-        <div className="community-admin-tools">
-          <input value={forumQuery} onChange={(event) => setForumQuery(event.target.value)} placeholder="Başlık veya kullanıcı ara…" />
-          <button className="secondary-button" onClick={() => void refreshForum()} disabled={forumBusy}>Yenile</button>
-        </div>
+      <div className="community-console-summary">
+        <span><i className="community-console-dot" aria-hidden="true"/>Bağlı</span>
+        <span>{metrics.threads} konu · {metrics.posts} mesaj{usersLoaded ? ` · ${metrics.total} üye` : ""}</span>
       </div>
+      <div className="community-console-main-actions">
+        {view === "threads" && <button type="button" className={composeOpen ? "community-console-action active" : "community-console-action"}
+          onClick={() => setComposeOpen((current) => !current)} aria-expanded={composeOpen}>
+          {composeOpen ? "Konulara dön" : "+ Yeni konu"}
+        </button>}
+        <button type="button" className="community-console-action" onClick={() => void (view === "threads" ? refreshForum() : loadUsers().catch((reason) => setError(errorText(reason))))}
+          disabled={view === "threads" ? forumBusy : usersLoading} aria-label="Görünümü yenile">↻ Yenile</button>
+      </div>
+    </header>
 
-      <div className="community-forum-admin-layout">
-        <div className="community-forum-thread-list">
-          {filteredThreads.map((thread) => <button
-            type="button"
-            key={thread.id}
-            className={thread.id === selectedThreadId ? "community-forum-thread active" : "community-forum-thread"}
-            onClick={() => setSelectedThreadId(thread.id)}
-          >
-            <span className={thread.visibility === "special" ? "community-visibility special" : "community-visibility"}>{thread.visibility === "special" ? "ÖZEL" : "TOPLULUK"}</span>
-            <strong>{thread.title}</strong>
-            <small>@{thread.author.username} · {thread.postCount} mesaj</small>
-            <small>{formatDate(thread.updatedAt)}{thread.locked ? " · kilitli" : ""}</small>
-          </button>)}
-          {!filteredThreads.length && <div className="community-forum-list-empty">Forum konusu bulunamadı.</div>}
+    {(error || notice) && <div className={error ? "community-console-feedback error" : "community-console-feedback success"} role={error ? "alert" : "status"}>
+      <span>{error ?? notice}</span>
+      <button type="button" onClick={() => { setError(null); setNotice(null); }} aria-label="Bildirimi kapat">×</button>
+    </div>}
+
+    <div className="community-console-body" id="community-console-workspace" role="tabpanel" aria-labelledby={view === "threads" ? "community-topics-tab" : "community-users-tab"}>
+      <aside className="community-console-sidebar">
+        <div className="community-console-search">
+          <input aria-label={view === "threads" ? "Konu ara" : "Üye ara"}
+            value={view === "threads" ? forumQuery : query}
+            placeholder={view === "threads" ? "Konu veya kullanıcı ara…" : "Ad, kullanıcı veya e-posta ara…"}
+            onChange={(event) => view === "threads" ? (setForumQuery(event.target.value), setThreadPage(1)) : (setQuery(event.target.value), setUserPage(1))}/>
+          {view === "threads"
+            ? <select aria-label="Konu filtresi" value={threadFilter} onChange={(event) => { setThreadFilter(event.target.value as typeof threadFilter); setThreadPage(1); }}>
+                <option value="all">Tüm konular</option><option value="community">Topluluk</option><option value="special">Özel</option><option value="locked">Kilitli</option>
+              </select>
+            : <select aria-label="Üye filtresi" value={userFilter} onChange={(event) => { setUserFilter(event.target.value as typeof userFilter); setUserPage(1); }}>
+                <option value="all">Tüm üyeler</option><option value="active">Aktif</option><option value="suspended">Kapalı</option><option value="special">Özel yetkili</option>
+              </select>}
         </div>
+        <div className="community-console-list" role="list" aria-label={view === "threads" ? "Konu listesi" : "Üye listesi"}>
+          {view === "threads" ? <>
+            {visibleThreads.map((thread) => <button type="button" role="listitem" key={thread.id}
+              className={thread.id === selectedThreadId && !composeOpen ? "community-console-item selected" : "community-console-item"}
+              onClick={() => { setSelectedThreadId(thread.id); setComposeOpen(false); setPostPage(1); }}>
+              <span className="community-console-item-upper"><span className={thread.visibility === "special" ? "community-console-kind special" : "community-console-kind"}>{thread.visibility === "special" ? "ÖZEL" : "TOPLULUK"}</span>
+                {thread.locked && <span className="community-console-kind">KİLİTLİ</span>}</span>
+              <strong>{thread.title}</strong><small>@{thread.author.username} · {thread.postCount} mesaj · {formatDate(thread.updatedAt)}</small>
+            </button>)}
+            {!filteredThreads.length && <p className="community-console-list-empty">Konu bulunamadı.</p>}
+          </> : <>
+            {!usersLoaded && <p className="community-console-list-empty">{usersLoading || !error ? "Üyeler yükleniyor…" : "Üyeler alınamadı. Yenile ile tekrar dene."}</p>}
+            {visibleUsers.map((user) => <button type="button" role="listitem" key={user.id}
+              className={user.id === selectedUserId ? "community-console-item selected" : "community-console-item"}
+              onClick={() => setSelectedUserId(user.id)}>
+              <span className="community-console-user-line"><span className={user.role === "admin" ? "community-console-avatar admin" : "community-console-avatar"}>{user.displayName.trim().slice(0, 2).toLocaleUpperCase("tr-TR") || "ÜY"}</span>
+                <span><strong>{user.displayName}</strong><small>@{user.username} · {user.role === "admin" ? "Yönetici" : "Üye"}</small></span>
+                <span className={user.status === "active" ? "community-console-user-state" : "community-console-user-state suspended"}>{user.status === "active" ? "Aktif" : "Kapalı"}</span>
+              </span>
+              <small>{user.threadCount} konu · {user.postCount} mesaj · {formatDate(user.lastLoginAt)}</small>
+            </button>)}
+            {usersLoaded && !filteredUsers.length && <p className="community-console-list-empty">Üye bulunamadı.</p>}
+          </>}
+        </div>
+        <div className="community-console-pagination">
+          <span>{view === "threads" ? filteredThreads.length : filteredUsers.length} kayıt</span>
+          <div>
+            <button type="button" aria-label="Önceki liste sayfası" disabled={(view === "threads" ? threadPage : userPage) <= 1}
+              onClick={() => view === "threads" ? setThreadPage((p) => Math.max(1, p - 1)) : setUserPage((p) => Math.max(1, p - 1))}>‹</button>
+            <span>{view === "threads" ? Math.min(threadPage, threadPages) : Math.min(userPage, userPages)} / {view === "threads" ? threadPages : userPages}</span>
+            <button type="button" aria-label="Sonraki liste sayfası" disabled={(view === "threads" ? threadPage >= threadPages : userPage >= userPages)}
+              onClick={() => view === "threads" ? setThreadPage((p) => p + 1) : setUserPage((p) => p + 1)}>›</button>
+          </div>
+        </div>
+      </aside>
 
-        <div className="community-forum-thread-detail">
-          {!selectedThread && !forumBusy && <div className="community-forum-detail-empty"><small>FORUM</small><h3>Bir konu seç.</h3><p>Mesajları, görünürlük durumunu ve yanıtları buradan yönetebilirsin.</p></div>}
-          {forumBusy && !selectedThread && <div className="community-forum-detail-empty">Forum yükleniyor…</div>}
-          {selectedThread && <>
-            <header className="community-forum-detail-header">
-              <div>
-                <small>@{selectedThread.author.username} · {formatDate(selectedThread.createdAt)}</small>
-                <h3>{selectedThread.title}</h3>
-              </div>
-              <div className="community-forum-detail-actions">
-                <label>
-                  <span>Görünürlük</span>
-                  <select
-                    value={selectedThread.visibility}
-                    onChange={(event) => void updateThread({ visibility: event.target.value as ComposerVisibility })}
-                    disabled={forumBusy}
-                  >
-                    <option value="community">Topluluk</option>
-                    <option value="special">Özel</option>
-                  </select>
-                </label>
-                <button className="secondary-button" onClick={() => void updateThread({ locked: !selectedThread.locked })} disabled={forumBusy}>
-                  {selectedThread.locked ? "Yanıtları aç" : "Yanıtları kilitle"}
-                </button>
-                <button className="community-danger-button" onClick={() => void deleteThread()} disabled={forumBusy}>Konuyu sil</button>
+      <div className="community-console-detail">
+        {view === "threads" && composeOpen && <section className="community-console-composer" aria-label="Yeni konu">
+          <header className="community-console-detail-top"><div><small>YENİ PAYLAŞIM</small><h2>Yeni konu aç</h2></div>
+            <button type="button" className="community-console-close" onClick={() => setComposeOpen(false)} aria-label="Yeni konuyu kapat">×</button>
+          </header>
+          <form onSubmit={submitPost} className="community-console-form">
+            <label><span>Başlık</span><input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} minLength={4} maxLength={140} placeholder="Konu başlığı" required/></label>
+            <label><span>Görünürlük</span><select value={postVisibility} onChange={(event) => setPostVisibility(event.target.value as ComposerVisibility)}>
+              <option value="community">Topluluk</option><option value="special">Özel yetkili üyeler</option>
+            </select></label>
+            <label className="community-console-form-message"><span>Mesaj</span><textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} minLength={2} maxLength={12000} rows={9} placeholder="Mesajınızı yazın…" required/></label>
+            <label className="community-console-form-file"><span>Dosya ekle (en fazla 12 MB)</span>
+              <input key={fileKey} type="file" accept=".pdf,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.zip,.docx,.xlsx,.pptx"
+                onChange={(event) => setPostAttachment(event.target.files?.[0] || null)}/></label>
+            <footer><small>{postAttachment ? `${postAttachment.name} · ${formatBytes(postAttachment.size)}` : "Ek yok"}</small>
+              <button className="primary-button" disabled={busy} type="submit">{busy ? "Yayınlanıyor…" : "Foruma yayınla"}</button></footer>
+          </form>
+        </section>}
+
+        {view === "threads" && !composeOpen && <>
+          {threadLoading && <div className="community-console-detail-empty" role="status">Konu yükleniyor…</div>}
+          {!threadLoading && !displayedThread && <div className="community-console-detail-empty">Bir konu seç.</div>}
+          {!threadLoading && displayedThread && <>
+            <header className="community-console-detail-top">
+              <div><small>@{displayedThread.author.username} · {formatDate(displayedThread.createdAt)}</small>
+                <h2>{displayedThread.title}</h2></div>
+              <div className="community-console-topic-actions">
+                <label><span>Görünürlük</span><select aria-label="Konu görünürlüğü" value={displayedThread.visibility} disabled={forumBusy}
+                  onChange={(event) => void updateThread({visibility:event.target.value as ComposerVisibility})}>
+                  <option value="community">Topluluk</option><option value="special">Özel</option></select></label>
+                <button className="community-console-action" type="button" disabled={forumBusy} onClick={() => void updateThread({locked:!displayedThread.locked})}>{displayedThread.locked ? "Yanıtları aç" : "Yanıtları kilitle"}</button>
+                <button className="community-console-danger" type="button" disabled={forumBusy} onClick={() => void deleteThread()}>Konuyu sil</button>
               </div>
             </header>
-
-            <div className="community-forum-posts">
-              {selectedThread.posts.map((post, index) => <article className="community-forum-post-card" key={post.id}>
-                <div className="community-forum-post-meta">
-                  <div><strong>{post.author.displayName}</strong><small>@{post.author.username} · {formatDate(post.createdAt)}</small></div>
-                  <div>
-                    {index === 0
-                      ? <span className="community-forum-origin">Başlangıç mesajı</span>
-                      : <button className="community-danger-link" onClick={() => void deletePost(post)} disabled={forumBusy}>Mesajı sil</button>}
-                  </div>
+            <div className="community-console-posts">
+              {visiblePosts.map((post, index) => <article className="community-console-post" key={post.id}>
+                <div className="community-console-post-head">
+                  <div><strong>{post.author.displayName}</strong><small>@{post.author.username} · {formatDate(post.createdAt)}{post.editedAt ? " · düzenlendi" : ""}</small></div>
+                  {post.id === displayedThread.posts[0]?.id ? <span className="community-console-origin">Başlangıç mesajı</span> :
+                    <button className="community-console-danger-link" type="button" disabled={forumBusy} onClick={() => void deletePost(post)}>Mesajı sil</button>}
                 </div>
                 <p>{post.body}</p>
-                {!!post.attachments.length && <div className="community-forum-attachments">
+                {!!post.attachments.length && <div className="community-console-attachments">
                   {post.attachments.map((attachment) => <span key={attachment.id}>{attachment.name} · {formatBytes(attachment.sizeBytes)}</span>)}
                 </div>}
               </article>)}
             </div>
+            {postPages > 1 && <footer className="community-console-post-pages">
+              <button type="button" disabled={postPage <= 1} onClick={() => setPostPage((value) => Math.max(1,value-1))}>Önceki mesajlar</button>
+              <span>{Math.min(postPage,postPages)} / {postPages}</span>
+              <button type="button" disabled={postPage >= postPages} onClick={() => setPostPage((value) => value+1)}>Sonraki mesajlar</button>
+            </footer>}
           </>}
-        </div>
-      </div>
-    </section>
+        </>}
 
-    <section className="panel community-admin-list-panel">
-      <div className="community-admin-toolbar">
-        <div><small>ÜYE DİZİNİ</small><h3>Üyelik ve özel erişim</h3></div>
-        <div className="community-admin-tools">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad, kullanıcı veya e-posta ara…" />
-          <button className="secondary-button" onClick={() => void loadUsers()} disabled={busy}>Yenile</button>
-        </div>
-      </div>
-      <div className="community-admin-users">
-        {filteredUsers.map((user) => {
-          const isCurrentAdmin = user.username === session.username;
-          const hasSpecialAccess = specialAccess(user);
-          return <article className={user.status === "suspended" ? "community-user-card suspended" : "community-user-card"} key={user.id}>
-            <div className="community-user-identity">
-              <span className={user.role === "admin" ? "community-role admin" : "community-role"}>{user.role === "admin" ? "AD" : "ÜY"}</span>
-              <div>
-                <strong>{user.displayName}</strong>
-                <small>@{user.username} · {user.role === "admin" ? "Yönetici" : "Üye"}</small>
-                <small>{user.email || "Eski üyelik · e-posta kaydı yok"}{user.email ? (user.emailVerified === false ? " · doğrulanmamış" : " · doğrulandı") : ""}</small>
-              </div>
-            </div>
-            <div className="community-user-activity">
-              <span>{user.threadCount} konu</span>
-              <span>{user.postCount} mesaj</span>
-              <small>Son giriş: {formatDate(user.lastLoginAt)}</small>
-            </div>
-            <div className="community-user-actions">
-              <button
-                className={hasSpecialAccess ? "research-toggle enabled" : "research-toggle"}
-                onClick={() => void changeSpecial(user)}
-                disabled={busy || user.status === "suspended" || user.role === "admin"}
-                title={user.role === "admin" ? "Yöneticiler özel paylaşımları doğrudan görebilir." : undefined}
-              >
-                <span>{hasSpecialAccess || user.role === "admin" ? "●" : "○"}</span>
-                Özel Yetki {hasSpecialAccess || user.role === "admin" ? "Açık" : "Kapalı"}
-              </button>
-              <button
-                className={user.status === "suspended" ? "status-toggle suspended" : "status-toggle"}
-                onClick={() => void changeStatus(user)}
-                disabled={busy || isCurrentAdmin}
-                title={isCurrentAdmin ? "Aktif yönetici kendi üyeliğini iptal edemez." : undefined}
-              >
-                {user.status === "active" ? "Üyeliği iptal et" : "Üyeliği yeniden aç"}
+        {view === "users" && <>
+          {!usersLoaded && <div className="community-console-detail-empty" role="status">{usersLoading || !error ? "Üyeler yükleniyor…" : "Üyeler alınamadı. Yenile ile tekrar dene."}</div>}
+          {usersLoaded && !selectedUser && <div className="community-console-detail-empty">Bir üye seç.</div>}
+          {selectedUser && <section className="community-console-member">
+            <header className="community-console-detail-top">
+              <div><small>{selectedUser.role === "admin" ? "YÖNETİCİ" : "ÜYE"} · @{selectedUser.username}</small>
+                <h2>{selectedUser.displayName}</h2></div>
+              <span className={selectedUser.status === "active" ? "community-console-member-status" : "community-console-member-status suspended"}>{selectedUser.status === "active" ? "Aktif" : "Erişime kapalı"}</span>
+            </header>
+            <dl className="community-console-member-facts">
+              <div><dt>E-posta</dt><dd>{selectedUser.email || "Kayıt yok"}{selectedUser.email && <small>{selectedUser.emailVerified === false ? "Doğrulanmamış" : "Doğrulandı"}</small>}</dd></div>
+              <div><dt>Son giriş</dt><dd>{formatDate(selectedUser.lastLoginAt)}</dd></div>
+              <div><dt>Konular</dt><dd>{selectedUser.threadCount}</dd></div>
+              <div><dt>Mesajlar</dt><dd>{selectedUser.postCount}</dd></div>
+            </dl>
+            <div className="community-console-member-controls">
+              <div><strong>Özel paylaşım yetkisi</strong><small>Özel konuları görme erişimi</small></div>
+              <button type="button" className={specialAccess(selectedUser) || selectedUser.role === "admin" ? "community-console-action active" : "community-console-action"}
+                disabled={busy || selectedUser.status === "suspended" || selectedUser.role === "admin"}
+                onClick={() => void changeSpecial(selectedUser)} aria-pressed={specialAccess(selectedUser) || selectedUser.role === "admin"}>
+                {specialAccess(selectedUser) || selectedUser.role === "admin" ? "Açık" : "Kapalı"}
               </button>
             </div>
-          </article>;
-        })}
-        {!filteredUsers.length && <div className="community-admin-empty"><small>ÜYE DİZİNİ</small><h3>Eşleşen kullanıcı yok.</h3></div>}
+            <div className="community-console-member-controls">
+              <div><strong>Üyelik durumu</strong><small>{selectedUser.status === "active" ? "Üyeliği kapatmak geçmiş mesajları silmez" : "Erişimi yeniden aç"}</small></div>
+              <button type="button" className={selectedUser.status === "active" ? "community-console-danger" : "community-console-action"}
+                disabled={busy || selectedUser.username === session?.username}
+                onClick={() => void changeStatus(selectedUser)}>
+                {selectedUser.status === "active" ? "Üyeliği iptal et" : "Üyeliği yeniden aç"}
+              </button>
+            </div>
+          </section>}
+        </>}
       </div>
-    </section>
+    </div>
   </section>;
 }
