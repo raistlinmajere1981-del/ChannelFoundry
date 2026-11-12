@@ -497,9 +497,13 @@ $('#show-photo').onclick=()=>{
   $('#scene-viewport').classList.toggle('has-photo',showPhoto);
   $('#show-photo').setAttribute('aria-pressed',String(showPhoto));
 };
-$('#show-guides').onclick=()=>{
-  const hidden=$('#scene-viewport').classList.toggle('hide-guides');
-  $('#show-guides').setAttribute('aria-pressed',String(!hidden));
+$('#show-object-areas').onclick=()=>{
+  const hidden=$('#scene-viewport').classList.toggle('hide-object-areas');
+  $('#show-object-areas').setAttribute('aria-pressed',String(!hidden));
+};
+$('#show-hit-areas').onclick=()=>{
+  const hidden=$('#scene-viewport').classList.toggle('hide-hit-areas');
+  $('#show-hit-areas').setAttribute('aria-pressed',String(!hidden));
 };
 $('#show-effects').onclick=()=>{
   showEffects=!showEffects;previewHandle?.setEnabled(showEffects);

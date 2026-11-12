@@ -42,7 +42,8 @@
         <div><span class="scene-eyebrow">ÇALIŞMA ALANI</span><h2>V2 sahne önizlemesi</h2></div>
         <div class="scene-toolbar">
           <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
-          <button type="button" id="show-guides" aria-pressed="true">Alanlar</button>
+          <button type="button" id="show-object-areas" aria-pressed="false" title="Nesnelerin sahne yerleşim çerçevelerini göster veya gizle">Nesne Alanı</button>
+          <button type="button" id="show-hit-areas" aria-pressed="true" title="Tıklanabilir alanları göster veya gizle">Tıklama Alanı</button>
           <button type="button" id="show-effects" aria-pressed="true">Efektler</button>
           <button type="button" id="undo" aria-label="Geri al" title="Geri al (Ctrl/⌘ Z)">↶</button>
           <button type="button" id="redo" aria-label="Yinele" title="Yinele (Ctrl/⌘ Shift Z)">↷</button>
@@ -50,7 +51,7 @@
         </div>
       </div>
       <div class="scene-stage-well">
-       <div id="scene-viewport" class="scene-viewport" aria-label="Normalleştirilmiş sahne görünümü">
+       <div id="scene-viewport" class="scene-viewport hide-object-areas" aria-label="Normalleştirilmiş sahne görünümü">
         <img id="scene-photo" class="scene-photo" alt="BirDeSenGör güncel çalışma odası" draggable="false" hidden>
         <div id="scene-objects" class="scene-objects"></div>
         <div id="scene-markers" class="scene-markers"></div>

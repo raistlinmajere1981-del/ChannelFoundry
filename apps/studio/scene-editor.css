@@ -61,8 +61,8 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .has-photo .scene-object{background:transparent;border-color:#c4d7d43d;box-shadow:none}
 .has-photo .scene-object.selected{border-color:var(--accent);box-shadow:0 0 0 1px #e9a24b55}
 .has-photo .scene-object:not(.selected) .scene-object-anchor,.has-photo .scene-object:not(.selected) .scene-object-label{visibility:hidden}
-.hide-guides .scene-object{border-color:transparent!important;box-shadow:none!important}
-.hide-guides .scene-object-label,.hide-guides .scene-object-anchor,.hide-guides .scene-markers{visibility:hidden}
+.hide-object-areas .scene-object{border-color:transparent!important;box-shadow:none!important;background:transparent!important}
+.hide-object-areas .scene-object-label,.hide-object-areas .scene-object-anchor{visibility:hidden}
 .scene-stage-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .scene-toolbar{display:flex;gap:6px;flex-wrap:wrap}
 .scene-toolbar button{min-height:32px;padding:5px 9px;font-size:12px}
@@ -81,7 +81,7 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-object.is-hidden{opacity:.32;border-style:dashed;background:transparent}
 .scene-hit-area{position:absolute;z-index:500;pointer-events:none;border:1px dashed #69c7b0a0;background:#69c7b01e;box-shadow:inset 0 0 0 1px #1119}
 .scene-hit-area.selected{border:2px solid #f9b04a;background:#f9b04a21;pointer-events:auto;cursor:move;touch-action:none}
-.hide-guides .scene-hit-area{display:none}
+.hide-hit-areas .scene-hit-area{display:none}
 .scene-object-label{position:absolute;left:0;top:-17px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;letter-spacing:.03em;color:#d7e2e3;background:#151b1ecc;border-radius:3px;padding:1px 4px;pointer-events:none}
 .scene-object-anchor{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;border:1px solid #b7e7da;background:#2e6355;pointer-events:none;box-shadow:0 0 0 2px #0004}
 .scene-object-anchor.is-selected{background:var(--accent);border-color:#fff1d8;box-shadow:0 0 0 3px #e9a24b55}
