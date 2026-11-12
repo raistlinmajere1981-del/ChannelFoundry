@@ -11,7 +11,7 @@ import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK
 
 let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
 let presentation=defaultScenePresentation(),presentationDevice='desktop';
-let focusTargets=new Map(),focusPreview=false;
+let focusTargets=new Map(),focusPreview=false,roomObjects=new Map(),showRoomObjects=true;
 let previewHandle=null,previewFrame=null;
 let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
@@ -655,8 +655,63 @@ function refreshRobePreview(){
     if(canvas.isConnected)drawRefractedSilhouette(canvas,photo,image,item.pose,item.veil.distortionPx);
   }).catch(()=>{});
 }
+/** Source-aligned room composition. These pixels are read from the exact
+ * reviewed WebP assets already supplied for source editing. This is a static
+ * room preview, never a second React/Grabfold/LCD/playback instance.
+ */
+function renderRoomObjects(){
+  const host=$('#scene-room-objects');
+  host.replaceChildren();
+  host.hidden=!siteSource||!showRoomObjects||!roomObjects.size;
+  if(host.hidden)return;
+  const asset=(id,path)=>{
+    const source=artworkSlots.get(id)?.find(entry=>entry.path===path);
+    return source?replacementSource(path,source.image):null;
+  };
+  for(const [id,record] of roomObjects){
+    const owner=scene.objects.find(entry=>entry.id===id);
+    if(!owner)continue;
+    const node=el('button',{type:'button',class:'scene-room-figure scene-room-figure--'+record.kind,
+      'data-room-object':id,'data-selected':String(objectId===id),
+      'aria-label':owner.name+' · oda görünümünde seç',
+      onclick:()=>selectObject(id)});
+    const coords=record.kind==='book'
+      ?{x:record.x,y:record.y,width:record.width,height:record.width*2/1.5}
+      :{x:record.foundation.x,y:record.foundation.y,width:record.foundation.width,height:record.foundation.height};
+    Object.assign(node.style,{
+      left:coords.x*100+'%',top:coords.y*100+'%',
+      width:coords.width*100+'%',height:coords.height*100+'%',
+      transform:'translate(-50%, -50%)'+(record.kind==='book'
+        ?' rotate('+record.angle+'deg) scaleY('+record.surfaceScaleY+')'
+        :id==='vefk-stand'?' perspective(800px) rotateY(-9deg)':''),
+    });
+    const append=(path,cls,styling={})=>{
+      const source=asset(id,path);
+      if(!source)return;
+      const image=el('img',{src:source,class:cls,alt:'',decoding:'async',draggable:false});
+      Object.assign(image.style,styling);
+      node.append(image);
+    };
+    if(record.kind==='book')append(record.src,'scene-room-cover');
+    else if(id==='camera')append('/scene-assets/camera/research/camera-body.webp','scene-room-camera');
+    else if(id==='vefk-stand'){
+      const paper=presentation.objects[id].physical.desktop;
+      append('/scene-assets/vefk/vellum.webp','scene-room-paper',{
+        left:(115+paper.paperX)/1024*100+'%',top:(170+paper.paperY)/1536*100+'%',
+        transform:'scale('+paper.paperScale+')',
+      });
+      append('/scene-assets/vefk/chassis-no-nameplate.webp','scene-room-chassis');
+      append('/scene-assets/vefk/quill.webp','scene-room-quill');
+      append('/scene-assets/vefk/inkwell.webp','scene-room-inkwell',{
+        left:(80+paper.inkwellX)/1024*100+'%',top:(951+paper.inkwellY)/1536*100+'%',
+      });
+    }
+    if(node.childElementCount)host.append(node);
+  }
+}
 function renderStage(){
   previewHandle?.destroy();previewHandle=null;
+  renderRoomObjects();
   const host=$('#scene-objects');host.replaceChildren();objectElements.clear();
   if(!scene)return;
   for(const item of scene.objects){
@@ -688,7 +743,7 @@ function applyFocusPreview(){
   }
   const root=$('#scene-viewport');
   root.classList.toggle('presentation-preview',show);
-  for(const selector of ['#scene-photo','#scene-objects','#scene-markers']){
+  for(const selector of ['#scene-photo','#scene-room-objects','#scene-objects','#scene-markers']){
     const node=$(selector);
     node.style.transform=transform;
     node.style.transformOrigin='50% 50%';
@@ -919,6 +974,31 @@ function installPreview(packet){
       throw Error('Geçersiz odak önizleme hedefi.');
     focusTargets.set(target.id,target.foundation);
   }
+  roomObjects=new Map();
+  for(const record of packet.roomObjects??[]){
+    if(!record||!FOCUS_OBJECT_IDS.includes(record.id)||roomObjects.has(record.id)||
+       !packet.scene.objects.some(item=>item.id===record.id)||
+       !['book','device'].includes(record.kind))throw Error('Geçersiz oda nesnesi.');
+    if(record.kind==='book'){
+      const values=[record.x,record.y,record.width,record.angle,record.surfaceScaleY];
+      if(!['research-journal','community-journal'].includes(record.id)||
+         typeof record.src!=='string'||!artworkSlots.get(record.id)?.some(slot=>slot.path===record.src)||
+         !values.every(Number.isFinite)||record.x<0||record.x>1||record.y<0||record.y>1||
+         record.width<=0||record.width>.6||Math.abs(record.angle)>45||
+         record.surfaceScaleY<.65||record.surfaceScaleY>1.35)
+        throw Error('Geçersiz kitap önizleme konumu.');
+    }else{
+      const f=record.foundation;
+      if(!['camera','vefk-stand'].includes(record.id)||
+         !f||!['x','y','width','height'].every(key=>Number.isFinite(f[key]))||
+         f.x<0||f.x>1||f.y<0||f.y>1||f.width<=0||f.width>1||f.height<=0||f.height>1)
+        throw Error('Geçersiz donanım önizleme konumu.');
+    }
+    roomObjects.set(record.id,record);
+  }
+  if(packet.roomObjects!==undefined&&roomObjects.size!==4)
+    throw Error('Oda önizlemesi dört ana nesneyi içermeli.');
+  $('#show-room-objects').disabled=!siteSource||!roomObjects.size;
   $('#advanced-settings').open=false;
   const photo=$('#scene-photo');
   photo.onload=()=>{$('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);fitStage();};
@@ -1036,6 +1116,11 @@ $('#show-photo').onclick=()=>{
   $('#scene-photo').hidden=!showPhoto;
   $('#scene-viewport').classList.toggle('has-photo',showPhoto);
   $('#show-photo').setAttribute('aria-pressed',String(showPhoto));
+};
+$('#show-room-objects').onclick=()=>{
+  showRoomObjects=!showRoomObjects;
+  $('#show-room-objects').setAttribute('aria-pressed',String(showRoomObjects));
+  renderRoomObjects();
 };
 $('#show-object-areas').onclick=()=>{
   const hidden=$('#scene-viewport').classList.toggle('hide-object-areas');

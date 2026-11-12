@@ -99,6 +99,7 @@ class SceneWorkshop {
       previewImage: await this.site.preview(source),
       previewObjects: this.site.previewObjects(source),
       previewArt: this.site.previewArt?.(source) ?? [],
+      roomObjects: this.site.roomObjects?.(source) ?? [],
       focusTargets: this.site.focusTargets?.(source) ?? [],
     };
   }

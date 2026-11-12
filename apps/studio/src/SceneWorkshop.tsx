@@ -60,7 +60,7 @@ export default function SceneWorkshop() {
       const reply = await bridge.sceneWorkshopLoad();
       await request("studio:load", {
         scene: reply.scene, previewImage: reply.previewImage,
-        previewObjects: reply.previewObjects, previewArt: reply.previewArt, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: true,
+        previewObjects: reply.previewObjects, previewArt: reply.previewArt, roomObjects: reply.roomObjects, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: true,
       });
       sourceHash.current = reply.sourceHash;
       setReadiness(reply.readiness);

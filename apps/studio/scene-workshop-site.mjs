@@ -7,6 +7,7 @@ import {importProject,validateProject,exportProject} from '../../packages/effect
 import {compileObjectScene} from '../../packages/effect-engine/src/runtime/object-compile.mjs';
 import {validateAssetOverrides} from './scene-asset-overrides.mjs';
 import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from './scene-physical-art.mjs';
+import {CLOSED_BOOKS} from '../../channels/birdesengor/web/src/book/closedBookLayout.js';
 import {validateScenePresentation} from '../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export const BIRDESENGOR_SITE=resolve(dirname(fileURLToPath(import.meta.url)),'../../channels/birdesengor/web');
@@ -192,6 +193,27 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   if(state.mounted.ready && enabledCount>mountedCount)problems.push('Etkin efekt sayısı doğrulanmış site yuvalarını aşıyor.');
   return {ready:problems.length===0,effectCount:scene.effects.length,enabledCount,mountedCount,problems};
  }
+ /** Read-only room composition from the same coordinates that the actual
+  * React runtime uses: closedBookLayout for books, canonical study manifest
+  * for the two physical devices. Never copy these positions into the editor.
+  */
+ function roomObjects(state){
+  const books=CLOSED_BOOKS.map(book=>{
+    if(!state.manifest.objects.some(o=>o.id===book.id))
+      throw Error('Önizleme kitabı manifestte eksik: '+book.id);
+    if(!PHYSICAL_ART_SLOTS[book.id]?.some(slot=>slot.path===book.src))
+      throw Error('Önizleme kitap kaynağı görsel kataloğunda yok: '+book.src);
+    return {id:book.id,kind:'book',src:book.src,
+      x:book.x,y:book.y,width:book.width,angle:book.angle,
+      surfaceScaleY:book.surfaceScaleY??1};
+  });
+  const devices=['camera','vefk-stand'].map(id=>{
+    const item=state.manifest.objects.find(o=>o.id===id);
+    if(!item?.foundation)throw Error('Önizleme donanımı manifestte eksik: '+id);
+    return {id,kind:'device',foundation:item.foundation};
+  });
+  return [...books,...devices];
+ }
  function focusTargets(state){return state.manifest.objects.filter(o=>['research-journal','community-journal','camera','vefk-stand'].includes(o.id))
    .map(o=>({id:o.id,foundation:o.foundation}));}
  function validateAssets(assets,state){return validateAssetOverrides(assets,state.manifest,state.entries);}
@@ -280,5 +302,5 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     sourceHash:digest(nextEntries.map(([file,bytes])=>[file,bytes.toString('base64')])),
     readiness:report};
  }
- return {snapshot,validate,validateAssets,readiness,preview,previewObjects,previewArt,focusTargets,stage};
+ return {snapshot,validate,validateAssets,readiness,preview,previewObjects,previewArt,roomObjects,focusTargets,stage};
 }

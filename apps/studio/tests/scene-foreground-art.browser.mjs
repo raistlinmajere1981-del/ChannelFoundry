@@ -15,7 +15,7 @@ try{
  for(let i=0;i<120;i++){try{if((await fetch(origin+'/scene.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
  assert.ok(ok,'Studio edit server: '+log);
  const site=siteSceneSource(),source=await site.snapshot();
- const artwork=site.previewArt(source);
+ const artwork=site.previewArt(source),roomObjects=site.roomObjects(source);
  assert.equal(artwork.length,19);
  assert.deepEqual(new Set(artwork.map(a=>a.path)),new Set(ALL_PHYSICAL_ART_PATHS));
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/home/raistlin/.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome',
@@ -23,11 +23,41 @@ try{
  const page=await browser.newPage({viewport:{width:1600,height:900}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(origin+'/scene.html?embedded=1',{waitUntil:'domcontentloaded'});
- const packet={type:'studio:load',scene:source.scene,presentation:source.presentation,
+ const packet={type:'studio:load',scene:source.scene,presentation:source.presentation,roomObjects,
    previewImage:await site.preview(source),previewObjects:site.previewObjects(source),previewArt:artwork,
    focusTargets:site.focusTargets(source),assets:[],siteSource:true};
  await page.evaluate(message=>window.postMessage(message,'*'),packet);
  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,{timeout:20000});
+ assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),4,'four objects composited over room');
+ assert.equal(await page.locator('#show-room-objects').getAttribute('aria-pressed'),'true');
+ for(const id of ['research-journal','community-journal','camera','vefk-stand']){
+   const figure=page.locator('[data-room-object="'+id+'"]');
+   assert.equal(await figure.isVisible(),true,id+' room image is visible');
+   assert.ok(await figure.locator('img').count()>0,id+' has original art');
+   assert.ok(await figure.locator('img').first().evaluate(img=>img.decode().then(()=>img.naturalWidth>0)),id+' art decodes');
+ }
+ for(const record of roomObjects){
+   const result=await page.locator('[data-room-object="'+record.id+'"]').evaluate(element=>{
+     const view=document.querySelector('#scene-viewport').getBoundingClientRect();
+     const box=element.getBoundingClientRect(),cs=getComputedStyle(element);
+     return {left:parseFloat(element.style.left)/100,top:parseFloat(element.style.top)/100,
+       width:parseFloat(element.style.width)/100,height:parseFloat(element.style.height)/100,
+       rectWidth:box.width,viewWidth:view.width,imgCount:element.querySelectorAll('img').length,
+       transform:cs.transform};
+   });
+   const basis=record.kind==='book'?record:record.foundation;
+   assert.ok(Math.abs(result.left-basis.x)<.0001&&Math.abs(result.top-basis.y)<.0001,record.id+' placement is from web coordinates');
+   assert.ok(Math.abs(result.width-basis.width)<.0001,record.id+' size is from web coordinates');
+   assert.ok(result.rectWidth>5,record.id+' image has physical visible width');
+   if(record.id==='vefk-stand')assert.equal(result.imgCount,4,'frame, vellum, quill and inkpot compose one device');
+ }
+ await page.locator('#show-room-objects').click();
+ assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),0,'room object toggle only affects preview');
+ await page.locator('#show-room-objects').click();
+ assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),4);
+ await page.locator('[data-room-object="camera"]').click();
+ assert.match(await page.locator('#selected-object-name').textContent(),/Kamera/);
+ await page.locator('#object-select-research-journal').click();
  const get=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
    const requestId='artwork-'+Math.random(),timeout=setTimeout(()=>reject(Error('art draft timeout')),8000);
    const listener=e=>{if(e.data?.requestId!==requestId||e.data.type!=='studio:data')return;
@@ -58,6 +88,8 @@ try{
  assert.equal(draft.assets[0].path,book);
  assert.deepEqual(webpDimensions(Buffer.from(draft.assets[0].dataUrl.split(',')[1],'base64')),{width:1536,height:1024});
  assert.equal(await page.locator('.scene-source-preview img').evaluate(img=>img.getAttribute('src')===null),false);
+ assert.equal(await page.locator('[data-room-object="research-journal"] img').getAttribute('src'),draft.assets[0].dataUrl,
+   'new artwork is visible in the full room preview without staging');
  await page.locator('#visual-source-slot').selectOption(bookEn);
  assert.match(await page.locator('.scene-source-warning').textContent(),/Türkçe kapak/);
  await page.locator('#object-select-community-journal').click();
@@ -85,6 +117,8 @@ try{
  await page.locator('#object-select-research-journal').click();
  assert.match(await page.locator('#visual-source-inspector').textContent(),/Yeni kaynak taslakta/);
  await page.locator('#visual-source-restore').click();
+ assert.notEqual(await page.locator('[data-room-object="research-journal"] img').getAttribute('src'),
+   draft.assets.find(a=>a.path===book).dataUrl,'restoring draft also restores room picture');
  assert.deepEqual((await get()).assets.map(a=>a.path),[camera,vellum]);
  await page.locator('#object-select-stone-specimen').click();
  assert.equal(await page.locator('#visual-source-slot option').count(),2,'previous detached motion assets still editable');

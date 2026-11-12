@@ -92,7 +92,21 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
    linear-gradient(160deg,#182124,#101416 70%);
   box-shadow:var(--shadow),inset 0 0 80px #0008}
 .scene-viewport::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:10% 10%;opacity:.7}
-.scene-objects,.scene-markers{position:absolute;inset:0}
+.scene-room-objects,.scene-objects,.scene-markers{position:absolute;inset:0}
+.scene-room-objects{z-index:2;pointer-events:none}
+.scene-room-figure{box-sizing:border-box;display:block;position:absolute;min-width:0;min-height:0;margin:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:pointer;user-select:none;outline-offset:4px;transform-origin:center;filter:none}
+.scene-room-figure:focus-visible{outline:2px solid var(--accent)}
+.scene-room-figure[data-selected="true"]{filter:drop-shadow(0 0 5px #d99d56b0)}
+.scene-room-figure img{display:block;max-width:none;pointer-events:none;user-select:none;-webkit-user-drag:none}
+.scene-room-figure--book img{width:100%;height:auto;filter:brightness(.81) saturate(.83) drop-shadow(0 2px 1px #080401c8)}
+.scene-room-figure--camera img{width:100%;height:100%;object-fit:fill;filter:brightness(.68) saturate(.77) drop-shadow(0 7px 3px #0704029c)}
+.scene-room-figure--vefk img{position:absolute;pointer-events:none}
+.scene-room-figure--vefk .scene-room-paper{left:11.23%;top:11.07%;width:77.15%;height:47.26%;filter:brightness(.85) saturate(.7)}
+.scene-room-figure--vefk .scene-room-chassis{inset:0;width:100%;height:100%;filter:drop-shadow(2px 3px 3px #000a)}
+.scene-room-figure--vefk .scene-room-inkwell{left:7.81%;top:61.91%;width:10.94%;height:7.29%;filter:brightness(.8) drop-shadow(2px 2px 1px #0009)}
+.scene-room-figure--vefk .scene-room-quill{left:6.07%;top:48.46%;width:15.87%;height:15.87%;transform-origin:45.4% 97.5%;transform:rotate(14deg);filter:drop-shadow(1px 2px 2px #0009)}
+.scene-room-objects[hidden]{display:none}
+.scene-objects{z-index:1}
 .scene-objects{z-index:1}
 .scene-markers{z-index:5;pointer-events:none}
 .hide-effect-markers .scene-markers{display:none}
