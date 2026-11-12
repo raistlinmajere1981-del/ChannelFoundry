@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type VisualEditorItem = { key: string; kind: string; title: string };
 type SeedVisual = Partial<StudioVisualDefinition> | undefined;
@@ -33,12 +33,18 @@ export default function VisualProfileEditor({
   size = "1024x1024",
   onStatus,
   productionActions = false,
+  dock = false,
+  onDirtyChange,
+  onBusyChange,
 }: {
   item: VisualEditorItem;
   seedVisual?: SeedVisual;
   size?: ImageSize;
   onStatus?: (message: string | null, tone?: "success" | "error") => void;
   productionActions?: boolean;
+  dock?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const bridge = window.channelFoundryStudio;
   const [profile, setProfile] = useState<StudioVisualProfile | null>(null);
@@ -50,6 +56,8 @@ export default function VisualProfileEditor({
   const [negativePrompt, setNegativePrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [operation, setOperation] = useState<VisualOperation>(null);
+  const [savedFields, setSavedFields] = useState<string>("");
+  const dockConfig = useRef<HTMLDetailsElement>(null);
 
   const applyProfile = (value: StudioVisualProfile | null, seed: SeedVisual = undefined) => {
     setProfile(value);
@@ -58,6 +66,7 @@ export default function VisualProfileEditor({
     setAtmosphere(value?.atmosphere ?? seed?.atmosphere ?? "");
     setPrompt(value?.prompt ?? seed?.prompt ?? "");
     setNegativePrompt(value?.negativePrompt ?? seed?.negativePrompt ?? "");
+    setSavedFields(JSON.stringify([value?.description ?? seed?.description ?? "", (value?.attributes ?? seed?.attributes ?? []).join("\n"), value?.atmosphere ?? seed?.atmosphere ?? "", value?.prompt ?? seed?.prompt ?? "", value?.negativePrompt ?? seed?.negativePrompt ?? ""]));
   };
 
   const load = async () => {
@@ -69,6 +78,10 @@ export default function VisualProfileEditor({
   };
 
   useEffect(() => { void load().catch(() => undefined); }, [item.key, productionActions]);
+  const changed = savedFields !== "" && savedFields !== JSON.stringify([description, attributesText, atmosphere, prompt, negativePrompt]);
+  useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => () => { onDirtyChange?.(false); onBusyChange?.(false); }, [item.key]);
 
   const input = (): StudioVisualProfileInput => ({
     entityKey: item.key,
@@ -146,6 +159,41 @@ export default function VisualProfileEditor({
 
   const generating = operation === "generate";
 
+  const actionButtons = <div className="entity-visual-actions">
+    {productionActions && <button className="secondary-button" disabled={busy || (!description.trim() && !attributesText.trim())} onClick={preparePrompt}>Tariften prompt hazırla</button>}
+    <button className="secondary-button" disabled={busy} onClick={() => void save()}>{operation === "save" ? "Kaydediliyor…" : changed ? "Profili kaydet *" : "Profili kaydet"}</button>
+    {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
+    {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}
+  </div>;
+  const preview = <div className={`entity-visual-preview${generating ? " is-generating" : ""}`}>
+    {generating ? <div><span>GÖRSEL ÜRETİLİYOR</span><strong>Görsel hazırlanıyor…</strong><p>Görsel üretimi sürüyor.</p></div>
+      : profile?.imageDataUrl ? <img src={profile.imageDataUrl} alt={`${item.title} görseli`}/>
+      : <div><span>GÖRSEL DOSYASI</span><strong>Henüz eklenmedi</strong><p>Görsel ekleyebilir veya üretebilirsin.</p></div>}
+    {profile?.imagePath && productionActions && !generating && <footer><button onClick={() => void bridge?.visualImageShow(item.key)}>Dosyayı göster</button><button className="danger-text" disabled={busy} onClick={() => void clear()}>{operation === "clear" ? "Kaldırılıyor…" : "Görseli kaldır"}</button></footer>}
+  </div>;
+  const generateFromDock = () => {
+    if (!prompt.trim()) { dockConfig.current && (dockConfig.current.open = true); dockConfig.current?.querySelector<HTMLTextAreaElement>("textarea.prompt-area")?.focus(); return; }
+    void generate();
+  };
+  if (dock) return <section className="entity-visual-editor record-visual-dock">
+    <div className="record-visual-head"><strong>GÖRSEL</strong><span>{generating ? "Üretiliyor" : profile?.imagePath ? "Hazır" : "Eksik"}</span></div>
+    {preview}
+    <div className="record-visual-quick-actions">
+      {productionActions && <button type="button" disabled={busy} onClick={() => void pick()}><span>＋</span> Görsel ekle</button>}
+      {productionActions && capability?.supported && <button type="button" disabled={busy} onClick={generateFromDock}><span>✦</span> {prompt.trim() ? "Görsel üret" : "Üretim ayarları"}</button>}
+    </div>
+    <details className="record-visual-config" ref={dockConfig}>
+      <summary>Görsel tarifi ve üretim ayarları {changed ? "●" : ""}</summary>
+      <div className="entity-visual-form">
+        <label><span>Görsel açıklaması</span><textarea disabled={busy} value={description} onChange={event => setDescription(event.target.value)}/></label>
+        <label><span>Özellikler</span><textarea disabled={busy} value={attributesText} onChange={event => setAttributesText(event.target.value)}/></label>
+        <label><span>Atmosfer</span><textarea disabled={busy} value={atmosphere} onChange={event => setAtmosphere(event.target.value)}/></label>
+        <label><span>Üretim promptu</span><textarea className="prompt-area" disabled={busy} value={prompt} onChange={event => setPrompt(event.target.value)}/></label>
+        <label><span>Kaçınılacak özellikler</span><textarea disabled={busy} value={negativePrompt} onChange={event => setNegativePrompt(event.target.value)}/></label>
+        {actionButtons}
+      </div>
+    </details>
+  </section>;
   return <section className="entity-visual-editor">
     <div className="relations-head">
       <div><small>GÖRSEL PROFİL</small><h3>{productionActions ? "Görsel üretim ve dosya yönetimi" : "Görsel kimlik ve üretim girdisi"}</h3></div>

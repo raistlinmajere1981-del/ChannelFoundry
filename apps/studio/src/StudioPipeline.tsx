@@ -17,7 +17,7 @@ const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
 const AiWorkbench = lazy(() => import("./AiWorkbench"));
 const VefkWorkshop = lazy(() => import("./VefkWorkshop"));
 const SceneWorkshop = lazy(() => import("./SceneWorkshop"));
-const EditorialWorkspaceV2 = lazy(() => import("./EditorialWorkspaceV2"));
+const EditorialWorkspaceV3 = lazy(() => import("./EditorialWorkspaceV3"));
 const CommunityAdmin = lazy(() => import("./CommunityAdmin"));
 const PublishCenter = lazy(() => import("./PublishCenter"));
 
@@ -104,9 +104,9 @@ export default function StudioPipeline() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<StudioSidebarMode>(() => initialSidebarMode());
-  // Sahne Atölyesi sahneye daha fazla yer açar; diğer sayfaların menü tercihini değiştirmez.
+  // Sahne ve kayıt düzenleme tek yüzeyde çalışır; diğer sayfaların menü tercihi korunur.
   const [sceneSidebarExpanded, setSceneSidebarExpanded] = useState(false);
-  const sceneWorkspaceActive = active === "Sahne Atölyesi";
+  const sceneWorkspaceActive = active === "Sahne Atölyesi" || active === "Kayıt Dosyaları";
   const effectiveSidebarMode: StudioSidebarMode = sceneWorkspaceActive
     ? (sceneSidebarExpanded ? "expanded" : "collapsed") : sidebarMode;
 
@@ -152,6 +152,10 @@ export default function StudioPipeline() {
 
   const studioItems = useMemo<StudioItem[]>(() => items.map((item) => ({ ...item, relatedCount: connectedKeys(item.key, relations).size })), [items, relations]);
   const activateSection = (section: NavigableSection) => {
+    if (active === "Kayıt Dosyaları" && section !== active) {
+      if (sessionStorage.getItem("channel-foundry:records-busy") === "1") { window.alert("Devam eden kayıt veya görsel işlemi tamamlanmadan çalışma alanından çıkılamaz."); return; }
+      if (sessionStorage.getItem("channel-foundry:records-unsaved") === "1" && !window.confirm("Kayıt Dosyaları'nda kaydedilmemiş değişiklikler var. Çıkılsın mı?")) return;
+    }
     if (active === "Sahne Atölyesi" && section !== active
       && sessionStorage.getItem("channel-foundry:scene-unsaved") === "1") {
       if (!window.confirm("Kaydedilmemiş sahne düzenlemeleri var. Çalışma alanından çıkılsın mı?")) return;
@@ -165,11 +169,15 @@ export default function StudioPipeline() {
       setActive("Kayıt Dosyaları");
       return;
     }
-    if (section === "Sahne Atölyesi" && active !== section) setSceneSidebarExpanded(false);
+    if ((section === "Sahne Atölyesi" || section === "Kayıt Dosyaları") && active !== section) setSceneSidebarExpanded(false);
     setActive(section);
   };
   const selectProject = async (id: string) => {
     if (!bridge || projectBusy || !id || id === activeProjectId) return;
+    if (active === "Kayıt Dosyaları") {
+      if (sessionStorage.getItem("channel-foundry:records-busy") === "1") { window.alert("Devam eden kayıt veya görsel işlemi tamamlanmadan proje değiştirilemez."); return; }
+      if (sessionStorage.getItem("channel-foundry:records-unsaved") === "1" && !window.confirm("Kaydedilmemiş kayıt düzenlemeleri var. Proje değiştirilsin mi?")) return;
+    }
     if (active === "Sahne Atölyesi" && sessionStorage.getItem("channel-foundry:scene-unsaved") === "1"
       && !window.confirm("Kaydedilmemiş sahne düzenlemeleri var. Proje değiştirilsin mi?")) return;
     if (active === "Vefk Atölyesi" && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
@@ -229,7 +237,7 @@ export default function StudioPipeline() {
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
           {active === "Vefk Atölyesi" && <VefkWorkshop/>}
           {active === "Sahne Atölyesi" && <SceneWorkshop/>}
-          {active === "Kayıt Dosyaları" && <EditorialWorkspaceV2 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
+          {active === "Kayıt Dosyaları" && <EditorialWorkspaceV3 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin key={activeProjectId} projectId={activeProjectId}/>}
           {active === "Yayınlama" && <PublishCenter items={studioItems} relations={relations} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus}/>}
           {active === "Ayarlar" && <Settings databaseInfo={databaseInfo} catalog={catalogStats} workspaceStatus={workspaceStatus}/>}

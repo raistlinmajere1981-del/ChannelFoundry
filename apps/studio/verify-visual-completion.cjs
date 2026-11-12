@@ -134,10 +134,13 @@ try {
   assert.match(ui, /VisualProfileEditor/);
   assert.match(ui, /1536x1024/);
   const recordEditor = fs.readFileSync(path.join(__dirname, "src", "EditorialRecordDetail.tsx"), "utf8");
-  assert.match(recordEditor, /<VisualProfileEditor productionActions item=\{\{ key: node.key,/,
-    "Onaylı Evren kayıtları Görsel Profil sekmesinden üretim yapabilmeli");
-  assert.match(recordEditor, /<VisualProfileEditor productionActions item=\{item\}/,
-    "Manuel kayıtlar da aynı görsel üretim ve dosya yönetimini kullanmalı");
+  const recordWorkspace = fs.readFileSync(path.join(__dirname, "src", "EditorialWorkspaceV3.tsx"), "utf8");
+  assert.match(recordEditor, /WorkspaceRecordDetail/, "Onaylı Evren kayıtları editör üzerinden açılmalı");
+  assert.match(recordEditor, /LegacyRecordDetail/, "Manuel kayıt editörü korunmalı");
+  assert.match(recordWorkspace, /<VisualProfileEditor key=\{activeImage.key\}/,
+    "Kayıtların görsel işlemleri her seçili kaydın yanında görünür olmalı");
+  assert.match(recordWorkspace, /productionActions dock/,
+    "Görsel üretim, dosya ekleme ve kaldırma işlemleri bağlamsal görsel panelinde kalmalı");
   const visualEditor = fs.readFileSync(path.join(__dirname, "src", "VisualProfileEditor.tsx"), "utf8");
   assert.match(visualEditor, /visualImageGenerate\(generationInput\)/,
     "Kayıt üretimi mevcut Studio görsel motoruna gitmeli");

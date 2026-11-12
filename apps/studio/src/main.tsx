@@ -7,19 +7,14 @@ import "./studio-theme-tokens.css";
 import "./styles.css";
 import "./pipeline.css";
 import "./dashboard.css";
-import "./editorial-workspace.css";
-import "./record-detail.css";
-import "./editorial-context-workspace.css";
 import "./video-archive.css";
 import "./video-archive-settings.css";
-import "./bulk-operations.css";
 import "./ai-workbench.css";
 import "./ai-production-workbench.css";
 import "./ai-stage-rail-compact.css";
 import "./ai-editorial-review.css";
 import "./visual-profile.css";
 import "./records-editor-fix.css";
-import "./support-records-editor.css";
 import "./ytdlp-settings.css";
 import "./web-connection-settings.css";
 import "./studio-layout.css";
@@ -30,6 +25,7 @@ import "./channel-projects.css";
 import "./studio-topbar.css";
 import "./studio-workspace-system.css";
 import "./studio-fixed-viewport.css";
+import "./records-workspace-v3.css";
 
 applyStudioAppearance(readStudioAppearance());
 
