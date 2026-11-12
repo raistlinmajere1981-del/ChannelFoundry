@@ -1,0 +1,1 @@
+export function mountSceneEditor(root: HTMLElement, options: {onDirty(): void}): { load(packet: Record<string, unknown>): void; snapshot(): {scene: StudioSceneDocument; assets: {path:string;dataUrl:string}[]; presentation: Record<string,unknown>}; destroy(): void };

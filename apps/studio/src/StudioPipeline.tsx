@@ -104,6 +104,11 @@ export default function StudioPipeline() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<StudioSidebarMode>(() => initialSidebarMode());
+  // Sahne Atölyesi sahneye daha fazla yer açar; diğer sayfaların menü tercihini değiştirmez.
+  const [sceneSidebarExpanded, setSceneSidebarExpanded] = useState(false);
+  const sceneWorkspaceActive = active === "Sahne Atölyesi";
+  const effectiveSidebarMode: StudioSidebarMode = sceneWorkspaceActive
+    ? (sceneSidebarExpanded ? "expanded" : "collapsed") : sidebarMode;
 
   const load = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
@@ -160,6 +165,7 @@ export default function StudioPipeline() {
       setActive("Kayıt Dosyaları");
       return;
     }
+    if (section === "Sahne Atölyesi" && active !== section) setSceneSidebarExpanded(false);
     setActive(section);
   };
   const selectProject = async (id: string) => {
@@ -178,7 +184,8 @@ export default function StudioPipeline() {
     }
   };
   const toggleSidebar = () => {
-    setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
+    if (sceneWorkspaceActive) setSceneSidebarExpanded((current) => !current);
+    else setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
   };
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
@@ -194,25 +201,25 @@ export default function StudioPipeline() {
   };
 
   if (!ready) return <div className="pipeline-loading"><span>Yayın Atölyesi</span><strong>Yerel üretim alanı hazırlanıyor…</strong></div>;
-  return <div className={`studio-shell pipeline-shell studio-sidebar-${sidebarMode}`}>
+  return <div className={`studio-shell pipeline-shell studio-sidebar-${effectiveSidebarMode}`} data-scene-workspace={sceneWorkspaceActive ? "true" : undefined}>
     <aside className="studio-sidebar pipeline-sidebar" id="studio-primary-sidebar" aria-label="Ana menü">
-      <Brand collapsed={sidebarMode === "collapsed"}/>
+      <Brand collapsed={effectiveSidebarMode === "collapsed"}/>
       <div className="studio-sidebar-scroll">
         <div className="nav-caption">ÜRETİM</div>
         <nav className="studio-nav" aria-label="Üretim">
-          {productionSections.map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
+          {productionSections.map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={effectiveSidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
         </nav>
         <div className="nav-caption system-caption">SİSTEM</div>
         <nav className="studio-nav" aria-label="Sistem">
-          {systemSections.filter((section) => section !== "Ayarlar").map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
+          {systemSections.filter((section) => section !== "Ayarlar").map((section) => <SidebarNavItem key={section} section={section} icon={navIcons[section]} active={active === section} collapsed={effectiveSidebarMode === "collapsed"} onSelect={() => activateSection(section)}/>)}
         </nav>
       </div>
       <nav className="studio-nav studio-settings-nav" aria-label="Uygulama ayarları">
-        <SidebarNavItem section="Ayarlar" icon={navIcons.Ayarlar} active={active === "Ayarlar"} collapsed={sidebarMode === "collapsed"} onSelect={() => activateSection("Ayarlar")}/>
+        <SidebarNavItem section="Ayarlar" icon={navIcons.Ayarlar} active={active === "Ayarlar"} collapsed={effectiveSidebarMode === "collapsed"} onSelect={() => activateSection("Ayarlar")}/>
       </nav>
     </aside>
     <main className="studio-main pipeline-main">
-      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)} sidebarCollapsed={sidebarMode === "collapsed"} onToggleSidebar={toggleSidebar}/>
+      <StudioTopbar section={active} projects={projects} activeProjectId={activeProjectId} busy={projectBusy} activeChannel={channels.find((entry) => entry.id === activeChannelId) || null} onProjectChange={(id) => void selectProject(id)} sidebarCollapsed={effectiveSidebarMode === "collapsed"} onToggleSidebar={toggleSidebar}/>
       <section className="studio-content pipeline-content" aria-label="Çalışma alanı" data-workspace-section={active}>
         {error && active !== "AI Atölyesi" && <div className="storage-warning studio-workspace-error" role="alert">Studio uyarısı: {error}</div>}
         <Suspense fallback={<SectionLoading section={active}/> }>

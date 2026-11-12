@@ -11,7 +11,7 @@ let log='';server.stdout.on('data',b=>log+=String(b));server.stderr.on('data',b=
 let browser;
 try{
   let ok=false;
-  for(let i=0;i<120;i++){try{if((await fetch(origin+'/scene.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+  for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
   assert.equal(ok,true,'Studio preview server did not start: '+log);
   const site=siteSceneSource(),source=await site.snapshot();
   const packet={type:'studio:load',scene:source.scene,siteSource:true,assets:[],
@@ -20,7 +20,7 @@ try{
     headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage({viewport:{width:1600,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/scene.html?embedded=1',{waitUntil:'domcontentloaded'});
+  await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
   await page.evaluate(message=>window.postMessage(message,'*'),packet);
   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,{timeout:20000});
   await page.locator('#object-select-stone-specimen').click();

@@ -12,7 +12,7 @@ let log='';server.stdout.on('data',b=>log+=String(b));server.stderr.on('data',b=
 let browser;
 try{
  let ok=false;
- for(let i=0;i<120;i++){try{if((await fetch(origin+'/scene.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+ for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
  assert.ok(ok,'Studio edit server: '+log);
  const site=siteSceneSource(),source=await site.snapshot();
  const artwork=site.previewArt(source),roomObjects=site.roomObjects(source);
@@ -22,7 +22,7 @@ try{
    headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  const page=await browser.newPage({viewport:{width:1600,height:900}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.goto(origin+'/scene.html?embedded=1',{waitUntil:'domcontentloaded'});
+ await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
  const packet={type:'studio:load',scene:source.scene,presentation:source.presentation,roomObjects,
    previewImage:await site.preview(source),previewObjects:site.previewObjects(source),previewArt:artwork,
    focusTargets:site.focusTargets(source),assets:[],siteSource:true};

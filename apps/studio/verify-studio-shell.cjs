@@ -172,12 +172,13 @@ for (const section of ["Gösterge Paneli", "Video Arşivi", "Altyazı Araştırm
 }
 assert.match(pipeline, /initialSidebarMode/);
 assert.match(pipeline, /saveSidebarMode/);
-assert.match(pipeline, /studio-sidebar-\$\{sidebarMode\}/);
+assert.match(pipeline, /studio-sidebar-\$\{effectiveSidebarMode\}/);
+assert.match(pipeline, /sceneWorkspaceActive[\s\S]*sceneSidebarExpanded/);
 assert.match(pipeline, /aria-current=\{active \? "page" : undefined\}/);
 assert.match(pipeline, /aria-label=\{collapsed \? section : undefined\}/);
 assert.match(pipeline, /data-tooltip=\{section\}/);
 assert.match(pipeline, /id="studio-primary-sidebar"/);
-assert.match(pipeline, /<Brand collapsed=\{sidebarMode === "collapsed"\}\/>/);
+assert.match(pipeline, /<Brand collapsed=\{effectiveSidebarMode === "collapsed"\}\/>/);
 assert.match(pipeline, /studio-settings-nav/);
 assert.match(pipeline, /studio-nav-label/);
 assert.match(pipeline, /studio-brand-copy/);

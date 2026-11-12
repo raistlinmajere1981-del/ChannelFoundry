@@ -9,14 +9,14 @@ let log='';server.stdout.on('data',b=>log+=String(b));server.stderr.on('data',b=
 let browser;
 try{
  let ready=false;
- for(let i=0;i<120;i++){try{if((await fetch(origin+'/scene.html')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+ for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
  assert.ok(ready,'studio preview server: '+log);
  const site=siteSceneSource(),source=await site.snapshot();
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/home/raistlin/.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome',
    headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  const page=await browser.newPage({viewport:{width:1600,height:900}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.goto(origin+'/scene.html?embedded=1',{waitUntil:'domcontentloaded'});
+ await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
  await page.evaluate(packet=>window.postMessage(packet,'*'),{
   type:'studio:load',scene:source.scene,presentation:source.presentation,siteSource:true,
   previewImage:await site.preview(source),previewObjects:site.previewObjects(source),

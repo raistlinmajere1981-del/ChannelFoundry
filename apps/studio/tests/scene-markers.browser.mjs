@@ -9,12 +9,12 @@ let log='';server.stdout.on('data',b=>log+=String(b));server.stderr.on('data',b=
 let browser;
 try{
   let online=false;
-  for(let i=0;i<100;i++){try{if((await fetch(origin+'/scene.html')).ok){online=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+  for(let i=0;i<100;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){online=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
   assert.ok(online,'Studio Vite did not start: '+log);
   browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/home/raistlin/.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage({viewport:{width:1600,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/scene.html',{waitUntil:'domcontentloaded'});
+  await page.goto(origin+'/tests/scene-v2-harness.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelectorAll('#scene-markers .scene-marker').length>0,{timeout:12000});
   const count=await page.locator('#scene-markers .scene-marker').count();
   assert.ok(count>0);

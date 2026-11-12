@@ -1,5 +1,5 @@
-import {objectEffectRegistry} from '../registry/effects.mjs';
-import {canCropVisual} from '../model/visual-crop.mjs';
+import {objectEffectRegistry} from '../../../../packages/effect-engine/src/registry/effects.mjs';
+import {canCropVisual} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
 
 // UI labels alias the canonical presets; never derive values from current state.
 export const sceneProfiles = Object.freeze([

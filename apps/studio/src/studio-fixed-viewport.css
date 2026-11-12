@@ -808,3 +808,6 @@ html,body,#root{
 }
 .ops-dashboard .ops-task-list,
 .ops-dashboard .ops-recent-list{overflow-x:hidden}
+
+/* Scene workspace starts with icon-only main navigation, without changing the stored mode. */
+.studio-shell[data-scene-workspace="true"] .studio-nav button::after {display:none!important;}

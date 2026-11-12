@@ -8,7 +8,7 @@ const server=spawn(process.execPath,['../../node_modules/vite/bin/vite.js','--ho
 let browser;
 try{
   let online=false;
-  for(let i=0;i<120;i++){try{if((await fetch(origin+'/scene.html')).ok){online=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+  for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){online=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
   assert.ok(online);
   const site=siteSceneSource(),source=await site.snapshot();
   const packet={type:'studio:load',scene:source.scene,siteSource:true,
@@ -17,7 +17,7 @@ try{
     headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage({viewport:{width:1600,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/scene.html?embedded=1',{waitUntil:'domcontentloaded'});
+  await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
   await page.evaluate(message=>window.postMessage(message,'*'),packet);
   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.objects?.some(o=>o.veil?.enabled),null,{timeout:15000});
   await page.locator('#object-select-ceremonial-robe').click();

@@ -10,8 +10,8 @@
 ## Tamamlandı: Aşama 2 — Studio Sahne Atölyesi
 
 - Studio üretim menüsüne Sahne Atölyesi eklendi.
-- Kanonik editör: packages/effect-engine/src/editor.
-- İkinci Vite HTML giriş noktası apps/studio/scene.html; geliştirme ve dist modları src/scene-editor-entry.mjs üzerinden editörü açar.
+- Sahne editörü Studio özel modülü: apps/studio/src/scene-workspace. V3 doğrudan SceneWorkshop React yüzeyine bağlanır; iframe ve ikinci üretim HTML girişi kaldırıldı.
+- Eski tekil editör sayfası sadece apps/studio/tests/scene-v2-harness.html içinde tarayıcı regresyon fikstürü olarak korunur; üretim paketinde yoktur.
 - apps/studio/scene-workshop-site.mjs, BirDeSenGör sahne kaynağı, manifest, adaptör, bağlı efekt yuvaları ve kaynak hash'ini doğrular.
 - apps/studio/scene-workshop.cjs, taslağı yalnız Studio userData içindeki scene-workshop dizinine atomik kaydeder; eski migration verisi aktarılmaz.
 - Akış: Oku → Kaydet → Siteye hazırla → Ön kontrol → Canlı yayın.

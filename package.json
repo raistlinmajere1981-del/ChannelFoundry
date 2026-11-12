@@ -55,7 +55,8 @@
     "verify:channel-narrator": "node apps/studio/verify-channel-narrator.cjs && node apps/studio/verify-narrator-source-identity.cjs && node apps/studio/tests/channel-narrator.browser.mjs",
     "verify:bilingual": "node --test apps/studio/publication-languages.test.cjs apps/studio/publication-languages-php.test.cjs apps/studio/clean-bilingual-demo.test.cjs apps/studio/camera-publication.test.cjs apps/studio/vefk-publication.test.cjs && node apps/studio/verify-ai-service.cjs && node apps/studio/verify-publication-v2.cjs && node apps/studio/verify-site-seo.cjs && npm --prefix channels/birdesengor/web test && npm run build:studio && npm run build:web && node apps/studio/tests/publication-languages.browser.mjs && npm --prefix channels/birdesengor/web run test:e2e:bilingual",
     "verify:effect-engine": "node --test packages/effect-engine/tests/*.test.mjs",
-    "verify:scene-workshop": "node --test apps/studio/scene-workshop.test.cjs"
+    "verify:scene-workshop": "node --test apps/studio/scene-workshop.test.cjs apps/studio/tests/scene-editor-ux.test.mjs",
+    "verify:scene-workshop-ui": "node apps/studio/tests/scene-v3-integrated.browser.mjs"
   },
   "allowScripts": {
     "electron@37.10.3": true,

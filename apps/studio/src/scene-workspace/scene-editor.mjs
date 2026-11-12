@@ -1,14 +1,20 @@
-import {$,el,button,field,download,readFile} from './dom.mjs';
+// Studio-owned scene editor. The shared effect-engine remains a runtime/model dependency,
+// but no longer owns the desktop editing UI or its lifecycle.
+import {el,button,field,download,readFile} from './dom.mjs';
 import {sceneProfiles,profileForEffect,applySceneProfile,basicControls,assertSiteStructure} from './scene-ux.mjs';
 import {History} from './history.mjs';
-import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../model/project.mjs';
-import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../registry/effects.mjs';
-import {anchorScenePoint,effectScenePoint} from '../runtime/object-scene.mjs';
-import {bindObjectScene} from '../runtime/object-overlay.mjs';
-import {drawRefractedSilhouette} from '../runtime/robe-refraction.mjs';
-import {canCropVisual,visualClipStyle,EMPTY_CROP,DEFAULT_ROBE_DESK_Y} from '../model/visual-crop.mjs';
-import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../model/scene-presentation.mjs';
+import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../../../../packages/effect-engine/src/model/project.mjs';
+import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../../../../packages/effect-engine/src/registry/effects.mjs';
+import {anchorScenePoint,effectScenePoint} from '../../../../packages/effect-engine/src/runtime/object-scene.mjs';
+import {bindObjectScene} from '../../../../packages/effect-engine/src/runtime/object-overlay.mjs';
+import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
+import {canCropVisual,visualClipStyle,EMPTY_CROP,DEFAULT_ROBE_DESK_Y} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
+import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
 
+export function mountSceneEditor(root,options={}){
+const $=selector=>root.querySelector(selector);
+const surface=root===document?document.body:root;
+const disposers=[];
 let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
 let presentation=defaultScenePresentation(),presentationDevice='desktop';
 let focusTargets=new Map(),focusPreview=false,roomObjects=new Map(),showRoomObjects=true;
@@ -37,8 +43,10 @@ function selectedVisualAsset(item){
 
 const objectElements=new Map(),markerElements=new Map();
 const history=new History();
-const embedded=new URLSearchParams(location.search).get('embedded')==='1';
-const notify=(type,extra={})=>{if(embedded)window.parent.postMessage({type,...extra},'*');};
+// This controller has no window-message transport; only the React host owns dirty state.
+const standalone=root===document;
+const embedded=!standalone;
+const notify=(type)=>{if(type==='studio:dirty')options.onDirty?.();};
 const changed=()=>notify('studio:dirty');
 const status=(message,isError=false)=>{const node=$('#status');node.textContent=message;node.classList.toggle('error',isError);};
 const error=e=>{const message=e?.message||String(e);status(message,true);};
@@ -71,13 +79,13 @@ function selectObject(id){
   const target=object();
   anchorId=target?.anchors[0]?.id??null;
   effectId=scene.effects.find(item=>item.target.objectId===id)?.id??null;
-  draw();
+  draw();if($('#object-search'))setInspectorTab(focusTargets.has(id)?'focus':'visual');
 }
 function selectEffect(id){
   const next=scene.effects.find(item=>item.id===id);
   if(!next)return;
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
-  draw();
+  draw();if($('#object-search'))setInspectorTab('effect');
 }
 function selectForDrag(next){
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
@@ -115,6 +123,72 @@ function checkField(label,checked,change,attrs={}){
   return field(label,el('input',{type:'checkbox',checked,onchange:event=>change(event.target.checked),...attrs}));
 }
 
+// Studio V3: hierarchical view derived from canonical records, never saved into the scene JSON.
+const treeExpanded=new Map();
+let inspectorTab='effect';
+function setInspectorTab(tab){
+  if(!$('#scene-inspector-tabs')&&!root.querySelector('[data-inspector-tab]'))return;
+  inspectorTab=tab;
+  for(const button of root.querySelectorAll('[data-inspector-tab]')){
+    const active=button.dataset.inspectorTab===tab;
+    button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+    if(button.dataset.inspectorTab==='focus')button.hidden=!focusTargets.has(objectId);
+  }
+  for(const page of root.querySelectorAll('[data-inspector-page]'))page.hidden=page.dataset.inspectorPage!==tab;
+}
+function groupFor(item){
+  const id=item.id.toLowerCase(),name=item.name.toLowerCase();
+  if(/journal|book|kitap|defter/.test(id+' '+name))return 'Kitaplar';
+  if(/candle|flame|incense|mum|tütsü|lantern/.test(id+' '+name))return 'Işık ve atmosfer';
+  if(/robe|sword|hançer|dagger|kaftan|kılıç/.test(id+' '+name))return 'Duvar nesneleri';
+  if(/camera|vefk/.test(id+' '+name))return 'Cihazlar';
+  return 'Masa ve diğerleri';
+}
+function renderTreeLists(){
+  const host=$('#object-list'),term=$('#object-search').value.toLocaleLowerCase('tr').trim();
+  const groups=new Map();
+  for(const item of scene.objects){
+    const effects=scene.effects.filter(e=>e.target.objectId===item.id);
+    if(objectFilter==='effects'&&!effects.length)continue;
+    if(term&&!item.name.toLocaleLowerCase('tr').includes(term)&&!effects.some(e=>objectEffectRegistry[e.type]?.label.toLocaleLowerCase('tr').includes(term)))continue;
+    const group=groupFor(item);
+    if(!groups.has(group))groups.set(group,[]);
+    groups.get(group).push({item,effects});
+  }
+  const order=['Kitaplar','Işık ve atmosfer','Masa ve diğerleri','Duvar nesneleri','Cihazlar'];
+  const children=[];
+  for(const name of order){
+    if(!groups.has(name))continue;
+    const entries=groups.get(name),group=el('details',{class:'scene-tree-group','data-tree-group':name});
+    group.open=term?true:(treeExpanded.get(name)??true);
+    group.addEventListener('toggle',()=>{if(group.isConnected&&!term)treeExpanded.set(name,group.open);});
+    group.append(el('summary',{},el('span',{text:name}),el('span',{class:'scene-count',text:String(entries.length)})));
+    for(const {item,effects} of entries){
+      const groupNode=el('div',{class:'scene-tree-object'+(item.id===objectId?' is-current':'')});
+      const active=effects.filter(e=>e.enabled).length;
+      const row=el('div',{class:'scene-tree-object-head','data-tree-object':item.id},
+        el('button',{type:'button',id:'object-select-'+item.id,class:'scene-tree-select',text:item.name,'aria-current':String(item.id===objectId),onclick:()=>{selectObject(item.id);setInspectorTab(focusTargets.has(item.id)?'focus':'visual');}}),
+        el('span',{class:'scene-tree-meta',text:effects.length?active+'/'+effects.length:'—'}));
+      groupNode.append(row);
+      if(effects.length){
+        const children=el('div',{class:'scene-tree-effects'});
+        for(const eff of effects){
+          const entry=el('div',{class:'scene-tree-effect'+(eff.id===effectId?' is-current':'')+'','data-tree-effect':eff.id},
+            el('button',{type:'button',class:'scene-tree-effect-select',text:'✦ '+objectEffectRegistry[eff.type].label,onclick:()=>{selectEffect(eff.id);setInspectorTab('effect');}}),
+            el('input',{type:'checkbox',checked:eff.enabled,'aria-label':objectEffectRegistry[eff.type].label+' etkin',onchange:e=>mutate(s=>{s.effects.find(entry=>entry.id===eff.id).enabled=e.target.checked;})}));
+          children.append(entry);
+        }
+        groupNode.append(children);
+      }
+      group.append(groupNode);
+    }
+    children.push(group);
+  }
+  host.replaceChildren(...(children.length?children:[el('p',{class:'scene-empty',text:'Eşleşen nesne bulunamadı.'})]));
+  // Focus controls only exist for supported room objects. Keep the user's selected page when possible.
+  if(inspectorTab==='focus'&&!focusTargets.has(objectId))inspectorTab='visual';
+  setInspectorTab(inspectorTab);
+}
 function renderLists(){
   if(!scene)return;
   $('#object-count').textContent=String(scene.objects.length);
@@ -127,7 +201,7 @@ function renderLists(){
   });
   $('#object-list').replaceChildren(...(rows.length?rows:[el('p',{class:'scene-empty',text:'Filtreye uygun nesne yok.'})]));
   const effects=effectsForObject();
-  $('#effect-count').textContent=String(effects.length);
+  if($('#effect-count'))$('#effect-count').textContent=String(effects.length);
   $('#selected-object-name').textContent=object()?.name??'Bir nesne seçin';
   const effectRows=effects.map(item=>el('div',{class:`scene-list-row ${item.id===effectId?'selected':''}`},
     button(objectEffectRegistry[item.type].label,()=>selectEffect(item.id),{id:`effect-select-${item.id}`,class:'scene-row-select','aria-pressed':String(item.id===effectId)}),
@@ -139,7 +213,8 @@ function renderLists(){
   $('#add-effect').disabled=!object()?.anchors.length;
   $('#source-note').textContent=siteSource?'Taş, kaftan, hançer ve sandık katmanları taşınabilir. Kitap, kamera ve Çizim Atölyesi görselleri Kaynak görsel alanından değiştirilebilir; oda fotoğrafı sabit kalır.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
   $('#site-effects-note').hidden=!siteSource;
-  document.querySelector('.scene-local-badge').textContent=siteSource?'Site kaynağı':'Yerel';
+  const badge=root.querySelector('.scene-local-badge');if(badge)badge.textContent=siteSource?'Site kaynağı':'Yerel';
+  if($('#object-search'))renderTreeLists();
 }
 function moveVisual(sceneCopy,id,nextPose,linked=linkVisual){
   const target=sceneCopy.objects.find(o=>o.id===id);
@@ -210,27 +285,29 @@ function renderPresentationInspector(){
     if(device)data.objects[id][device][key]=value;
     else data.objects[id][key]=value;
   },'presentation:'+id+':'+(device??'time')+':'+key);
-  host.append(el('p',{class:'scene-visual-tip',text:'Bu ayarlar ziyaretçi hareketini yönetir; efekt ve içerik verilerinden ayrıdır.'}));
   host.append(field('Cihaz görünümü',el('select',{
     id:'presentation-device','aria-label':'Sunum cihaz görünümü',
     onchange:event=>{presentationDevice=event.target.value;renderPresentationInspector();}
   },...[['desktop','Masaüstü'],['mobile','Mobil']].map(([value,label])=>
     el('option',{value,text:label,selected:value===presentationDevice})))));
+  const transitions=details('focus-transitions','Geçiş süreleri');
   for(const [key,label] of [
     ['focusMs','Yaklaşma süresi (ms)'],['returnMs','Odaya dönüş (ms)'],
     ['detailMs',id==='camera'?'LCD açılışı (ms)':id==='vefk-stand'?'Katalog geçişi (ms)':'Kapak açılışı (ms)']
-  ])host.append(numberInput(label,profile[key],value=>set(key,value),
+  ])transitions.append(numberInput(label,profile[key],value=>set(key,value),
     {id:'presentation-'+key,min:key==='detailMs'?100:300,max:key==='detailMs'?2000:1800,step:20}));
-  host.append(el('p',{class:'scene-visual-tip',text:'Oda yaklaşması ve öne çıkan nesne ayrı katmanlardır. Yakınlık ölçeği gerçek kamera / kitap / çizim yüzeyine uygulanır.'}));
+  host.append(transitions);
+  const framing=details('focus-framing','Kadraj ve yakınlık');
   for(const [key,label,min,max] of [
     ['roomZoom','Oda yakınlığı (%)',75,160],['nearZoom','Nesne yakınlığı (%)',70,140]
-  ])host.append(numberInput(label,round(view[key]*100),value=>set(key,round(value/100),presentationDevice),
+  ])framing.append(numberInput(label,round(view[key]*100),value=>set(key,round(value/100),presentationDevice),
     {id:'presentation-'+key,min,max,step:1}));
   for(const [key,label] of [
     ['roomShiftX','Oda kaydırma X (%)'],['roomShiftY','Oda kaydırma Y (%)'],
     ['nearShiftX','Nesne kaydırma X (%)'],['nearShiftY','Nesne kaydırma Y (%)']
-  ])host.append(numberInput(label,view[key],value=>set(key,round(value),presentationDevice),
+  ])framing.append(numberInput(label,view[key],value=>set(key,round(value),presentationDevice),
     {id:'presentation-'+key,min:-15,max:15,step:.1}));
+  host.append(framing);
   if(BOOK_OBJECT_IDS.includes(id)){
     const book=profile.book,device=presentationDevice;
     const editBook=(key,value,child=null)=>mutatePresentation(data=>{
@@ -284,7 +361,6 @@ function renderPresentationInspector(){
       }));
     }
     host.append(adornment);
-    host.append(el('p',{class:'scene-visual-tip',text:'Kapak derinliği 3B izdüşümü, sayfa oranı gerçek Grabfold ölçülerini değiştirir. Kitap, ayraç ve indeksleri webin yakın görünümünde kontrol etmek gerekir.'}));
   }
   if(PHYSICAL_DEVICE_IDS.includes(id)){
     const device=presentationDevice,physical=profile.physical[device];
@@ -316,7 +392,6 @@ function renderPresentationInspector(){
         ['archiveWidth','Arşiv paneli genişliği (px)',250,420,5,false],
         ['videoMinHeight','Video asgari yüksekliği (px)',180,275,5,false],
       ]);
-      host.append(el('p',{class:'scene-visual-tip',text:'Menteşe ve LCD yerleşimi ortak hesaplanır. Arşiv panelinin genişliği yalnız masaüstündeki yan yana görünümü etkiler.'}));
     }else{
       group('Parşömen ve mürekkep',[
         ['paperX','Parşömen X (px)',-28,28,1,false],
@@ -335,19 +410,16 @@ function renderPresentationInspector(){
         ['catalogX','Katalog X (px)',-24,24,1,false],
         ['catalogY','Katalog Y (px)',-24,24,1,false],
       ]);
-      host.append(el('p',{class:'scene-visual-tip',text:'Parşömen, çizim ve okuma yüzeyi aynı dönüşümü kullanır. Divitin dinlenme ucu mürekkep kabını, maske ise katalog çerçevesini izler.'}));
     }
   }
   host.append(el('div',{class:'scene-visual-actions'},
     button(focusPreview?'2B önizlemeyi kapat':'2B oda yaklaşmasını göster',()=>{
       focusPreview=!focusPreview;draw();
     },{id:'presentation-preview',disabled:!focusTargets.has(id),'aria-pressed':String(focusPreview)})));
-  host.append(el('p',{class:'scene-visual-tip',text:'Bu yalnız oda fotoğrafının 2B kadraj denemesidir; kitap, LCD ve parşömen gerçek açılma önizlemesi değildir.'}));
   host.append(el('div',{class:'scene-visual-actions'},
     button('Bu nesneyi sıfırla',()=>mutatePresentation(s=>{
       s.objects[id]=structuredClone(defaultScenePresentation().objects[id]);
     },'presentation:'+id+':reset'),{id:'presentation-reset'})));
-  host.append(el('p',{class:'scene-visual-tip',text:'Masaüstü ve mobil bağımsız kaydedilir. Azaltılmış hareket seçimi bu süreleri kullanmaz; açılma/geri dönüş güvenli kalır.'}));
 }
 function renderSourceInspector(){
   const item=object(),parent=$('#visual-source-settings'),host=$('#visual-source-inspector');
@@ -760,7 +832,7 @@ function applyFocusPreview(){
 function draw(){
   if(!scene)return;
   const focusId=document.activeElement?.id;
-  const scrolls=[...document.querySelectorAll('.scene-panel')].map(node=>[node,node.scrollTop]);
+  const scrolls=[...root.querySelectorAll('.scene-panel')].map(node=>[node,node.scrollTop]);
   if(!object())objectId=scene.objects[0]?.id??null;
   const owner=object();
   if(!owner)objectId=scene.objects[0]?.id??null;
@@ -783,7 +855,7 @@ function draw(){
   renderStage();
   applyFocusPreview();
   updateHistoryButtons();
-  if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+  if(focusId)root.querySelector('#'+CSS.escape(focusId))?.focus({preventScroll:true});
   for(const [node,top] of scrolls)node.scrollTop=top;
 }
 function updateHistoryButtons(){
@@ -1088,10 +1160,57 @@ $('#visual-source-file').onchange=async event=>{
   }catch(e){error(e);}
 };
 $('#object-filter').onchange=event=>{objectFilter=event.target.value;renderLists();};
-const panelTabs=[...document.querySelectorAll('[data-mobile-panel]')];
+if($('#object-search')){
+  $('#object-search').addEventListener('input',renderLists);
+  for(const tab of root.querySelectorAll('[data-inspector-tab]'))tab.addEventListener('click',()=>setInspectorTab(tab.dataset.inspectorTab));
+  const toggleSide=(side)=>{root.classList.toggle('scene-'+side+'-collapsed');fitStage();};
+  $('#scene-toggle-tree').onclick=()=>toggleSide('tree');
+  $('#scene-toggle-inspector').onclick=()=>toggleSide('inspector');
+  const menu=$('#scene-context-menu');
+  const closeMenu=()=>{menu.hidden=true;menu.replaceChildren();};
+  const addMenuAction=(label,action)=>menu.append(el('button',{type:'button',role:'menuitem',text:label,onclick:()=>{closeMenu();action();}}));
+  root.addEventListener('contextmenu',event=>{
+    if(!event.target.closest('.scene-stage-well, #object-list'))return;
+    if(event.target.closest('input,textarea,select'))return;
+    event.preventDefault();closeMenu();
+    const objectHit=event.target.closest('[data-tree-object],[data-room-object],[data-hit-object],.scene-object');
+    const effectHit=event.target.closest('[data-tree-effect],.scene-marker');
+    const selectedEffect=effectHit?.dataset.treeEffect??(effectHit?.classList.contains('scene-marker')?effectHit.id.slice('marker-'.length):null);
+    const selectedObject=objectHit?.dataset.treeObject??objectHit?.dataset.roomObject??objectHit?.dataset.hitObject??(objectHit?.classList.contains('scene-object')?objectHit.id.slice('stage-object-'.length):null);
+    const selected=selectedEffect?scene.effects.find(e=>e.id===selectedEffect):null;
+    const owner=selected?scene.objects.find(o=>o.id===selected.target.objectId):scene.objects.find(o=>o.id===selectedObject);
+    if(selected){
+      addMenuAction('Efekti seç',()=>{selectEffect(selected.id);setInspectorTab('effect');});
+      addMenuAction(selected.enabled?'Efekti kapat':'Efekti aç',()=>mutate(s=>{s.effects.find(e=>e.id===selected.id).enabled=!selected.enabled;}));
+      addMenuAction('Efekti dene',()=>{selectEffect(selected.id);if(effectTrigger(selected)==='pulse')bindPreview(selected.id);else previewHandle?.triggerEffect(selected.id);});
+    }else if(owner){
+      addMenuAction(owner.name+' · Özellikler',()=>{selectObject(owner.id);setInspectorTab('visual');});
+      if(editableVisual(owner)){
+        addMenuAction('Görseli taşı',()=>{selectObject(owner.id);setInspectorTab('visual');if(!visualMode)$('#visual-edit-mode').click();});
+        if(owner.hitArea)addMenuAction('Tıklama alanını düzenle',()=>{selectObject(owner.id);setInspectorTab('visual');$('#hit-area-settings').open=true;});
+        if(visualAssetSlots(owner).length)addMenuAction('Kaynak görsel',()=>{selectObject(owner.id);setInspectorTab('visual');$('#visual-source-settings').open=true;});
+      }
+      if(!siteSource)addMenuAction(owner.visible?'Nesneyi gizle':'Nesneyi göster',()=>mutate(s=>{s.objects.find(o=>o.id===owner.id).visible=!owner.visible;}));
+    }else{
+      addMenuAction('Sahneye sığdır',()=>setZoom(1));
+      addMenuAction('Efekt hedeflerini göster/gizle',()=>$('#show-markers').click());
+      addMenuAction('Tıklama alanlarını göster/gizle',()=>$('#show-hit-areas').click());
+    }
+    const bounds=root.getBoundingClientRect();
+    menu.hidden=false;
+    const left=Math.min(event.clientX-bounds.left,Math.max(0,bounds.width-menu.offsetWidth-8));
+    const top=Math.min(event.clientY-bounds.top,Math.max(0,bounds.height-menu.offsetHeight-8));
+    Object.assign(menu.style,{left:left+'px',top:top+'px'});
+    menu.querySelector('button')?.focus({preventScroll:true});
+  });
+  root.addEventListener('pointerdown',event=>{if(!menu.hidden&&!menu.contains(event.target))closeMenu();});
+  root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){event.preventDefault();closeMenu();}});
+}
+
+const panelTabs=[...root.querySelectorAll('[data-mobile-panel]')];
 for(const tab of panelTabs){
   tab.onclick=()=>{
-    document.body.dataset.panel=tab.dataset.mobilePanel;
+    surface.dataset.panel=tab.dataset.mobilePanel;
     for(const item of panelTabs){item.setAttribute('aria-selected',String(item===tab));item.tabIndex=item===tab?0:-1;}
   };
   tab.onkeydown=event=>{
@@ -1154,18 +1273,20 @@ function setZoom(value){
 $('#zoom-out').onclick=()=>setZoom(round(zoom-.25));
 $('#zoom-in').onclick=()=>setZoom(round(zoom+.25));
 $('#zoom-fit').onclick=()=>setZoom(1);
-document.querySelector('.scene-stage-well').addEventListener('wheel',event=>{
+root.querySelector('.scene-stage-well').addEventListener('wheel',event=>{
   if(!(event.ctrlKey||event.metaKey))return;
   event.preventDefault();setZoom(round(zoom+(event.deltaY<0?.25:-.25)));
 },{passive:false});
 function fitStage(){
-  const well=document.querySelector('.scene-stage-well');
+  const well=root.querySelector('.scene-stage-well');
   const photo=$('#scene-photo');
   const ratio=!photo.hidden&&photo.naturalWidth?photo.naturalWidth/photo.naturalHeight:(scene?.viewport.width??1600)/(scene?.viewport.height??900);
   const width=Math.min(well.clientWidth,well.clientHeight*ratio)*zoom;
   Object.assign($('#scene-viewport').style,{width:`${width}px`,height:`${width/ratio}px`});
 }
-new ResizeObserver(fitStage).observe(document.querySelector('.scene-stage-well'));
+const stageResizeObserver=new ResizeObserver(fitStage);stageResizeObserver.observe(root.querySelector('.scene-stage-well'));
+disposers.push(()=>stageResizeObserver.disconnect());
+if(standalone){
 $('#export').onclick=()=>{
   try{
     if(!scene)throw new Error('Önce sahne yükleyin.');
@@ -1185,53 +1306,25 @@ $('#project-file').onchange=async event=>{
 };
 $('#reset').onclick=async()=>{
   try{
-    const response=await fetch('examples/birdesengor-v2.scene.json');
+    const response=await fetch('/examples/birdesengor-v2.scene.json');
     if(!response.ok)throw new Error('Yerel V2 fikstürü okunamadı.');
     loadText(await response.text(),'Yerel V2 fikstürü yüklendi.');
   }catch(e){error(e);}
 };
-document.addEventListener('keydown',event=>{
+}
+const onEditorKeydown=event=>{
   if(!(event.ctrlKey||event.metaKey)||event.key.toLowerCase()!=='z'||event.target.matches('input,select,textarea'))return;
   event.preventDefault();travel(event.shiftKey?'redo':'undo');
-});
-setInterval(()=>{
+};
+document.addEventListener('keydown',onEditorKeydown);disposers.push(()=>document.removeEventListener('keydown',onEditorKeydown));
+const statusInterval=setInterval(()=>{
   const info=previewHandle?.inspect();
   const overlays=info?.overlays??[];
   const running=overlays.some(item=>item.running);
   const frames=overlays.reduce((sum,item)=>sum+item.frames,0);
   const pixels=overlays.reduce((sum,item)=>sum+item.pixelCount,0);
   $('#preview-status').textContent=!scene?'Sahne yok':info?.unresolved?.length?`Eksik nesne: ${info.unresolved.join(', ')}`:`${running?'Çalışıyor':'Duraklatıldı'} · ${frames} kare · ${Math.round(pixels/1000)}k piksel`;
-},600);
-
-if(embedded){
-  document.body.classList.add('embedded');
-  window.addEventListener('message',event=>{
-    if(event.source!==window.parent||!event.data||typeof event.data!=='object')return;
-    if(event.data.type==='studio:hello'){notify('studio:ready');return;}
-    if(event.data.type==='studio:load'){
-      try{
-        const next=importProject(JSON.stringify(event.data.scene));
-        if(!isObjectScene(next))throw new Error('Bu düzenleyici yalnız version 2 objectScene sahnelerini açar.');
-        installPreview(event.data);
-        loadText(JSON.stringify(event.data.scene),'Sahne hazır.',{resetHistory:true});
-        notify('studio:loaded',{requestId:event.data.requestId});
-      }catch(e){error(e);notify('studio:error',{message:e.message||String(e),requestId:event.data.requestId});}
-    }
-    if(event.data.type==='studio:get'){
-      try{validateScene(scene);notify('studio:data',{requestId:event.data.requestId,scene:structuredClone(scene),assets:[...assetReplacements.values()],presentation:structuredClone(presentation)});}
-      catch(e){notify('studio:error',{requestId:event.data.requestId,message:e.message||String(e)});}
-    }
-  });
-  notify('studio:ready');
-}else{
-  (async()=>{
-    try{
-      const response=await fetch('examples/birdesengor-v2.scene.json');
-      if(!response.ok)throw new Error('Yerel V2 fikstürü okunamadı.');
-      loadText(await response.text(),'Yerel V2 fikstürü yüklendi. Yerel sözleşme önizlemesidir; gerçek V2 bağlantısı değildir.');
-    }catch(e){error(e);}
-  })();
-}
+},600);disposers.push(()=>clearInterval(statusInterval));
 
 // Small read-only surface for local browser smoke tests; never part of the JSON.
 window.__sceneEditor={
@@ -1241,3 +1334,23 @@ window.__sceneEditor={
   selectEffect,
   zoom:()=>zoom,
 };
+
+return {
+  load(packet){
+    const next=importProject(JSON.stringify(packet.scene));
+    if(!isObjectScene(next))throw Error('Bu düzenleyici yalnız V2 sahnelerini açar.');
+    installPreview(packet);
+    loadText(JSON.stringify(packet.scene),'Sahne hazır.',{resetHistory:true});
+  },
+  snapshot(){validateScene(scene);return {scene:structuredClone(scene),assets:[...assetReplacements.values()],presentation:structuredClone(presentation)};},
+  destroy(){
+    previewHandle?.destroy();previewHandle=null;
+    if(previewFrame)cancelAnimationFrame(previewFrame);
+    window.removeEventListener('pointermove',moveDrag);window.removeEventListener('pointerup',endDrag);window.removeEventListener('pointercancel',endDrag);
+    window.removeEventListener('pointermove',moveVisualDrag);window.removeEventListener('pointerup',endVisualDrag);window.removeEventListener('pointercancel',endVisualDrag);
+    window.removeEventListener('pointermove',moveHitDrag);window.removeEventListener('pointerup',endHitDrag);window.removeEventListener('pointercancel',endHitDrag);
+    for(const dispose of disposers)dispose();
+    if(window.__sceneEditor?.getScene)delete window.__sceneEditor;
+  },
+};
+}

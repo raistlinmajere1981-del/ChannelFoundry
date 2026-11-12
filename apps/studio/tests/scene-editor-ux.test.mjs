@@ -1,10 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {objectEffectRegistry,defaultObjectParams} from '../src/registry/effects.mjs';
-import {importProject,exportProject,validateProject} from '../src/model/project.mjs';
-import {sceneProfiles,profileForEffect,applySceneProfile,basicControls,assertSiteStructure} from '../src/editor/scene-ux.mjs';
-const fixture=()=>importProject(readFileSync(new URL('../examples/birdesengor-v2.scene.json',import.meta.url),'utf8'));
+import {objectEffectRegistry,defaultObjectParams} from '../../../packages/effect-engine/src/registry/effects.mjs';
+import {importProject,exportProject,validateProject} from '../../../packages/effect-engine/src/model/project.mjs';
+import {sceneProfiles,profileForEffect,applySceneProfile,basicControls,assertSiteStructure} from '../src/scene-workspace/scene-ux.mjs';
+const fixture=()=>importProject(readFileSync(new URL('../../../packages/effect-engine/examples/birdesengor-v2.scene.json',import.meta.url),'utf8'));
 
 test('all daily profiles use exact canonical presets, are deterministic and preserve target/seed/state',()=>{
   for(const type of Object.keys(objectEffectRegistry))for(const profile of sceneProfiles){
@@ -68,7 +68,7 @@ test('site visual pose editing allows the isolated rock only',()=>{
   void original;
 });
 test('normalized room hit areas are validated and independent of editor pose', async () => {
-  const {validateProject}=await import('../src/model/project.mjs');
+  const {validateProject}=await import('../../../packages/effect-engine/src/model/project.mjs');
   const {readFileSync}=await import('node:fs');
   const path=new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url);
   const scene=JSON.parse(readFileSync(path,'utf8'));
@@ -83,7 +83,7 @@ test('normalized room hit areas are validated and independent of editor pose', a
 });
 
 test('Studio accepts editing hit areas without unlocking object poses or effect identities', async () => {
- const {assertSiteStructure}=await import('../src/editor/scene-ux.mjs');
+ const {assertSiteStructure}=await import('../src/scene-workspace/scene-ux.mjs');
  const {readFileSync}=await import('node:fs');
  const original=JSON.parse(readFileSync(new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url),'utf8'));
  const changed=structuredClone(original);
