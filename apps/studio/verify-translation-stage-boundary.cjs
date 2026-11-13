@@ -21,15 +21,16 @@ for(const filename of [
   assert.doesNotMatch(code,/PublicationLanguageEditor|languagesGenerate|languagesSave|languagesOverview/,filename+" must be translation-free");
 }
 assert.doesNotMatch(read("src/NarrativeWorkbench.tsx"),/\["languages",/,"Hikâyeleştir translation tab is obsolete");
-const publishing=read("src/PublishCenter.tsx");
-assert.match(publishing,/import PublicationTranslationCenter from "\.\/PublicationTranslationCenter"/);
-assert.match(publishing,/<PublicationTranslationCenter\/>/,"Publishing must expose the dedicated language workspace");
-assert.match(read("src/PublicationTranslationCenter.tsx"),/languagesOverview|PublicationLanguageEditor|languagesGet/,"Publishing must retain translation management");
+const records=read("src/EditorialWorkspaceV3.tsx");
+assert.match(records,/PublicationTranslationCenter/,"Kayıt Dosyaları yayın metinleri ve AI çeviriyi içermeli");
+assert.match(records,/translationMode/,"Kayıt editörü ve TR\/EN çeviri tek çalışma alanından açılmalı");
+assert.doesNotMatch(read("src/PublishCenter.tsx"),/PublicationTranslationCenter|languagesGenerate/,"Yayın Merkezi dil editörü taşımamalı");
+assert.match(read("src/PublicationTranslationCenter.tsx"),/languagesOverview|languagesBatchEnqueue|PublicationLanguageEditor/,"Toplu AI çeviri kayıt hazırlığına bağlı kalmalı");
 const ipc=read("studio-ipc.cjs");
 const pubHandler=ipc.slice(ipc.indexOf("function registerPublishingHandlers()"),ipc.indexOf("function registerStudioIpc()"));
-for(const endpoint of ["studio:languages-overview","studio:languages-get","studio:languages-save","studio:languages-generate"]){
+for(const endpoint of ["studio:languages-overview","studio:languages-get","studio:languages-save","studio:languages-generate","studio:languages-batch-enqueue","studio:languages-batch-status"]){
   assert(pubHandler.includes(endpoint),endpoint+" must be registered in publishing");
 }
 const dashboard=read("src/TranslationStatus.tsx");
-assert.match(dashboard,/onNavigate\('Yayınlama'\)/);
-console.log("PASS: Source analysis only analyzes; translations are edited and generated from Yayınlama, including status navigation.");
+assert.match(dashboard,/onNavigate\('Kayıt Dosyaları'\)/);
+console.log("PASS: AI analysis stays translation-free; records own bilingual editorial review and batch queue, publishing only deploys.");

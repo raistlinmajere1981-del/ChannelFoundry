@@ -544,6 +544,11 @@ interface Window {
     languagesGet(input:{kind:PublicationLanguageKind;id:string}): Promise<PublicationLanguagePack|null>;
     languagesSave(input:{kind:PublicationLanguageKind;id:string;language:PublicationLanguage;data:LanguageData;sourceHash:string;revision:number;approved:boolean}): Promise<PublicationLanguagePack>;
     languagesGenerate(input:{kind:PublicationLanguageKind;id:string;language:PublicationLanguage}): Promise<PublicationLanguagePack>;
+    languagesBatchStatus():Promise<PublicationTranslationBatchStatus>;
+    languagesBatchEnqueue(input:{items:{kind:PublicationLanguageKind;id:string}[]}):Promise<PublicationTranslationBatchStatus & {queued:number;skipped:number}>;
+    languagesBatchPause():Promise<PublicationTranslationBatchStatus>;
+    languagesBatchResume():Promise<PublicationTranslationBatchStatus>;
+    languagesBatchRetry():Promise<PublicationTranslationBatchStatus>;
     seoOverview(): Promise<StudioSeoOverview>;
     seoSave(input: { kind: string; language:PublicationLanguage; approved?:boolean; sourceHash?:string; id?: string; title: string; description: string; image?: string }): Promise<StudioSeoOverview>;
     seoSuggest(input: { kind: string; language:PublicationLanguage; id: string }): Promise<{ title: string; description: string }>;
@@ -568,3 +573,5 @@ type LanguageData = Record<string, unknown>;
 type PublicationLanguageVariant = {language:PublicationLanguage;data:LanguageData;state:"draft"|"approved";stale:boolean;sourceHash:string;revision:number;approvedRevision:number;manual:boolean;model:string;promptVersion:string;candidate:LanguageData|null;jobState:string;error:string};
 type PublicationLanguagePack = {kind:PublicationLanguageKind;id:string;sourceHash:string;source:LanguageData;variants:Partial<Record<PublicationLanguage,PublicationLanguageVariant>>;flags?:Record<"ready"|"missing"|"pending"|"stale"|"errors",boolean>};
 type PublicationLanguageOverview = {rows:PublicationLanguagePack[];counts:Record<"ready"|"missing"|"pending"|"stale"|"errors",number>};
+
+type PublicationTranslationBatchStatus={rows:{kind:PublicationLanguageKind;id:string;language:"en";sourceHash:string;state:"queued"|"running"|"done"|"failed"|"skipped";attempts:number;error:string;updatedAt:string}[];counts:Record<"queued"|"running"|"done"|"failed"|"skipped",number>;running:boolean;paused:boolean};

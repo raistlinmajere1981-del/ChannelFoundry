@@ -65,6 +65,7 @@ export type PublicationPreview = {
   publicationId: string;
   contentFingerprint: string;
   changed: boolean;
+  coverage?:{requiresFull:boolean;reasons:string[];newSections:number;newEntities:number;newRelations:number;newVideos:number;drawingsChanged:boolean;supportChanged:boolean;outlineChanged:boolean;vefkLanguageChanged?:boolean;relationRemoved?:boolean;videoMetadataChanged?:boolean;partialLocaleChanges?:boolean};
   counts: { sections: number; entities: number; relations: number; assets: number; vefks: number };
   readiness: ThemePublicationReadiness;
   liveError?: string;

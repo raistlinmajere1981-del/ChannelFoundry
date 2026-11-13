@@ -23,10 +23,18 @@ function ensureSchema(db) {
     revision INTEGER NOT NULL DEFAULT 1, approved_revision INTEGER NOT NULL DEFAULT 0, manual INTEGER NOT NULL DEFAULT 0, model TEXT NOT NULL DEFAULT '',
     prompt_version TEXT NOT NULL DEFAULT '', candidate_json TEXT, error TEXT NOT NULL DEFAULT '',
     job_state TEXT NOT NULL DEFAULT '' CHECK(job_state IN ('','running','done','error')),
+    tr_dependency TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(kind,id,language), FOREIGN KEY(kind,id) REFERENCES publication_language_sources(kind,id) ON DELETE CASCADE
   ) STRICT;`);
   if(!db.prepare('PRAGMA table_info(publication_language_variants)').all().some(c=>c.name==='approved_revision')){db.exec('ALTER TABLE publication_language_variants ADD COLUMN approved_revision INTEGER NOT NULL DEFAULT 0');db.exec("UPDATE publication_language_variants SET approved_revision=revision WHERE state='approved'");}
+  // Upgrade existing approved EN rows without invalidating published bilingual content.
+  if(!db.prepare('PRAGMA table_info(publication_language_variants)').all().some(c=>c.name==='tr_dependency')) {
+    db.exec("ALTER TABLE publication_language_variants ADD COLUMN tr_dependency TEXT NOT NULL DEFAULT ''");
+    const rows=db.prepare("SELECT kind,id,data_json,source_hash,approved_revision FROM publication_language_variants WHERE language='tr' AND state='approved'").all();
+    const stamp=db.prepare("UPDATE publication_language_variants SET tr_dependency=? WHERE kind=? AND id=? AND language='en'");
+    for(const row of rows)stamp.run(hash({sourceHash:row.source_hash,revision:row.approved_revision,data:parse(row.data_json)}),row.kind,row.id);
+  }
 }
 function resetInterrupted(db) {
   ensureSchema(db);
@@ -42,13 +50,20 @@ function putSource(db, kind, id, data) {
     WHERE source_hash<>excluded.source_hash`).run(kind,id,sourceHash,JSON.stringify(data));
   return sourceHash;
 }
+function approvedTrHash(db,kind,id) {
+  const tr=db.prepare("SELECT data_json,source_hash,approved_revision,state FROM publication_language_variants WHERE kind=? AND id=? AND language='tr'").get(kind,id);
+  const current=source(db,kind,id);
+  if(!tr||tr.state!=='approved'||tr.source_hash!==current?.source_hash)return '';
+  return hash({sourceHash:tr.source_hash,revision:tr.approved_revision,data:parse(tr.data_json)});
+}
 function variants(db, kind, id) {
   const s = source(db,kind,id); if (!s) return null;
   const result = { kind,id,sourceHash:s.source_hash,source:parse(s.data_json),variants:{} };
+  const trHash=approvedTrHash(db,kind,id);
   for (const row of db.prepare('SELECT * FROM publication_language_variants WHERE kind=? AND id=?').all(kind,id)) {
     result.variants[row.language] = { language:row.language, data:parse(row.data_json), state:row.state,
-      stale:row.source_hash!==s.source_hash, sourceHash:row.source_hash, revision:row.revision,approvedRevision:row.approved_revision,
-      manual:Boolean(row.manual), model:row.model, promptVersion:row.prompt_version,
+      stale:row.source_hash!==s.source_hash || (row.language==='en' && Boolean(row.tr_dependency) && row.tr_dependency!==trHash), sourceHash:row.source_hash, revision:row.revision,approvedRevision:row.approved_revision,
+      manual:Boolean(row.manual), model:row.model, promptVersion:row.prompt_version, trDependency:row.tr_dependency,
       candidate:parse(row.candidate_json)?.data||null,candidateMeta:parse(row.candidate_json)?{model:parse(row.candidate_json).model,promptVersion:parse(row.candidate_json).promptVersion,sourceHash:parse(row.candidate_json).sourceHash}:null, jobState:row.job_state, error:row.error };
   }
   return result;
@@ -98,10 +113,13 @@ function save(db, input) {
   const original=parse(s.data_json);
   const data=validateVariant(input.kind,original,input.data);
   if(input.approved===true) {if(data.analysisStale)throw new Error('Önce temel çözümlemeyi güncelle.');required(input.kind,data);}
+  const trHash=input.language==='en'?approvedTrHash(db,input.kind,input.id):'';
+  if(input.language==='en'&&input.approved===true&&!trHash)throw new Error('İngilizce onayından önce güncel Türkçe yayın metni onaylanmalı.');
   db.prepare(`INSERT INTO publication_language_variants(kind,id,language,source_hash,data_json,state,manual,approved_revision)
     VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(kind,id,language) DO UPDATE SET source_hash=excluded.source_hash,
     data_json=excluded.data_json,state=excluded.state,manual=1,approved_revision=CASE WHEN excluded.state='approved' THEN revision+1 ELSE 0 END,revision=revision+1,candidate_json=NULL,error='',job_state='',updated_at=CURRENT_TIMESTAMP`)
     .run(input.kind,input.id,lang,s.source_hash,JSON.stringify(data),input.approved===true?'approved':'draft',input.approved===true?1:0);
+  if(lang==='en')db.prepare("UPDATE publication_language_variants SET tr_dependency=? WHERE kind=? AND id=? AND language='en'").run(trHash,input.kind,input.id);
   return variants(db,input.kind,input.id);
 }
 // Send only mutable prose to the language model; source core, identity, geometry,
@@ -152,12 +170,16 @@ async function generate(db,userDataPath,input,client=require('./ai-client.cjs'))
     .run(input.kind,input.id,lang,s.source_hash,'{}');
   try {
     const original=parse(s.data_json);
-    const fields=translatableFields(original);
+    const trPack=variants(db,input.kind,input.id).variants.tr;
+    if(lang==='en'&&(!trPack || trPack.stale || trPack.state!=='approved'))throw new Error('İngilizce AI üretiminden önce güncel Türkçe yayın metni onaylanmalı.');
+    const inputText=lang==='en'?trPack.data:original;
+    const trHash=lang==='en'?approvedTrHash(db,input.kind,input.id):'';
+    const fields=translatableFields(inputText);
     if(!fields.length)throw new Error('Bu kaynakta çevrilebilir metin alanı bulunamadı.');
     const translated=[];
     const models=[];
     const context={
-      title:String(original.title||'').slice(0,200),
+      title:String(inputText.title||'').slice(0,200),
       coreConcepts:Array.isArray(original.core?.concepts)?original.core.concepts.slice(0,12):[],
       coreTopics:Array.isArray(original.core?.topics)?original.core.topics.slice(0,12):[],
       protectedNames:original.protectedNames||[],
@@ -173,19 +195,21 @@ async function generate(db,userDataPath,input,client=require('./ai-client.cjs'))
       translated.push(...parsed.fields);
       if(response?.model)models.push(response.model);
     }
-    const data=applyTranslatedFields(original,fields,{fields:translated});
+    const data=applyTranslatedFields(inputText,fields,{fields:translated});
+    validateVariant(input.kind,original,data);
     const response={model:models.at(-1)||''};
     const prose=value=>typeof value==='string'?value:Array.isArray(value)?value.map(prose).join(' '):value&&typeof value==='object'?Object.entries(value).filter(([key])=>key!=='core'&&key!=='protectedNames').map(([,v])=>prose(v)).join(' '):'';
-    const before=prose(original),after=prose(data);
+    const before=prose(inputText),after=prose(data);
     for(const name of original.protectedNames||[])if(before.includes(name)&&!after.includes(name))throw new Error('AI önerisinde özel ad değişmiş; insan incelemesi gerekli.');
     const current=variants(db,input.kind,input.id).variants[lang];
     if (source(db,input.kind,input.id).source_hash!==s.source_hash) throw new Error('Üretim sırasında kaynak değişti. Yeniden üret.');
+    if(lang==='en'&&trHash!==approvedTrHash(db,input.kind,input.id))throw new Error('Üretim sırasında Türkçe onay değişti; tekrar çevir.');
     // Always stage regeneration; manual edits and approved variants are never overwritten.
     const stage=Boolean(existing?.manual || existing?.state==='approved' || (current?.revision??0)!==(existing?.revision??1));
     db.prepare(`UPDATE publication_language_variants SET data_json=?,candidate_json=?,source_hash=?,state=?,
-      model=?,prompt_version=?,job_state='done',error='',revision=revision+1,updated_at=CURRENT_TIMESTAMP
+      model=?,prompt_version=?,tr_dependency=?,job_state='done',error='',revision=revision+1,updated_at=CURRENT_TIMESTAMP
       WHERE kind=? AND id=? AND language=?`).run(stage?JSON.stringify(current.data):JSON.stringify(data),stage?JSON.stringify({data,model:response.model||'',promptVersion:PROMPT_VERSION,sourceHash:s.source_hash}):null,
-      stage?current.sourceHash:s.source_hash,stage?current.state:'draft',stage?current.model:(response.model||''),stage?current.promptVersion:PROMPT_VERSION,input.kind,input.id,lang);
+      stage?current.sourceHash:s.source_hash,stage?current.state:'draft',stage?current.model:(response.model||''),stage?current.promptVersion:PROMPT_VERSION,stage?(current.trDependency||''):trHash,input.kind,input.id,lang);
     return variants(db,input.kind,input.id);
   } catch(error) {
     db.prepare(`UPDATE publication_language_variants SET job_state='error',error=? WHERE kind=? AND id=? AND language=?`).run(String(error.message).slice(0,2000),input.kind,input.id,lang);

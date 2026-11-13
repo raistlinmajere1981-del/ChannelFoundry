@@ -44,6 +44,53 @@ function assertReferences(snapshot) {
     if (!assetIds.has(id)) throw new Error(`Güncellemede çözümlenemeyen görsel: ${id}`);
   }
 }
+function compareCoverage(local,baseline){
+  if(!baseline)return {requiresFull:true,reasons:['Henüz doğrulanmış canlı paket yok.'],newSections:local.journal?.sections?.length??0,newEntities:local.archive?.entities?.length??0,newRelations:local.archive?.relations?.length??0,newVideos:local.youtubeAnalysis?.videos?.length??0,drawingsChanged:(local.vefkCatalog?.entries?.length??0)>0,supportChanged:false,outlineChanged:false,vefkLanguageChanged:false,relationRemoved:false,videoMetadataChanged:false,partialLocaleChanges:false};
+  const newCount=(a,b,key)=>{const old=new Set((b??[]).map(x=>x[key]));return (a??[]).filter(x=>!old.has(x[key])).length;};
+  const newSections=newCount(local.journal?.sections,baseline.journal?.sections,'sectionId');
+  const newEntities=newCount(local.archive?.entities,baseline.archive?.entities,'entityId');
+  const newRelations=newCount(local.archive?.relations,baseline.archive?.relations,'relationId');
+  const newVideos=newCount(local.youtubeAnalysis?.videos,baseline.youtubeAnalysis?.videos,'videoId');
+  const relationRemoved=newCount(baseline.archive?.relations,local.archive?.relations,'relationId')>0;
+  const localVideos=new Map((local.youtubeAnalysis?.videos??[]).map(v=>[v.videoId,v]));
+  const stripLocales=(value)=>Array.isArray(value)?value.map(stripLocales):value&&typeof value==='object'
+    ?Object.fromEntries(Object.entries(value).filter(([key])=>!['locales','generatedAt'].includes(key)).map(([key,child])=>[key,stripLocales(child)])):value;
+  const videoMetadataChanged=(baseline.youtubeAnalysis?.videos??[]).some(old=>{
+    const current=localVideos.get(old.videoId);
+    return current&&JSON.stringify(stripLocales(current))!==JSON.stringify(stripLocales(old));
+  });
+  const vefkLanguageChanged=JSON.stringify(local.vefkLanguages??null)!==JSON.stringify(baseline.vefkLanguages??null);
+  // Safe overlays only refresh dual-approved locales. If an existing record
+  // changed to TR-only, full publication is needed to avoid silently omitting it.
+  const partialChanges=(current,old,key)=>{
+    const known=by(old,key);
+    return (current??[]).some(item=>{
+      const previous=known.get(item[key]);
+      if(!previous||JSON.stringify(item.locales??{})===JSON.stringify(previous.locales??{}))return false;
+      return !(item.locales?.tr?.status==='approved'&&item.locales?.en?.status==='approved');
+    });
+  };
+  const partialLocaleChanges=partialChanges(local.archive?.entities,baseline.archive?.entities,'entityId')
+    ||partialChanges(local.journal?.sections,baseline.journal?.sections,'sectionId')
+    ||partialChanges(local.youtubeAnalysis?.videos,baseline.youtubeAnalysis?.videos,'videoId');
+
+  const drawingsChanged=JSON.stringify(local.vefkCatalog??null)!==JSON.stringify(baseline.vefkCatalog??null);
+  const supportChanged=JSON.stringify(local.support??null)!==JSON.stringify(baseline.support??null);
+  const outlineChanged=JSON.stringify(stripLocales(local.journal?.outline??null))!==JSON.stringify(stripLocales(baseline.journal?.outline??null));
+  const reasons=[];
+  if(newSections)reasons.push(`${newSections} yeni anlatı bölümü`);
+  if(newEntities)reasons.push(`${newEntities} yeni evren kaydı`);
+  if(newRelations)reasons.push(`${newRelations} yeni ilişki`);
+  if(relationRemoved)reasons.push('Canlı yayındaki bazı ilişkiler kaldırıldı');
+  if(newVideos)reasons.push(`${newVideos} yeni kamera kaydı`);
+  if(drawingsChanged)reasons.push('Çizim Atölyesi yayın kataloğu değişti');
+  if(vefkLanguageChanged)reasons.push('Çizim Atölyesi TR/EN metinleri değişti');
+  if(partialLocaleChanges)reasons.push('Tek dil onaylı mevcut kayıtların yayın metinleri değişti');
+  if(videoMetadataChanged)reasons.push('Kamera kaynak metaverisi değişti');
+  if(supportChanged)reasons.push('Sponsor/katkı kayıtları değişti');
+  if(outlineChanged)reasons.push('İçindekilere yeni bölüm/seri eklendi');
+  return {requiresFull:reasons.length>0,reasons,newSections,newEntities,newRelations,newVideos,drawingsChanged,supportChanged,outlineChanged,vefkLanguageChanged,relationRemoved,videoMetadataChanged,partialLocaleChanges};
+}
 function buildUpdatePublication(baseline, built, visibility = {}) {
   valid(baseline);
   const current = valid(built.snapshot);
@@ -186,4 +233,4 @@ function exportUpdatePublication(update, userDataPath) {
     changes:update.changes,
   };
 }
-module.exports = {valid,buildUpdatePublication,exportUpdatePublication};
+module.exports = {valid,buildUpdatePublication,exportUpdatePublication,compareCoverage};

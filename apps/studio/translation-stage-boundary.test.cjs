@@ -6,16 +6,17 @@ const path=require("node:path");
 const here=__dirname;
 const source=file=>fs.readFileSync(path.join(here,file),"utf8");
 
-test("Translation edits are available only from the publishing surface",()=>{
-  const publisher=source("src/PublishCenter.tsx");
-  assert.match(publisher,/PublicationTranslationCenter/);
-  assert.match(publisher,/Dil ve çeviri/);
-  assert.match(publisher,/Paket ve canlı yayın/);
-  const languageCenter=source("src/PublicationTranslationCenter.tsx");
-  assert.match(languageCenter,/PublicationLanguageEditor/);
-  for(const screen of ["NarrativeWorkbench.tsx","VideoAnalysisWorkbench.tsx","EditorialRecordDetail.tsx","VefkWorkshop.tsx"]){
-    assert.doesNotMatch(source(path.join("src",screen)),/PublicationLanguageEditor|languagesGenerate\(/,screen);
-  }
+test("Translation editing and batch AI generation belong to Records, not Publishing",()=>{
+ const records=source("src/EditorialWorkspaceV3.tsx"),publisher=source("src/PublishCenter.tsx");
+ assert.match(records,/PublicationTranslationCenter/);
+ assert.match(records,/translationMode/);
+ assert.doesNotMatch(publisher,/PublicationTranslationCenter|languagesGenerate/);
+ const languageCenter=source("src/PublicationTranslationCenter.tsx");
+ assert.match(languageCenter,/PublicationLanguageEditor/);
+ assert.match(languageCenter,/languagesBatchEnqueue/);
+ for(const screen of ["NarrativeWorkbench.tsx","VideoAnalysisWorkbench.tsx","EditorialRecordDetail.tsx","VefkWorkshop.tsx"]){
+   assert.doesNotMatch(source(path.join("src",screen)),/PublicationLanguageEditor|languagesGenerate\(/,screen);
+ }
 });
 
 test("Source analysis no longer schedules automatic translation",()=>{
@@ -28,13 +29,12 @@ test("Source analysis no longer schedules automatic translation",()=>{
   assert.match(ipc,/studio:languages-save/);
 });
 
-test("Publishing translations retain separate modes for content and delivery",()=>{
-  const publisher=source("src/PublishCenter.tsx");
-  assert.match(publisher,/activePublishView === "languages"/);
-  assert.match(publisher,/activePublishView === "delivery"/);
-  assert.match(publisher,/exportPublicSnapshot\(/);
-  assert.match(publisher,/publishPublicSnapshot\(/);
-  const center=source("src/PublicationTranslationCenter.tsx");
-  for(const kind of ["section","video","entity","outline","vefk"])
-    assert.match(center,new RegExp('kind: "'+kind+'"'));
+test("Publishing offers one automatic mode with separate safe update and full publication support",()=>{
+ const publisher=source("src/PublishCenter.tsx");
+ assert.match(publisher,/modeFor/);
+ assert.match(publisher,/publishPublicSnapshot\(actualMode\)/);
+ assert.doesNotMatch(publisher,/exportPublicSnapshot\(/);
+ const center=source("src/PublicationTranslationCenter.tsx");
+ for(const kind of ["section","video","entity","outline","vefk"])
+   assert.match(center,new RegExp("kind:'"+kind+"'"));
 });

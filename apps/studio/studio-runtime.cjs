@@ -107,6 +107,7 @@ async function publicationPreview() {
     publicationId:snapshot.publication.id,
     contentFingerprint:snapshot.publication.contentFingerprint,
     changed:baseline ? baseline.publication.contentFingerprint !== snapshot.publication.contentFingerprint : true,
+    coverage:publicationUpdates.compareCoverage(snapshot,baseline),
     counts:{
       sections:snapshot.journal.sections.length,entities:snapshot.archive.entities.length,
       relations:snapshot.archive.relations.length,assets:snapshot.assets.length,

@@ -1,297 +1,115 @@
-import PublicationTranslationCenter from "./PublicationTranslationCenter";
-import { useEffect, useState } from "react";
-import {
-  formatExportDate,
-  publishErrorText,
-  type LivePublicationInfo,
-  type PublicationInfo,
-  type PublicationPreview,
-  type PublishItem,
-  type PublishRelation,
-  type ThemePublicationExport,
-} from "./publish-model";
+import {useEffect,useState} from 'react';
+import {formatExportDate,publishErrorText,type LivePublicationInfo,type PublicationInfo,type PublicationPreview} from './publish-model';
 
-type LocalExportResult = ThemePublicationExport & {
-  root: string;
-  itemCount?: number;
-  publicationV2?: ThemePublicationExport;
+type LocalExport = PublicationInfo & {publicationV2?:PublicationInfo;root?:string;uploadedAssets?:number;live:LivePublicationInfo};
+type Publisher = Omit<NonNullable<typeof window.channelFoundryStudio>,"publishPublicSnapshot"|"getPublicationInfo"> & {
+  publicationPreview():Promise<PublicationPreview>;
+  publishPublicSnapshot(mode?:'full'|'update'):Promise<LocalExport>;
+  getPublicationInfo():Promise<PublicationInfo|null>;
 };
+type Mode='auto'|'full'|'update';
+const modeFor=(preview:PublicationPreview|null,selection:Mode):'full'|'update'=>
+  selection!=='auto'?selection:!preview?.baselineAvailable||preview?.coverage?.requiresFull||!preview?.update?.ready?'full':'update';
+const newCount=(value?:number)=>Number(value||0).toLocaleString('tr-TR');
 
-type LiveExportResult = LocalExportResult & {
-  uploadedAssets: number;
-  live: LivePublicationInfo;
-};
-
-type PublicationBridge = Omit<
-  NonNullable<typeof window.channelFoundryStudio>,
-  "exportPublicSnapshot" | "publishPublicSnapshot" | "getPublicationInfo"
-> & {
-  publicationPreview(): Promise<PublicationPreview>;
-  exportPublicSnapshot(mode?: "full" | "update"): Promise<LocalExportResult>;
-  publishPublicSnapshot(mode?: "full" | "update"): Promise<LiveExportResult>;
-  getPublicationInfo(): Promise<PublicationInfo | null>;
-};
-
-function exportInfo(result: LocalExportResult): PublicationInfo {
-  const value = result.publicationV2 ?? result;
-  return {
-    generatedAt: String(value.generatedAt ?? ""),
-    file: String(value.file ?? ""),
-    publicationId: String(value.publicationId ?? ""),
-    contentFingerprint: String(value.contentFingerprint ?? ""),
-    sectionCount: Number(value.sectionCount ?? 0),
-    entityCount: Number(value.entityCount ?? 0),
-    relationCount: Number(value.relationCount ?? 0),
-    assetCount: Number(value.assetCount ?? 0),
-    vefkCount: Number(value.vefkCount ?? 0),
-  };
-}
-
-export default function PublishCenter({ items, relations, workspaceNodes, workspaceStatus }: {
-  items: PublishItem[];
-  relations: PublishRelation[];
-  workspaceNodes: StudioUniverseWorkspaceNode[];
-  workspaceStatus: StudioUniverseWorkspaceStatus | null;
-}) {
-  void items;
-  void relations;
-  void workspaceNodes;
-  void workspaceStatus;
-
-  const [publishMode, setPublishMode] = useState<"full" | "update">("update");
-  const [activePublishView, setActivePublishView] = useState<"languages" | "delivery">("languages");
-  const [publicationInfo, setPublicationInfo] = useState<PublicationInfo | null>(null);
-  const [preview, setPreview] = useState<PublicationPreview | null>(null);
-  const [livePublication, setLivePublication] = useState<LivePublicationInfo | null>(null);
-  const [communityConnected, setCommunityConnected] = useState(false);
-  const [project, setProject] = useState<StudioChannelProject | null>(null);
-  const [localBuilding, setLocalBuilding] = useState(false);
-  const [livePublishing, setLivePublishing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = async (bridge: PublicationBridge) => {
-    const [info, session, nextPreview, projectInfo] = await Promise.all([
-      bridge.getPublicationInfo(),
-      bridge.communitySession(),
-      bridge.publicationPreview(),
-      bridge.channelProjects(),
-    ]);
-    setPublicationInfo(info);
-    setCommunityConnected(Boolean(session?.connected));
-    setProject(projectInfo.projects.find((entry) => entry.id === projectInfo.activeId) || null);
-    setPreview(nextPreview ?? null);
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const bridge = window.channelFoundryStudio as PublicationBridge | undefined;
-    const reload = async () => {
-      if (!bridge) return;
-      try {
-        await load(bridge);
-      } catch (loadError) {
-        if (!cancelled) setError(publishErrorText(loadError));
-      }
-    };
-    void reload();
-    const unsubscribe = bridge?.onDataChanged?.(() => { void reload(); });
-    return () => { cancelled = true; unsubscribe?.(); };
-  }, []);
-
-  const readiness = preview?.readiness;
-  const ready = Boolean(readiness?.readyForTheme);
-  const updateReady = Boolean(preview?.update?.ready);
-  const selectedReady = publishMode === "full" ? ready : updateReady;
-  const counts = preview?.counts ?? { sections: 0, entities: 0, relations: 0, assets: 0, vefks: 0 };
-  const reasons = [
-    ...(readiness && readiness.narrativeSections === 0 ? ["05 · Hikâyeleştir aşamasında en az bir anlatı bölümü onaylanmalı."] : []),
-    ...(readiness?.narrativeChangesPending ? ["Onaylı Evren değişiklikleri yaşayan anlatıya henüz uygulanmadı; 05 · Hikâyeleştir tamamlanmalı."] : []),
-    ...(readiness && readiness.narrativeSections > 0 && !readiness.visualComplete ? ["06 · Görsel Tamamlama içinde bölüm sahneleri için karar bekliyor."] : []),
-  ];
-
-  const buildLocal = async () => {
-    const bridge = window.channelFoundryStudio as PublicationBridge | undefined;
-    if (!bridge) {
-      setError("Yerel publication paketi yalnızca Electron Studio içinde oluşturulabilir.");
-      return;
-    }
-    setLocalBuilding(true);
-    setError(null);
-    try {
-      const result = await bridge.exportPublicSnapshot(publishMode);
-      setPublicationInfo(exportInfo(result));
-      setPreview(await bridge.publicationPreview());
-    } catch (buildError) {
-      setError(publishErrorText(buildError));
-    } finally {
-      setLocalBuilding(false);
-    }
-  };
-
-  const publishLive = async () => {
-    const bridge = window.channelFoundryStudio as PublicationBridge | undefined;
-    if (!bridge) {
-      setError("Canlı yayın yalnızca Electron Studio içinde yapılabilir.");
-      return;
-    }
-    if (!project?.deploymentEnabled) {
-      setError("Canlı yayın kapalı. Önce web sitesini kur; ardından Ayarlar → Kanal ve yayın → Web yayını bölümünden bağlantıyı test edip etkinleştir.");
-      return;
-    }
-    const latestPreview = await bridge.publicationPreview();
-    setPreview(latestPreview);
-    if (publishMode === "full" ? !latestPreview.readiness.readyForTheme : !latestPreview.update?.ready) {
-      setError(publishMode === "full" ? "Tam yayın için 05/06 aşamaları tamamlanmalı." : latestPreview.liveError || "Mevcut yayında doğrulanmış bir güncelleme bulunmuyor.");
-      return;
-    }
-    const session = await bridge.communitySession();
-    setCommunityConnected(Boolean(session.connected));
-    if (!session.connected) {
-      setError("Canlı yayın için önce Topluluk ekranından Studio yönetici bağlantısını kur.");
-      return;
-    }
-    const confirmed = window.confirm(
-      `${publishMode === "update" ? "Yalnız mevcut canlı kayıtlar güvenli biçimde güncellensin" : `${latestPreview.counts.sections} anlatı, ${latestPreview.counts.entities} arşiv kaydı ve ${latestPreview.counts.assets} görsel tam paket olarak yayınlansın`} mı?`,
-    );
-    if (!confirmed) return;
-
-    setLivePublishing(true);
-    setError(null);
-    try {
-      const result = await bridge.publishPublicSnapshot(publishMode);
-      setPublicationInfo(exportInfo(result));
-      setLivePublication(result.live);
-      setPreview(await bridge.publicationPreview());
-    } catch (publishError) {
-      setError(publishErrorText(publishError));
-    } finally {
-      setLivePublishing(false);
-    }
-  };
-
-  const refreshLiveStatus = async () => {
-    const bridge = window.channelFoundryStudio as PublicationBridge | undefined;
-    if (!bridge) return;
-    setError(null);
-    try {
-      await load(bridge);
-    } catch (refreshError) {
-      setError(publishErrorText(refreshError));
-    }
-  };
-
-  const revealPackage = async () => {
-    try {
-      await window.channelFoundryStudio?.showPublicExport();
-    } catch (revealError) {
-      setError(publishErrorText(revealError));
-    }
-  };
-
-  const lastLiveAt = livePublication?.generatedAt ?? preview?.baseline?.generatedAt ?? null;
-  const publishStatus = error || (!project?.deploymentEnabled ? "Canlı yayın kapalı · Ayarlar → Kanal ve yayın → Web yayını: bağlantıyı Test et ve etkinleştir." : "")
-    || (localBuilding ? "Publication v2 yerel paketi oluşturuluyor…" : "")
-    || (livePublishing ? "Asset'ler yükleniyor, publication.json etkinleştiriliyor ve doğrulanıyor…" : "")
-    || (livePublication
-      ? `Canlı yayın doğrulandı · ${formatExportDate(livePublication.generatedAt)}`
-      : lastLiveAt ? `Son canlı yayın · ${formatExportDate(lastLiveAt)}` : "Henüz canlı publication v2 yayını yapılmadı.");
-
-  return <section className="publish-center">
-    <nav className="publish-phase-tabs" role="tablist" aria-label="Yayın hazırlığı aşamaları">
-      <button type="button" role="tab" aria-selected={activePublishView === "languages"} onClick={() => setActivePublishView("languages")}>01 · Dil ve çeviri</button>
-      <button type="button" role="tab" aria-selected={activePublishView === "delivery"} onClick={() => setActivePublishView("delivery")}>02 · Paket ve canlı yayın</button>
-    </nav>
-    {activePublishView === "languages" ? <PublicationTranslationCenter/> : <>
-    <div className="publish-actions" role="group" aria-label="Yayın biçimi">
-      <button type="button" className={publishMode === "update" ? "primary-button" : "secondary-button"} onClick={() => setPublishMode("update")}>İçerik / görsel güncellemesi</button>
-      <button type="button" className={publishMode === "full" ? "primary-button" : "secondary-button"} onClick={() => setPublishMode("full")}>Tam yayın</button>
+export default function PublishCenter(){
+ const [preview,setPreview]=useState<PublicationPreview|null>(null);
+ const [info,setInfo]=useState<PublicationInfo|null>(null);
+ const [project,setProject]=useState<StudioChannelProject|null>(null);
+ const [communityConnected,setCommunityConnected]=useState(false);
+ const [languages,setLanguages]=useState<PublicationLanguageOverview|null>(null);
+ const [modeOverride,setModeOverride]=useState<Mode>('auto');
+ const [strictBilingual,setStrictBilingual]=useState(false);
+ const [live,setLive]=useState<LivePublicationInfo|null>(null);
+ const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ const bridge=window.channelFoundryStudio as Publisher|undefined;
+ const refresh=async()=>{
+  if(!bridge)return;
+  const [next,publication,session,projects,languageOverview]=await Promise.all([
+    bridge.publicationPreview(),bridge.getPublicationInfo(),bridge.communitySession(),bridge.channelProjects(),bridge.languagesOverview(),
+  ]);
+  setPreview(next);setInfo(publication);setCommunityConnected(Boolean(session?.connected));
+  setProject(projects.projects.find(entry=>entry.id===projects.activeId)??null);
+  setLanguages(languageOverview);
+ };
+ useEffect(()=>{
+  let active=true;
+  void refresh().catch(reason=>{if(active)setError(publishErrorText(reason));}).finally(()=>{if(active)setLoading(false);});
+  const off=bridge?.onDataChanged?.(()=>{if(active&&!busy)void refresh().catch(()=>undefined);});
+  return()=>{active=false;off?.();};
+ },[bridge,busy]);
+ const mode=modeFor(preview,modeOverride);
+ const full=mode==='full';
+ const ready=Boolean(full?preview?.readiness?.readyForTheme:preview?.update?.ready);
+ const languageReady=Boolean(languages&&languages.rows.length===languages.counts.ready);
+ const allowPublish=Boolean(project?.deploymentEnabled&&communityConnected&&ready&&preview?.changed&&!busy&&(!strictBilingual||languageReady));
+ const counts=preview?.counts??{sections:0,entities:0,relations:0,assets:0,vefks:0};
+ const coverage=preview?.coverage;
+ const reasons:string[]=[];
+ if(!project?.deploymentEnabled)reasons.push('Web yayını Ayarlar bölümünde henüz etkinleştirilmemiş.');
+ if(!communityConnected)reasons.push('Topluluk yönetici bağlantısı gerekli.');
+ if(full&&preview?.readiness?.narrativeSections===0)reasons.push('Onaylı anlatı bölümü bulunamadı.');
+ if(full&&preview?.readiness?.narrativeChangesPending)reasons.push('Onaylı evren değişiklikleri anlatıya henüz işlenmemiş.');
+ if(full&&preview?.readiness&&!preview.readiness.visualComplete)reasons.push('Görsel tamamlama kararları bekliyor.');
+ if(!full&&!preview?.update?.ready)reasons.push('Mevcut canlı kayıtlarda güncellenebilir değişiklik yok.');
+ if(strictBilingual&&!languageReady)reasons.push('TR ve EN onayı eksik kayıtlar var.');
+ if(preview&&!preview.changed)reasons.push('Yerel içerik ve canlı yayın eşleşiyor.');
+ async function publish(){
+  if(!bridge||busy||!allowPublish)return;
+  setBusy(true);setError('');
+  try{
+   const [latest,session,currentLanguages]=await Promise.all([bridge.publicationPreview(),bridge.communitySession(),bridge.languagesOverview()]);
+   setPreview(latest);setLanguages(currentLanguages);setCommunityConnected(Boolean(session?.connected));
+   const actualMode=modeFor(latest,modeOverride);
+   if(!session.connected)throw new Error('Topluluk yönetici bağlantısı kapalı.');
+   if(!latest.changed)throw new Error('Yayınlanacak değişiklik bulunmuyor.');
+   if(actualMode==='full'&&!latest.readiness.readyForTheme)throw new Error('Tam yayın hazırlığı tamamlanmadan canlı yayın yapılamaz.');
+   if(actualMode==='update'&&!latest.update?.ready)throw new Error(latest.liveError||'Güvenli güncelleme için canlı karşılaştırması gerekli.');
+   if(strictBilingual&&currentLanguages.counts.ready!==currentLanguages.rows.length)throw new Error('Her iki dilde onaylanmamış kayıtlar var.');
+   if(actualMode==='update'&&latest.coverage?.requiresFull&&!window.confirm('Yeni kayıt, destek veya çizim değişiklikleri mevcut. Güncelleme modu bunları CANLIYA EKLEMEZ. Yalnız mevcut kayıtlar güncellensin mi?'))return;
+   const newRecords=(latest.coverage?.newEntities??0)+(latest.coverage?.newSections??0)+(latest.coverage?.newVideos??0);
+   const message=actualMode==='full'
+    ?`Tam yayında ${latest.counts.sections} anlatı, ${latest.counts.entities} evren kaydı, ${latest.counts.assets} görsel ve ${latest.counts.vefks} çizim siteye aktarılacak.${newRecords?` ${newRecords} yeni kayıt bulunuyor.`:''} Devam edilsin mi?`
+    :`Mevcut canlı kayıtlardaki ${latest.update?.changes.updated??0} değişiklik ve ${latest.update?.changes.images??0} görsel güncellemesi aktarılsın mı?`;
+   if(!window.confirm(message))return;
+   // Packaging is deliberately internal: the runtime builds and validates the
+   // publication automatically before uploading hashed assets and atomic manifest.
+   const result=await bridge.publishPublicSnapshot(actualMode);
+   const saved=result.publicationV2??result;
+   setInfo(saved);setLive(result.live);
+   await refresh();
+  }catch(reason){setError(publishErrorText(reason));}
+  finally{setBusy(false);}
+ }
+ const refreshNow=async()=>{if(busy)return;setLoading(true);setError('');try{await refresh();}catch(reason){setError(publishErrorText(reason));}finally{setLoading(false);}};
+ const reveal=async()=>{try{await bridge?.showPublicExport();}catch(reason){setError(publishErrorText(reason));}};
+ return <section className="publish-center publish-v3" data-testid="publish-v3">
+  <header className="publish-v3-heading"><div><small>YAYIN MERKEZİ · PUBLICATION V2</small><h2>Evren yayını</h2><p>Anlatı, görseller ve seçili çizimler tek yayın hattından aktarılır. Sahne efektleri ayrı yayınlanır.</p></div><button disabled={busy||loading} onClick={()=>void refreshNow()}>{loading?'Kontrol ediliyor…':'Durumu yenile'}</button></header>
+  <div className="publish-v3-body">
+   <main className="publish-v3-main">
+    <div className="publish-v3-section-head"><strong>YEREL / CANLI KARŞILAŞTIRMASI</strong><span>{preview?.changed?'Yayın değişikliği var':'Güncel'}</span></div>
+    <div className="publish-v3-groups">
+     <article><span>01 · EVREN</span><strong>{newCount(counts.sections)} anlatı</strong><small>{newCount(counts.entities)} kayıt · {newCount(counts.relations)} ilişki</small>{Boolean(coverage?.newSections||coverage?.newEntities||coverage?.newRelations)&&<p>{(coverage?.newSections??0)+(coverage?.newEntities??0)+(coverage?.newRelations??0)} yeni içerik</p>}</article>
+     <article><span>02 · GÖRSELLER</span><strong>{newCount(counts.assets)} görsel</strong><small>{preview?.update?.changes.images??0} değişen · {preview?.update?.changes.assetUploads??0} yüklenecek</small></article>
+     <article><span>03 · ÇİZİMLER</span><strong>{newCount(counts.vefks)} seçili</strong><small>{coverage?.drawingsChanged?'Katalog veya revizyon değişmiş':'Yayın kataloğu'}</small></article>
     </div>
-    <section className={`panel theme-publication-panel${selectedReady ? " ready" : " waiting"}`}>
-      <div className="theme-publication-head">
-        <div>
-          <small>KİTAP WEB · PUBLICATION V2</small>
-          <h3>Studio’dan yeni Web temasına tek yayın hattı</h3>
-          <p>{project?.webUrl || "Web hedefi tanımlanmadı"} · Publication v2</p>
-        </div>
-        <span>{!project?.deploymentEnabled ? "YAYIN KAPALI" : selectedReady ? "CANLI YAYINA HAZIR" : "HAZIRLIK BEKLİYOR"}</span>
-      </div>
-
-      <div className="theme-publication-metrics">
-        <div><small>ANLATI</small><strong>{counts.sections}</strong><span>Onaylı bölüm</span></div>
-        <div><small>ARŞİV</small><strong>{counts.entities}</strong><span>Approved entity</span></div>
-        <div><small>BAĞLANTI</small><strong>{counts.relations}</strong><span>Approved relation</span></div>
-        <div><small>ASSET</small><strong>{counts.assets}</strong><span>Publication görseli</span></div>
-        <div><small>VEFK</small><strong>{counts.vefks}</strong><span>Site kataloğunda seçili</span></div>
-      </div>
-
-      {publishMode === "update" ? <div className={updateReady ? "theme-publication-gates ready" : "theme-publication-gates"}>
-        <strong>{updateReady ? "Mevcut canlı kayıtlar güncellenebilir." : "Güncelleme için canlı yayın karşılaştırması gerekli."}</strong>
-        <p>{preview?.liveError || (preview?.update ? `${preview.update.changes.updated} kayıt değişikliği, ${preview.update.changes.images} portre/görsel, ${preview.update.changes.assetUploads} yükleme; yeni kayıtlar yayına eklenmez.` : "Canlı paket bekleniyor.")}</p>
-      </div> : reasons.length ? <div className="theme-publication-gates">
-        <strong>Publication v2 henüz canlı yayına hazır değil.</strong>
-        {reasons.map((reason) => <p key={reason}>{reason}</p>)}
-      </div> : <div className="theme-publication-gates ready">
-        <strong>05 ve 06 kapıları tamam.</strong>
-        <p>Canlı yayın önce içerik-hash'li asset'leri yükler, ardından publication.json dosyasını atomik olarak etkinleştirir.</p>
-      </div>}
-
-      <div className="publish-actions">
-        <span className={error ? "publish-inline-status error" : "publish-inline-status"} aria-live="polite">{publishStatus}</span>
-        <button className="secondary-button" disabled={livePublishing || localBuilding} onClick={() => void buildLocal()}>
-          {localBuilding ? "Oluşturuluyor…" : "Yerel paketi oluştur"}
-        </button>
-        <button className="primary-button" disabled={!project?.deploymentEnabled || !selectedReady || !communityConnected || livePublishing || localBuilding} onClick={() => void publishLive()}>
-          {livePublishing ? "Yayınlanıyor…" : publishMode === "update" ? "Mevcut yayını güncelle" : "Tam yayını canlıya gönder"}
-        </button>
-      </div>
-
-      {!project?.deploymentEnabled && <p className="publish-deployment-help">
-        Önce web uygulaması hosting üzerinde kurulmalı. Ardından <strong>Ayarlar → Kanal ve yayın → Web yayını</strong> bölümündeki <strong>Test</strong> kontrolü başarılı olunca canlı yayını etkinleştirip kaydet. Yayınlanacak içerik hazır, yalnız sunucu bağlantısı bekleniyor.
-      </p>}
-      <div className="publish-actions">
-        <button type="button" className="secondary-button" disabled={livePublishing || localBuilding} onClick={() => void refreshLiveStatus()}>
-          Canlı durumu yenile
-        </button>
-      </div>
-      <div className={communityConnected ? "live-readiness ready" : "live-readiness"}>
-        <span className="local-dot"/>
-        {!project?.deploymentEnabled ? "Yerel tasarım · canlı yayın işlemi devre dışı" : communityConnected ? "Studio yönetici bağlantısı hazır" : "Yayın için Topluluk yönetici bağlantısı gerekli"}
-      </div>
+    <section className="publish-v3-checks"><header><strong>Yayın öncesi kontrol</strong><small>Otomatik doğrulama</small></header>
+     <div className="publish-v3-check-row"><span className={preview?.changed?'is-pending':'is-ready'}>{preview?.changed?'●':'✓'}</span>Yerel içerik ile canlı paket {preview?.changed?'farklı':'eşleşiyor'}</div>
+     <div className="publish-v3-check-row"><span className={ready?'is-ready':'is-pending'}>{ready?'✓':'●'}</span>{full?'Tam yayın hazırlığı':'Güvenli içerik/görsel güncellemesi'} {ready?'hazır':'kontrol bekliyor'}</div>
+     <div className="publish-v3-check-row"><span className={communityConnected&&project?.deploymentEnabled?'is-ready':'is-pending'}>{communityConnected&&project?.deploymentEnabled?'✓':'●'}</span>Canlı sunucu ve yönetici bağlantısı</div>
+     <div className="publish-v3-check-row"><span className={languageReady?'is-ready':'is-pending'}>{languageReady?'✓':'●'}</span>TR/EN yayın metinleri <small>{languages?.counts.ready??0} / {languages?.rows.length??0} iki dil onaylı</small></div>
+     {!!coverage?.reasons.length&&<div className="publish-v3-recommendation"><strong>Tam yayın öneriliyor</strong><p>{coverage.reasons.join(' · ')}</p></div>}
+     {reasons.length>0&&<div className="publish-v3-blockers">{reasons.map(reason=><p key={reason}>{reason}</p>)}</div>}
+     {error&&<p className="publish-v3-error" role="alert">{error}</p>}
     </section>
-
-    <section className="panel last-export-panel">
-      <div className="publish-panel-head">
-        <div><small>SON YEREL PUBLICATION</small><h3>{publicationInfo ? formatExportDate(publicationInfo.generatedAt) : "Henüz yerel paket bulunamadı"}</h3></div>
-        {publicationInfo && <button className="secondary-button" onClick={() => void revealPackage()}>Klasörde göster</button>}
-      </div>
-      {publicationInfo ? <>
-        <div className="last-export-stats">
-          <span><small>Anlatı</small><strong>{publicationInfo.sectionCount}</strong></span>
-          <span><small>Arşiv</small><strong>{publicationInfo.entityCount}</strong></span>
-          <span><small>Bağlantı</small><strong>{publicationInfo.relationCount}</strong></span>
-          <span><small>Asset</small><strong>{publicationInfo.assetCount}</strong></span>
-          <span><small>Vefk</small><strong>{publicationInfo.vefkCount}</strong></span>
-        </div>
-        <p className="export-path">{publicationInfo.file}</p>
-        {publicationInfo.publicationId && <code>{publicationInfo.publicationId} · {publicationInfo.contentFingerprint.slice(0, 20)}…</code>}
-      </> : <p>İlk paket oluşturulduğunda publication ID, fingerprint ve dosya yolu burada tutulacak.</p>}
-
-      {livePublication && <div className="live-proof">
-        <div><span className="local-dot"/><strong>Canlı publication v2 doğrulandı</strong><small>{formatExportDate(livePublication.generatedAt)}</small></div>
-        <div><span>{livePublication.sectionCount} bölüm</span><span>{livePublication.entityCount} entity</span><span>{livePublication.assetCount} asset</span><span>{publicationInfo?.vefkCount ?? 0} vefk</span><span>{Math.max(1, Math.round(livePublication.bytes / 1024))} KB</span></div>
-        <p>{livePublication.publicUrl}</p>
-        <code>{livePublication.contentFingerprint.slice(0, 20)}…</code>
-      </div>}
-
-      {preview?.baseline && <div className="automation-note">
-        <span>CANLI / YEREL KARŞILAŞTIRMASI</span>
-        <p>{preview.changed
-          ? preview.update?.ready
-            ? "Canlı kayıtlarda yayımlanabilir değişiklikler var. Bu bir hata değil; güncelleme modu üzerinden aktarılabilir."
-            : "Yerel onaylı içerik canlıdan farklı, ancak mevcut kayıtlar için yayımlanabilir güncelleme yok. Yeni kayıtlar Tam yayın kapsamında değerlendirilir."
-          : "Güncel: Yerel onaylı içerik ile canlı yayın aynı fingerprint'e sahip."}</p>
-      </div>}
-    </section>
-    </>}
-  </section>;
+    <div className="publish-v3-run"><div><strong>{modeOverride==='auto'?'Sistemin önerdiği yöntem': 'Elle seçilen yöntem'}: {full?'Tam yayın':'Güvenli güncelleme'}</strong><p>{full?'Yeni kayıtlar, görseller ve çizim kataloğu birlikte aktarılır.':'Canlıda bulunan kayıtlar korunarak yalnız güvenli değişiklikler işlenir.'}</p></div><button className="primary-button" disabled={!allowPublish} onClick={()=>void publish()}>{busy?'Paketleniyor ve yayınlanıyor…':full?'Tam yayını başlat':'Değişiklikleri yayınla'}</button></div>
+    <details className="publish-v3-options"><summary>Yayın tercihleri</summary><div><label>Yayın yöntemi<select aria-label="Yayın yöntemi" value={modeOverride} onChange={event=>setModeOverride(event.target.value as Mode)}><option value="auto">Otomatik seç (önerilen)</option><option value="full">Tam yayın</option><option value="update">Yalnız mevcut kayıtları güncelle</option></select></label><label className="publish-v3-checkbox"><input type="checkbox" checked={strictBilingual} onChange={event=>setStrictBilingual(event.target.checked)}/>İki dil tam onaylı olmadan yayınlamayı engelle</label></div><p>Güncelleme yeni hikâye, çizim veya destek kaydı eklemez. Gerekiyorsa tam yayın kullanılır.</p></details>
+   </main>
+   <aside className="publish-v3-side">
+    <section><div className="publish-v3-section-head"><strong>CANLI YAYIN</strong><span className={communityConnected&&project?.deploymentEnabled?'is-ready':'is-pending'}>{communityConnected&&project?.deploymentEnabled?'Bağlı':'Bağlantı gerekli'}</span></div><h3>{live?'Yayın doğrulandı':preview?.baseline?'Mevcut yayın':'Henüz canlı yayın yok'}</h3><p>{project?.webUrl??'Web hedefi tanımlanmadı'}</p><div className="publish-v3-stamp"><small>SON CANLI YAYIN</small><strong>{live?.generatedAt||preview?.baseline?.generatedAt?formatExportDate(live?.generatedAt??preview?.baseline?.generatedAt??''):'—'}</strong></div><div className="publish-v3-stamp"><small>CANLI / YEREL</small><strong>{preview?.changed?'Farklı paketler':'Aynı içerik'}</strong></div></section>
+    <details className="publish-v3-history"><summary>Yayın geçmişi ve teknik ayrıntılar</summary><div><p>Son yerel paket: {info?.generatedAt?formatExportDate(info.generatedAt):'Yok'}</p><p>Publication ID: {info?.publicationId??'—'}</p><p>Fingerprint: {info?.contentFingerprint??'—'}</p><p>Dosya: {info?.file??'—'}</p>{info?.file&&<button onClick={()=>void reveal()}>Paketi klasörde göster</button>}</div></details>
+    <p className="publish-v3-privacy">Paket, yalnızca yayın komutu verildiğinde otomatik hazırlanır. Dosyalar önce yüklenir, ardından yayın manifesti doğrulanarak etkinleştirilir.</p>
+   </aside>
+  </div>
+ </section>;
 }

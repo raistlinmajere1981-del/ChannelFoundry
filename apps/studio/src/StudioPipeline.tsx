@@ -239,7 +239,7 @@ export default function StudioPipeline() {
           {active === "Sahne Atölyesi" && <SceneWorkshop/>}
           {active === "Kayıt Dosyaları" && <EditorialWorkspaceV3 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin key={activeProjectId} projectId={activeProjectId}/>}
-          {active === "Yayınlama" && <PublishCenter items={studioItems} relations={relations} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus}/>}
+          {active === "Yayınlama" && <PublishCenter/>}
           {active === "Ayarlar" && <Settings databaseInfo={databaseInfo} catalog={catalogStats} workspaceStatus={workspaceStatus}/>}
         </Suspense>
       </section>

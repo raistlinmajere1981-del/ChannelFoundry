@@ -288,12 +288,24 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:analytics-summary", (_event, days) => communityAdmin.analyticsSummary(days));
   ipcMain.handle("studio:analytics-reset", () => communityAdmin.analyticsReset());
   const languageStore = require('./publication-languages.cjs');
+  const translationBatch = require('./publication-translation-batch.cjs');
+  let lastBatchNotification=0;
+  const batchWorker=translationBatch.createController({database:runtime.database,userDataPath:()=>app.getPath('userData'),onProgress:()=>{
+    if(Date.now()-lastBatchNotification>3000){lastBatchNotification=Date.now();runtime.refreshMainWindow();}
+  }});
+  batchWorker.recover();
+  app.on('before-quit',()=>batchWorker.pause());
   const languageSnapshot = () => {const snapshot=publicationV2.buildPublicationV2(runtime.database(), {sourceOnly:true}).snapshot;snapshot.youtubeAnalysis.videos=languageStore.videoSources(runtime.database());return snapshot;};
   const refreshLanguageSources = () => languageStore.overview(runtime.database(),languageSnapshot());
   ipcMain.handle('studio:languages-overview', () => refreshLanguageSources());
   ipcMain.handle('studio:languages-get', (_event,input) => { refreshLanguageSources();return languageStore.variants(runtime.database(),input.kind,input.id); });
   ipcMain.handle('studio:languages-save', (_event,input) => { refreshLanguageSources();const result=languageStore.save(runtime.database(),input);runtime.refreshMainWindow();return result; });
   ipcMain.handle('studio:languages-generate', async (_event,input) => { refreshLanguageSources();try {return await languageStore.generate(runtime.database(),app.getPath('userData'),input);} finally {runtime.refreshMainWindow();} });
+  ipcMain.handle('studio:languages-batch-status', () => batchWorker.current());
+  ipcMain.handle('studio:languages-batch-enqueue', (_event,input) => { refreshLanguageSources();return batchWorker.queue(input); });
+  ipcMain.handle('studio:languages-batch-pause', () => batchWorker.pause());
+  ipcMain.handle('studio:languages-batch-resume', () => { refreshLanguageSources();return batchWorker.start(); });
+  ipcMain.handle('studio:languages-batch-retry', () => batchWorker.retry());
   const seoSnapshot = () => publicationV2.buildPublicationV2(runtime.database()).snapshot;
   ipcMain.handle("studio:seo-overview", () => seoWorkspace.overview(app.getPath("userData"), seoSnapshot()));
   ipcMain.handle("studio:seo-save", (_event, input) => seoWorkspace.update(app.getPath("userData"), input, seoSnapshot()));

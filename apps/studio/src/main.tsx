@@ -26,6 +26,8 @@ import "./studio-topbar.css";
 import "./studio-workspace-system.css";
 import "./studio-fixed-viewport.css";
 import "./records-workspace-v3.css";
+import "./records-language-v3.css";
+import "./publish-center-v3.css";
 
 applyStudioAppearance(readStudioAppearance());
 

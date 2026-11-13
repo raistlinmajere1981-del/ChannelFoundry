@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {buildUpdatePublication,valid} = require("./publication-updates.cjs");
+const {buildUpdatePublication,valid,compareCoverage} = require("./publication-updates.cjs");
 const {fingerprint} = require("./publication-v2.cjs");
 function resign(value) {
   const {publication: old,...logical} = value;
@@ -72,4 +72,57 @@ test("missing local records remain live unless explicitly hidden", () => {
   assert.equal(withdrawn.snapshot.archive.entities.length,0);
   assert.equal(withdrawn.snapshot.journal.sections.length,0);
   valid(withdrawn.snapshot);
+});
+
+test('coverage requires full publishing for new narratives, relationships, sponsors and drawing revisions',()=>{
+ const live=snap(),current=structuredClone(live);
+ assert.equal(compareCoverage(current,live).requiresFull,false);
+ current.journal.sections.push({...current.journal.sections[0],sectionId:'s2'});
+ current.archive.entities.push({...current.archive.entities[0],entityId:'e2',name:'Yeni'});
+ current.archive.relations.push({relationId:'r2',fromEntityId:'e1',toEntityId:'e2'});
+ current.youtubeAnalysis.videos.push({videoId:'video2'});
+ current.support.sponsors.push({name:'Sponsor'});
+ current.vefkCatalog={entries:[{id:'vefk1',revision:2}]};
+ const diff=compareCoverage(current,live);
+ assert.equal(diff.newSections,1);assert.equal(diff.newEntities,1);assert.equal(diff.newRelations,1);assert.equal(diff.newVideos,1);
+ assert.equal(diff.drawingsChanged,true);assert.equal(diff.supportChanged,true);
+ assert.equal(diff.requiresFull,true);assert(diff.reasons.length>=6);
+});
+test('new outline chapter triggers full publication even when original series key remains the same',()=>{
+ const live=snap(),current=structuredClone(live);
+ live.journal.outline.series=[{key:'series1',chapters:[{key:'chapter1'}]}];
+ current.journal.outline.series=[{key:'series1',chapters:[{key:'chapter1'},{key:'chapter2'}]}];
+ assert.equal(compareCoverage(current,live).outlineChanged,true);
+ assert.equal(compareCoverage(current,live).requiresFull,true);
+});
+test('simple visual update does not force full publication and missing baseline does',()=>{
+ const live=snap(),current=structuredClone(live);
+ current.archive.entities[0].visual={assetId:'portrait'};
+ assert.equal(compareCoverage(current,live).requiresFull,false);
+ assert.equal(compareCoverage(current,null).requiresFull,true);
+});
+
+test('a Vefk translation, camera metadata or removed relationship requires full publication',()=>{
+ const live=snap(),current=structuredClone(live);
+ live.vefkLanguages={vefk1:{en:{status:'approved',title:'Old'}}};
+ current.vefkLanguages={vefk1:{en:{status:'approved',title:'New'}}};
+ assert.equal(compareCoverage(current,live).vefkLanguageChanged,true);
+ current.vefkLanguages=structuredClone(live.vefkLanguages);
+ live.archive.relations=[{relationId:'old',fromEntityId:'e1',toEntityId:'e1'}];
+ assert.equal(compareCoverage(current,live).relationRemoved,true);
+ current.archive.relations=structuredClone(live.archive.relations);
+ live.youtubeAnalysis.videos=[{videoId:'video1',thumbnailUrl:'old',locales:pair('Old')}];
+ current.youtubeAnalysis.videos=[{videoId:'video1',thumbnailUrl:'new',locales:pair('Old')}];
+ assert.equal(compareCoverage(current,live).videoMetadataChanged,true);
+ assert.equal(compareCoverage(current,live).requiresFull,true);
+});
+
+test('single-language modifications on an existing entity require full publication, not silent overlay omission',()=>{
+ const baseline=snap(),current=structuredClone(baseline);
+ delete current.archive.entities[0].locales.en;
+ current.archive.entities[0].locales.tr.title='Güncel Türkçe';
+ const coverage=compareCoverage(current,baseline);
+ assert.equal(coverage.partialLocaleChanges,true);
+ assert.equal(coverage.requiresFull,true);
+ assert(coverage.reasons.some(reason=>reason.includes('Tek dil')));
 });

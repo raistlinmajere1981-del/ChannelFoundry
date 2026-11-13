@@ -14,9 +14,13 @@ try{
  server=await createServer({configFile:false,root:scratch,cacheDir:path.join(scratch,'.vite'),logLevel:'error',esbuild:{jsx:'automatic'},resolve:{dedupe:['react','react-dom']},server:{host:'127.0.0.1',port:0,fs:{allow:[repo,scratch]}}});await server.listen();
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH??path.join(os.homedir(),'.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome'),headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  p=await browser.newPage({viewport:{width:1366,height:768},locale:'en-US'});p.setDefaultTimeout(12000);p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());await p.exposeFunction('__call',(name,...args)=>methods[name](...args));
- await p.goto(server.resolvedUrls.local[0]);await p.locator('.publication-language-editor summary').click();await p.getByRole('tab',{name:'İngilizce',exact:true}).click();
- await p.getByLabel('Başlık',{exact:true}).fill('Manually approved English');await p.getByLabel('Özet',{exact:true}).fill('Manual English summary.');await p.getByLabel('Açıklama',{exact:true}).fill('Manual English description.');await p.getByRole('button',{name:'Bu dili onayla',exact:true}).click();await p.getByText('Bu dil onaylandı.',{exact:false}).waitFor();
- await p.getByRole('tab',{name:'Türkçe',exact:true}).click();await p.getByLabel('Başlık',{exact:true}).fill('Elle onaylı Türkçe');await p.getByRole('button',{name:'Bu dili onayla',exact:true}).click();await p.getByText('Bu dil onaylandı.',{exact:false}).waitFor();
+ await p.goto(server.resolvedUrls.local[0]);await p.locator('.publication-language-editor summary').click();
+ await p.getByRole('tab',{name:'Türkçe',exact:true}).click();
+ await p.getByLabel('Başlık',{exact:true}).fill('Elle onaylı Türkçe');
+ await p.getByRole('button',{name:'Bu dili onayla',exact:true}).click();await p.getByText('Bu dil onaylandı.',{exact:false}).waitFor();
+ await p.getByRole('tab',{name:'İngilizce',exact:true}).click();
+ await p.getByLabel('Başlık',{exact:true}).fill('Manually approved English');await p.getByLabel('Özet',{exact:true}).fill('Manual English summary.');await p.getByLabel('Açıklama',{exact:true}).fill('Manual English description.');
+ await p.getByRole('button',{name:'Bu dili onayla',exact:true}).click();await p.getByText('Bu dil onaylandı.',{exact:false}).waitFor();
  assert.equal(store.variants(db,'video','ABCDEFGHIJK').variants.tr.data.title,'Elle onaylı Türkçe');assert.equal(store.overview(db,snapshot).counts.ready,1);
  await p.getByRole('tab',{name:'İngilizce',exact:true}).click();await p.getByRole('button',{name:'AI ile yeniden üret',exact:true}).click();await p.getByRole('button',{name:'AI önerisini düzenlemeye al',exact:true}).waitFor();assert.equal(await p.getByLabel('Başlık',{exact:true}).inputValue(),'Manually approved English');
  assert.equal(store.variants(db,'video','ABCDEFGHIJK').variants.en.state,'approved');await p.getByRole('button',{name:'AI önerisini düzenlemeye al',exact:true}).click();assert.equal(await p.getByLabel('Başlık',{exact:true}).inputValue(),'AI candidate');assert.equal(store.variants(db,'video','ABCDEFGHIJK').variants.en.data.title,'Manually approved English');

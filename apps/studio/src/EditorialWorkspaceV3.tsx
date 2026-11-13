@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LegacyRecordDetail, WorkspaceRecordDetail } from "./EditorialRecordDetail";
 import RecordSupportDetail, { type SupportRecord, type SupportSource } from "./RecordSupportDetail";
 import VisualProfileEditor from "./VisualProfileEditor";
 import {useVideoSourceCatalog,videoSourceTitle} from "./video-source-labels";
 
+const PublicationTranslationCenter=lazy(()=>import("./PublicationTranslationCenter"));
 type LegacyItem = StudioPersistedItem & { relatedCount: number };
 type WorkspaceRelation = {key:string;runId:number;fromKey:string;toKey:string;label:string;sourceVideoIds:string[];state:"draft"|"approved";updatedAt:string};
 type Bridge = NonNullable<typeof window.channelFoundryStudio> & {
@@ -44,6 +45,11 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
  const [status,setStatus]=useState<{message:string;tone:"success"|"error"}|null>(null);
  const [rightOpen,setRightOpen]=useState(true);
  const [connectionsMode,setConnectionsMode]=useState(false);
+ const [translationMode,setTranslationMode]=useState(()=>Boolean(sessionStorage.getItem('studio-language-filter')));
+ const [translationDirty,setTranslationDirty]=useState(false),[translationBusy,setTranslationBusy]=useState(false);
+ const [translationVisualKey,setTranslationVisualKey]=useState<string|null>(null);
+ const onTranslationDirty=useCallback((value:boolean)=>setTranslationDirty(value),[]);
+ const onTranslationBusy=useCallback((value:boolean)=>setTranslationBusy(value),[]);
  const [multi,setMulti]=useState(false);
  const [checked,setChecked]=useState<Set<string>>(()=>new Set());
  const [bulkBusy,setBulkBusy]=useState(false);
@@ -57,8 +63,8 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
  const onVisualDirty=useCallback((value:boolean)=>setVisualDirty(value),[]);
  const onVisualBusy=useCallback((value:boolean)=>setVisualBusy(value),[]);
  const onStatus=useCallback((message:string|null,tone:"success"|"error"="success")=>setStatus(message?{message,tone}:null),[]);
- const dirty=formDirty||visualDirty;
- const busy=formBusy||visualBusy||bulkBusy;
+ const dirty=formDirty||visualDirty||translationDirty;
+ const busy=formBusy||visualBusy||bulkBusy||translationBusy;
  const recordsDirtyKey="channel-foundry:records-unsaved";
  const recordsBusyKey="channel-foundry:records-busy";
  useEffect(()=>{
@@ -194,13 +200,30 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
    const item=next??records.find(r=>r.id===selected?.key)??records[0];
    setSelected(item?{source:"support",key:item.id}:null);
  };
- const newSupport=()=>{if(!checkLeave())return;setCreatingSupport(true);setSelected({source:"support",key:"new"});setKind("support");setConnectionsMode(false);setFormDirty(false);setVisualDirty(false);};
+ const newSupport=()=>{if(!checkLeave())return;setTranslationMode(false);setCreatingSupport(true);setSelected({source:"support",key:"new"});setKind("support");setConnectionsMode(false);setFormDirty(false);setVisualDirty(false);};
+ const enterTranslation=()=>{
+   if(!checkLeave())return;
+   setTranslationVisualKey(activeWorkspace?.key??null);
+   setTranslationMode(true);
+ };
+ const closeTranslation=()=>{
+   if(!checkLeave())return;
+   setTranslationMode(false);setTranslationVisualKey(null);
+   setTranslationDirty(false);setTranslationBusy(false);
+ };
+ const onTranslationPick=useCallback((row:PublicationLanguagePack)=>{
+   if(row.kind!=='entity'){setTranslationVisualKey(null);return;}
+   const name=String(row.source.name||'');
+   const matched=nodes.find(node=>node.name===name);
+   setTranslationVisualKey(matched?.key??null);
+ },[nodes]);
+ const translationVisual=translationMode?(translationVisualKey?nodes.find(n=>n.key===translationVisualKey):null):activeWorkspace;
  const focusRelation=(key:string)=>{
    if(workspaceByKey.has(key))selectRecord("workspace",key);
    else if(legacyByKey.has(key))selectRecord("legacy",key);
  };
  return <div className="editorial-workspace records-v3" ref={surfaceRef} data-testid="records-workspace-v3">
-   <header className="records-v3-toolbar">
+   {translationMode?<header className="records-v3-toolbar records-v3-translation-top"><button onClick={closeTranslation}>‹ Kayıt arşivine dön</button><strong>Türkçe / İngilizce yayın metinleri</strong><span>AI çeviri · inceleme · onay</span><button className={rightOpen?'is-active':''} onClick={()=>setRightOpen(value=>!value)}>◧ Görsel paneli</button></header> : <header className="records-v3-toolbar">
      <div className="records-v3-search"><span aria-hidden="true">⌕</span><input ref={searchRef} aria-label="Kayıt dosyalarında ara" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tüm kayıtlarda ara…"/></div>
      <select aria-label="Kayıt türü" value={kind} onChange={e=>setKind(e.target.value)}>{filterOptions.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
      <select aria-label="Durum filtresi" value={state} onChange={e=>setState(e.target.value)}><option value="all">Tüm durumlar</option><option value="approved">Onaylı / yayında</option><option value="draft">Taslak</option><option value="excluded">Yayın dışı</option><option value="missing">Kaynak eksik</option></select>
@@ -208,9 +231,20 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
      <button className={multi?"is-active":""} onClick={()=>{setMulti(!multi);setChecked(new Set());}} aria-pressed={multi}>☑ Çoklu seçim</button>
      <button onClick={()=>{if(checkLeave())onCreate();}}>＋ Yeni kayıt</button>
      <button onClick={newSupport}>＋ Destek</button>
+     <button onClick={enterTranslation}>🌐 TR / EN</button>
      <button className={rightOpen?"is-active":""} onClick={()=>{if(rightOpen&&!checkLeave())return;setRightOpen(value=>!value);}} aria-pressed={rightOpen}>◧ Bağlam</button>
-   </header>
-   <div className={`records-v3-grid${rightOpen?"":" without-rail"}`}>
+   </header>}
+   <div className={`records-v3-grid${rightOpen?"":" without-rail"}${translationMode?" records-v3-translation-grid":""}`}>
+    {translationMode ? <>
+      <Suspense fallback={<div className="record-v3-empty">Yayın metinleri yükleniyor…</div>}>
+        <PublicationTranslationCenter focusName={activeWorkspace?.name??activeLegacy?.title??''} onDirtyChange={onTranslationDirty} onBusyChange={onTranslationBusy} onRecordPick={onTranslationPick}/>
+      </Suspense>
+      {rightOpen&&<aside className="records-v3-context records-v3-translation-visual"><div className="records-v3-context-scroll">
+        {translationVisual?<VisualProfileEditor key={translationVisual.key} item={{key:translationVisual.key,kind:translationVisual.kind,title:translationVisual.name}} seedVisual={(translationVisual.payload as Record<string,unknown>|undefined)?.visual as StudioVisualDefinition|undefined} productionActions dock onDirtyChange={onVisualDirty} onBusyChange={onVisualBusy} onStatus={onStatus}/>
+          :<section className="records-v3-rail-block"><strong>GÖRSEL</strong><p>Görseller, bağlı evren kayıtları seçildiğinde burada düzenlenebilir. Yayın metninin görüntüsü başka bir kayda ait olabilir.</p></section>}
+        <section className="records-v3-rail-block"><strong>DİL DURUMU</strong><p>Çeviri önerileri yalnız onaylı Türkçe yayın metinlerinden hazırlanır. Taslaklar ve onaylı metinler otomatik olarak canlıya gönderilmez.</p></section>
+      </div></aside>}
+    </> : <>
      <aside className="records-v3-index" aria-label="Birleşik kayıt listesi">
        <header><strong>KAYITLAR</strong><span>{filtered.length} / {allRows.length}</span></header>
        <div className="records-v3-list" role="listbox" aria-label="Kayıtlar">
@@ -255,6 +289,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
          </>}
        </div>
      </aside>}
+   </>}
    </div>
    {menu&&<div className="records-v3-context-menu" role="menu" style={{left:Math.max(4,menu.x),top:Math.max(4,menu.y)}}>
      <div className="records-v3-menu-title">{menu.row.title}</div>
