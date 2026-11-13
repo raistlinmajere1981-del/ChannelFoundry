@@ -23,18 +23,20 @@ export function basicControls(type) {
     return {...control,label:key==='opacity'?'Şiddet':key==='width'?'Yayılım (genişlik)':control.label};
   });
 }
-// The editor cannot create new publishable slots or move the source photograph.
-// The authoritative mounted-site validation remains in birdesengor-site.mjs.
+// Native site elements keep their integration contracts. Independent artwork
+// is data-driven and may be created, edited, grouped or removed.
 export function assertSiteStructure(next,source) {
-  const objects=scene=>scene.objects.map(({id,pose,visible,anchors,motionLayers,crop})=>({
-    id, ...(canCropVisual({id,motionLayers})?{}:{pose,crop}), visible,anchors,motionLayers
+  const native=scene=>scene.objects.filter(item=>item.kind!=='artwork').map(({id,pose,visible,anchors,motionLayers,crop})=>({
+    id,...(canCropVisual({motionLayers})?{}:{pose,crop}),visible,anchors,motionLayers
   }));
-  const appearance=scene=>scene.objects.filter(o=>o.id!=='ceremonial-robe').map(o=>[o.id,o.veil]);
+  const appearance=scene=>scene.objects.filter(o=>o.id!=='ceremonial-robe'&&o.kind!=='artwork').map(o=>[o.id,o.veil]);
   if(JSON.stringify(appearance(next))!==JSON.stringify(appearance(source)))throw new Error('Görünmezlik yalnız kaftanda düzenlenebilir.');
-  const slots=scene=>scene.effects.map(({id,type,target})=>({id,type,objectId:target.objectId,anchorId:target.anchorId,layerId:target.layerId})).sort((a,b)=>a.id.localeCompare(b.id));
   if(next.sceneId!==source.sceneId||JSON.stringify(next.viewport)!==JSON.stringify(source.viewport)
-    ||JSON.stringify(objects(next))!==JSON.stringify(objects(source)))
+    ||JSON.stringify(native(next))!==JSON.stringify(native(source)))
     throw new Error('Nesne yerleşimi, görünürlüğü ve bağlantıları site kaynağına aittir.');
-  if(JSON.stringify(slots(next))!==JSON.stringify(slots(source)))
-    throw new Error('Site kaynağında yalnız mevcut efekt yuvaları düzenlenebilir. Yeni tür ve bağlantı için site motoru entegrasyonu gerekir.');
+  const nativeSlots=scene=>scene.effects.filter(effect=>!scene.objects.some(o=>o.id===effect.target.objectId&&o.kind==='artwork'))
+    .map(({id,type,target})=>({id,type,objectId:target.objectId,anchorId:target.anchorId,layerId:target.layerId}))
+    .sort((a,b)=>a.id.localeCompare(b.id));
+  if(JSON.stringify(nativeSlots(next))!==JSON.stringify(nativeSlots(source)))
+    throw new Error('Siteye bağlı efekt yuvaları değiştirilemez. Bağımsız görsel efektleri düzenlenebilir.');
 }

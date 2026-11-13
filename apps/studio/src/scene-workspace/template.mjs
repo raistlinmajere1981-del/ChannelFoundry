@@ -5,6 +5,8 @@ export const sceneTemplate = String.raw`
     <div class="scene-panel-heading"><span class="scene-eyebrow">SAHNE AĞACI</span><span id="object-count" class="scene-count">0</span></div>
     <input id="object-search" class="scene-tree-search" type="search" placeholder="Nesne veya efekt ara" aria-label="Sahne ağacında ara" autocomplete="off">
     <label class="scene-tree-filter"><span>Göster</span><select id="object-filter"><option value="all">Tüm nesneler</option><option value="effects">Efektli nesneler</option></select></label>
+    <button type="button" id="add-artwork" class="scene-add-artwork" title="Bağımsız PNG, JPEG veya WebP görsel nesnesi ekle">＋ Görsel nesne</button>
+    <input type="file" id="new-artwork-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Yeni nesne görseli">
     <div id="object-list" class="scene-list scene-tree" role="tree" aria-label="Nesne ve efekt hiyerarşisi"></div>
     <details class="scene-tree-details"><summary>Sahne bilgileri</summary>
        <label class="scene-field">Proje adı<input id="scene-name" maxlength="160"></label>
@@ -43,7 +45,7 @@ export const sceneTemplate = String.raw`
         <div id="scene-markers" class="scene-markers"></div>
        </div>
       </div>
-      <p class="scene-help scene-stage-help" id="coordinate-help">1600 × 900 kaynak koordinatları. Turuncu hedefi sürükleyerek yalnız efekt kaydırmasını değiştirin. Yakınlaşma ve mobil fiziksel pozlar siteye aittir.</p>
+      <p class="scene-help scene-stage-help" id="coordinate-help" hidden></p>
       <div id="status" class="scene-status" role="status" aria-live="polite">Sahne yükleniyor…</div>
       <div id="preview-status" class="scene-preview-status" role="status">Önizleme hazırlanıyor…</div>
     </section>
@@ -59,7 +61,7 @@ export const sceneTemplate = String.raw`
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>
       <details id="visual-source-settings" class="scene-advanced" open hidden><summary>Kaynak görsel</summary><section id="visual-source-inspector"></section><input type="file" id="visual-source-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Yeni nesne resmi seç"></details>
-      <details id="visual-crop-settings" class="scene-advanced" open hidden><summary>Kırpma ve masa sınırı</summary><section id="visual-crop-inspector"></section></details>
+      <details id="visual-crop-settings" class="scene-advanced" open hidden><summary>Kırpma ve örtme</summary><section id="visual-crop-inspector"></section></details>
       <details id="robe-veil-settings" class="scene-advanced" open hidden><summary>Görünmezlik</summary><section id="robe-veil-inspector"></section></details>
       <details id="hit-area-settings" class="scene-advanced" hidden><summary>Tıklama alanı</summary><section id="hit-inspector"></section></details>
       <section id="object-inspector"></section>

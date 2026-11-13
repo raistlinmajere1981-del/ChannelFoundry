@@ -67,7 +67,14 @@ function validateObjectScene(scene) {
   const unique = id => {string(id,'Kimlik',120); if(ids.has(id)) fail(`Tekrarlanan kimlik: ${id}`); ids.add(id);};
   const objects=new Map();
   for(const item of scene.objects) {
-    keys(item,['id','name','visible','pose','anchors','motionLayers','hitArea','veil','crop'],'Nesne');
+    keys(item,['id','name','group','kind','visual','visible','pose','anchors','motionLayers','hitArea','veil','crop'],'Nesne');
+    if(item.kind!==undefined&&item.kind!=='artwork')fail('Bilinmeyen nesne türü.');
+    if(item.visual!==undefined){
+      keys(item.visual,['asset'],'Nesne görseli');
+      if(typeof item.visual.asset!=='string'||!/^\/[a-z0-9][a-z0-9/-]*\.webp$/.test(item.visual.asset))fail('Görsel yolu yerel WebP kaynağı olmalı.');
+    }
+    if(item.kind==='artwork'&&(!item.visual||item.motionLayers?.length))fail('Bağımsız görsel nesnesi tek görsel kaynağı gerektirir.');
+    if(item.group!==undefined)string(item.group,'Nesne grubu',80);
     if(item.crop!==undefined){
       if(!canCropVisual(item))fail('Görsel kırpma yalnız bağımsız resimli nesnelerde düzenlenebilir.');
       validateVisualCrop(item.crop);

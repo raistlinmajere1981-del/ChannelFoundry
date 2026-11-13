@@ -32,12 +32,12 @@ try{
   const rock=scene.objects.find(item=>item.id==='stone-specimen');
   assert.equal(rock.crop.top,.12);
   assert.match(await page.locator('#stage-object-stone-specimen [data-effect-layer="rock"]').evaluate(node=>node.style.clipPath),/inset\(12%/);
-  await page.locator('#visual-crop-desk-enabled').check();
+  await page.locator('#visual-crop-cutoff-enabled').check();
   const clip=await page.locator('#stage-object-stone-specimen [data-effect-layer="rock"]').evaluate(node=>node.style.clipPath);
   assert.ok(clip.includes('inset('));
   const photo=readFileSync(BIRDESENGOR_SITE+'/public/scene-assets/stone/jade-rock.webp');
   await page.locator('#visual-source-file').setInputFiles({name:'replacement.webp',mimeType:'image/webp',buffer:photo});
-  await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.textContent.includes('Yeni kaynak taslakta'),{timeout:20000});
+  await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.dataset.modified==='true',{timeout:20000});
   const fetchDraft=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
     const requestId='test-'+Math.random(),timeout=setTimeout(()=>reject(Error('scene:get timeout')),6000);
     const listener=event=>{if(event.data?.requestId!==requestId||event.data.type!=='studio:data')return;

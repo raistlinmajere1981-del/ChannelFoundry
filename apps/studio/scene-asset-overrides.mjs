@@ -39,7 +39,7 @@ export function webpDimensions(bytes){
 export const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 export const MAX_TOTAL_ASSET_BYTES = 24 * 1024 * 1024;
 
-export function editableAssets(manifest) {
+export function editableAssets(manifest,scene=null) {
   const paths = new Set();
   for(const item of manifest.objects ?? []) {
     for(const slot of PHYSICAL_ART_SLOTS[item.id]??[])paths.add(slot.path);
@@ -47,11 +47,15 @@ export function editableAssets(manifest) {
     for(const path of [item.visual?.asset,...(item.visual?.layers ?? []).map(layer=>layer.asset)])
       if(typeof path==='string' && /^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(path))paths.add(path);
   }
+  for(const item of scene?.objects??[]){
+    if(item.kind==='artwork'&&/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(item.visual?.asset??''))
+      paths.add(item.visual.asset);
+  }
   return paths;
 }
-export function validateAssetOverrides(assets,manifest,referenceEntries=null) {
+export function validateAssetOverrides(assets,manifest,referenceEntries=null,scene=null) {
   if(!Array.isArray(assets)||assets.length>32)throw Error('En fazla 32 resim kaynağı değiştirilebilir.');
-  const allowed=editableAssets(manifest),seen=new Set(),parsed=[];
+  const allowed=editableAssets(manifest,scene),seen=new Set(),parsed=[];
   let total=0;
   for(const entry of assets) {
     if(!entry||typeof entry!=='object'||Object.keys(entry).sort().join(',')!=='dataUrl,path'||

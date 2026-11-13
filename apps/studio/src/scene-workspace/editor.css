@@ -54,6 +54,7 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-row-check{flex:none;display:grid;place-items:center;padding:0 3px}
 .scene-full{width:100%}
 .scene-empty{color:var(--muted);font-size:12px;font-style:italic;padding:6px 2px}
+.scene-add-artwork{width:100%;min-height:29px;padding:5px;margin:0 0 8px;font-size:11px}
 
 .scene-stage-column{min-width:0;display:flex;flex-direction:column;gap:8px}
 .scene-stage-well{display:grid;place-items:center;min-height:0;aspect-ratio:16/9;max-height:760px;background:#101416;border-radius:10px;overflow:hidden}
@@ -165,6 +166,8 @@ input[type=range]{accent-color:var(--accent);background:transparent;border:0;pad
 .scene-inspector .field:has(input[type=checkbox]) span{margin:0}
 .scene-inspector .field:has(input[type=checkbox]) input{margin:0}
 .scene-inspector h3{letter-spacing:0;text-transform:none;font-size:12px}
+.scene-visual-actions{display:flex;flex-wrap:wrap;gap:5px}
+.scene-visual-actions button{flex:1 1 calc(50% - 5px);min-width:0;font-size:11px;padding:6px}
 .scene-inspector .scene-row-select{white-space:normal}
 body.embedded .scene-topbar,body.embedded .scene-footer{display:none}
 body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}

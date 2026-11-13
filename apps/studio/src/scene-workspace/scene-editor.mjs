@@ -8,7 +8,7 @@ import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTrig
 import {anchorScenePoint,effectScenePoint} from '../../../../packages/effect-engine/src/runtime/object-scene.mjs';
 import {bindObjectScene} from '../../../../packages/effect-engine/src/runtime/object-overlay.mjs';
 import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
-import {canCropVisual,visualClipStyle,EMPTY_CROP,DEFAULT_ROBE_DESK_Y} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
+import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
 import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export function mountSceneEditor(root,options={}){
@@ -22,7 +22,7 @@ let previewHandle=null,previewFrame=null;
 let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
 let zoom=1,visualMode=false,linkVisual=true,previewRobeVeiled=false;
-const editableVisual=item=>siteSource&&canCropVisual(item);
+const editableVisual=item=>canCropVisual(item)&&(!siteSource||previewObjects.has(item?.id));
 const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
 const replacementSource=(asset,original)=>assetReplacements.get(asset)?.dataUrl??original;
 function visualAssetSlots(item){
@@ -137,12 +137,7 @@ function setInspectorTab(tab){
   for(const page of root.querySelectorAll('[data-inspector-page]'))page.hidden=page.dataset.inspectorPage!==tab;
 }
 function groupFor(item){
-  const id=item.id.toLowerCase(),name=item.name.toLowerCase();
-  if(/journal|book|kitap|defter/.test(id+' '+name))return 'Kitaplar';
-  if(/candle|flame|incense|mum|tütsü|lantern/.test(id+' '+name))return 'Işık ve atmosfer';
-  if(/robe|sword|hançer|dagger|kaftan|kılıç/.test(id+' '+name))return 'Duvar nesneleri';
-  if(/camera|vefk/.test(id+' '+name))return 'Cihazlar';
-  return 'Masa ve diğerleri';
+  return item.group?.trim()||'Nesneler';
 }
 function renderTreeLists(){
   const host=$('#object-list'),term=$('#object-search').value.toLocaleLowerCase('tr').trim();
@@ -155,7 +150,7 @@ function renderTreeLists(){
     if(!groups.has(group))groups.set(group,[]);
     groups.get(group).push({item,effects});
   }
-  const order=['Kitaplar','Işık ve atmosfer','Masa ve diğerleri','Duvar nesneleri','Cihazlar'];
+  const order=[...groups.keys()].sort((a,b)=>a==='Nesneler'?-1:b==='Nesneler'?1:a.localeCompare(b,'tr'));
   const children=[];
   for(const name of order){
     if(!groups.has(name))continue;
@@ -209,10 +204,10 @@ function renderLists(){
       el('input',{type:'checkbox',id:`effect-list-enabled-${item.id}`,checked:item.enabled,'aria-label':`${objectEffectRegistry[item.type].label} etkin`,onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).enabled=event.target.checked;})}))
   ));
   $('#effect-list').replaceChildren(...(effectRows.length?effectRows:[el('p',{class:'scene-empty',text:siteSource?'Bu nesneye bağlı site efekti yok.':'Bu nesnede efekt yok; desteklenen bir tür ekleyin.'})]));
-  $('#add-effect-controls').hidden=siteSource;
+  $('#add-effect-controls').hidden=siteSource&&object()?.kind!=='artwork';
   $('#add-effect').disabled=!object()?.anchors.length;
-  $('#source-note').textContent=siteSource?'Taş, kaftan, hançer ve sandık katmanları taşınabilir. Kitap, kamera ve Çizim Atölyesi görselleri Kaynak görsel alanından değiştirilebilir; oda fotoğrafı sabit kalır.':'Yerel sahne: görünürlük ve yerleşim İnce ayarlar bölümündedir.';
-  $('#site-effects-note').hidden=!siteSource;
+  $('#source-note').hidden=true;
+  $('#site-effects-note').hidden=true;
   const badge=root.querySelector('.scene-local-badge');if(badge)badge.textContent=siteSource?'Site kaynağı':'Yerel';
   if($('#object-search'))renderTreeLists();
 }
@@ -246,7 +241,7 @@ function renderVisualInspector(){
   if(!editableVisual(item))return;
   const base=visualBase(item);
   const adjust=(fields,key)=>mutate(s=>moveVisual(s,item.id,fields),key);
-  host.append(el('p',{class:'scene-visual-tip',text:'Görsel Taşı modunda fareyle sürükle; ok tuşları 0,1%, Shift+ok 1% hareket ettirir.'}));
+  host.title='Taşı modunda sürükleyin. Ok tuşları: %0,1; Shift+ok: %1.';
   for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)']]){
     host.append(numberInput(label,round(item.pose[key]*100),value=>adjust({[key]:round(value/100)},'visual:'+item.id+':'+key),
       {id:'visual-'+key,min:0,max:100,step:.1,'data-testid':'visual-'+key}));
@@ -421,6 +416,13 @@ function renderPresentationInspector(){
       s.objects[id]=structuredClone(defaultScenePresentation().objects[id]);
     },'presentation:'+id+':reset'),{id:'presentation-reset'})));
 }
+function exportSelectedAsset(slot,data,suffix=''){
+  if(!slot||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(data??''))throw Error('Dışa aktarılabilir WebP kaynağı bulunamadı.');
+  const basename=(slot.path.split('/').pop()??'nesne').replace(/\.webp$/,'');
+  const link=el('a',{href:data,download:basename+suffix+'.webp'});
+  root.append(link);link.click();link.remove();
+  status('WebP kaynak görsel dışa aktarıldı.');
+}
 function renderSourceInspector(){
   const item=object(),parent=$('#visual-source-settings'),host=$('#visual-source-inspector');
   parent.hidden=!siteSource||!visualAssetSlots(item).length;
@@ -438,14 +440,13 @@ function renderSourceInspector(){
       el('img',{src:source,alt:chosen.label,decoding:'async',draggable:false})));
   }
   if(chosen.warning)host.append(el('p',{class:'scene-source-warning',text:chosen.warning}));
-  if(['archive-chest','ceremonial-dagger'].includes(item.id))host.append(el('p',{class:'scene-visual-tip',
-    text:'Bu nesnede efekt için ayrı bir maske dosyası var. Yeni resim farklı şekilli ise mevcut efekt maskesi ayrıca güncellenmelidir.'}));
+  if(['archive-chest','ceremonial-dagger'].includes(item.id))parent.title='Bu görselin efekt maskesi ayrıdır; yeni siluette maske de güncellenmelidir.';
   const modified=assetReplacements.has(chosen.path);
-  host.append(el('p',{class:'scene-visual-tip',text:modified
-    ?'Yeni kaynak taslakta · Kaydet ve Siteye hazırla işlemleriyle yerel kaynak değişecek.'
-    :'Orijinal dosya kullanılıyor. PNG/JPEG/WebP seçimi şeffaf WebP kaynağına dönüştürülür.'}));
+  host.dataset.modified=String(modified);
   host.append(el('div',{class:'scene-visual-actions'},
-    button('Resim seç…',()=>$('#visual-source-file').click(),{id:'visual-source-import'}),
+    button('Resim seç…',()=>$('#visual-source-file').click(),{id:'visual-source-import',title:'PNG, JPEG veya WebP içe aktar'}),
+    button('Aktifi dışa aktar',()=>exportSelectedAsset(chosen,source,modified?'-taslak':''),{id:'visual-source-export',title:'Atölyede seçili WebP görselini dışa aktar'}),
+    button('Orijinali dışa aktar',()=>exportSelectedAsset(chosen,chosen.image),{id:'visual-source-export-original',title:'Kaydedilmiş WebP görselini dışa aktar'}),
     button('Taslak değişimini kaldır',()=>{
       if(assetReplacements.delete(chosen.path)){changed();draw();status('Kaynak değişikliği taslaktan kaldırıldı. Webdeki mevcut dosya korunur.');}
     },{id:'visual-source-restore',disabled:!modified})));
@@ -454,22 +455,21 @@ function renderCropInspector(){
   const item=object(),parent=$('#visual-crop-settings'),host=$('#visual-crop-inspector');
   parent.hidden=!editableVisual(item);host.replaceChildren();
   if(parent.hidden)return;
-  const defaultDesk=item.id==='ceremonial-robe'?DEFAULT_ROBE_DESK_Y:null;
-  const crop=item.crop??{...EMPTY_CROP,deskY:defaultDesk};
+  const crop=item.crop??EMPTY_CROP;
   const update=(key,value)=>mutate(s=>{
     const target=s.objects.find(o=>o.id===item.id);
-    target.crop={...EMPTY_CROP,deskY:defaultDesk,...target.crop,[key]:value};
+    target.crop={...EMPTY_CROP,...target.crop,[key]:value};
   },'crop:'+item.id+':'+key);
-  host.append(el('p',{class:'scene-visual-tip',text:'Kaynak fotoğrafı değiştirmeden görünür kenarları kırpar. Masa çizgisi seçiliyse nesne taşınırken örtülen alan otomatik güncellenir.'}));
+  parent.title='Görselin kenarlarını tahribatsız kırpın. Örtme sınırı sahne koordinatını izler.';
   for(const [key,label] of [['top','Üstten'],['right','Sağdan'],['bottom','Alttan'],['left','Soldan']]){
     host.append(numberInput(label+' (%)',Math.round(crop[key]*1000)/10,
       value=>update(key,round(value/100)),{id:'visual-crop-'+key,min:0,max:95,step:.5}));
   }
-  host.append(checkField('Masanın arkasını gizle',crop.deskY!==null,
-    checked=>update('deskY',checked?(defaultDesk??.57):null),{id:'visual-crop-desk-enabled'}));
-  if(crop.deskY!==null)host.append(numberInput('Masa sınırı · sahne Y (%)',
-    round(crop.deskY*100),value=>update('deskY',round(value/100)),
-    {id:'visual-crop-desk-y',min:0,max:100,step:.5}));
+  host.append(checkField('Örtme sınırı (Y)',crop.cutoffY!==null,
+    checked=>update('cutoffY',checked?round(Math.min(1,item.pose.y+item.pose.height)):null),{id:'visual-crop-cutoff-enabled',title:'Nesnenin bu sahne çizgisinin altında kalan kısmını gizler.'}));
+  if(crop.cutoffY!==null)host.append(numberInput('Sahne Y (%)',
+    round(crop.cutoffY*100),value=>update('cutoffY',round(value/100)),
+    {id:'visual-crop-cutoff-y',min:0,max:100,step:.5,title:'Sahne yüksekliğinin yüzdesi.'}));
   host.append(button('Kırpmayı sıfırla',()=>mutate(s=>{
     delete s.objects.find(o=>o.id===item.id).crop;
   },'crop:'+item.id+':reset'),{id:'visual-crop-reset'}));
@@ -512,10 +512,11 @@ function renderObjectInspector(){
       },'hit:'+item.id+':'+key),{min:key==='x'||key==='y'?0:.1,max:100,step:.1,'data-testid':'scene-hit-'+key}));
     }
   }
-  if(siteSource){
-    host.append(el('p',{class:'scene-help',text:'Bağımsız taş ve kaftan görselleri üstteki yerleşim alanından taşınabilir. Bağlantılar sabit kalır.'}));
-    return;
-  }
+  host.append(field('Grup',el('input',{id:'object-group',value:item.group??'',maxLength:80,
+    placeholder:'Nesneler',title:'Boş bırakılırsa Nesneler grubunda görünür.',
+    onchange:event=>mutate(s=>{const target=s.objects.find(o=>o.id===item.id),value=event.target.value.trim();
+      if(value)target.group=value;else delete target.group;},'group:'+item.id)})));
+  if(siteSource&&item.kind!=='artwork')return;
   host.append(
     field('Nesne adı',el('input',{value:item.name,maxlength:160,onchange:event=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).name=event.target.value;},`object:${item.id}:name`)})),
     checkField('Görünür',item.visible,value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).visible=value;},`object:${item.id}:visible`))
@@ -524,6 +525,19 @@ function renderObjectInspector(){
     host.append(numberInput(label,item.pose[key],value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).pose[key]=value;},`object:${item.id}:${key}`),{min,max,step}));
   }
   if(!siteSource)host.append(field('Hareketli katman kimlikleri',el('input',{value:(item.motionLayers??[]).join(','),'aria-label':'Hareketli katman kimlikleri',onchange:event=>mutate(s=>{s.objects.find(o=>o.id===item.id).motionLayers=event.target.value.split(',').map(v=>v.trim()).filter(Boolean);})})));
+  if(item.kind==='artwork')host.append(button('Nesneyi sil',()=>{
+    const removed=item.id,path=item.visual.asset;
+    const ok=mutate(s=>{
+      s.objects=s.objects.filter(o=>o.id!==removed);
+      s.effects=s.effects.filter(effect=>effect.target.objectId!==removed);
+      objectId=null;effectId=null;
+    },'object:'+removed+':delete');
+    if(ok){
+      previewObjects.delete(removed);
+      if(!scene.objects.some(o=>o.visual?.asset===path))assetReplacements.delete(path);
+      draw();
+    }
+  },{class:'scene-danger',id:'delete-artwork',title:'Nesne ve bağlı efektlerini kaldır'}));
   if(!item.anchors.length)return;
   host.append(field('Bağlantı noktası',el('select',{'aria-label':'Adlandırılmış bağlantı noktası',onchange:event=>{anchorId=event.target.value;renderObjectInspector();}},
     ...item.anchors.map(entry=>el('option',{value:entry.id,text:entry.id,selected:entry.id===anchorId})))));
@@ -539,9 +553,8 @@ function renderEffectInspector(){
   host.replaceChildren(el('h2',{text:'Efekt'}));advanced.replaceChildren();
   if(!item){host.append(el('p',{class:'scene-empty',text:siteSource?'Bu nesnenin siteye bağlı efekti bulunmuyor. Bu kaynakta yeni efekt ekleme desteklenmiyor.':'Bir efekt seçin veya ekleyin.'}));return;}
   const info=objectEffectRegistry[item.type];
-  host.append(el('p',{class:'scene-effect-title',text:info.label}),
+  host.append(el('p',{class:'scene-effect-title',text:info.label,title:info.description}),
     checkField('Etkin',item.enabled,value=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).enabled=value;},`effect:${item.id}:enabled`),{id:'effect-enabled'}),
-    el('p',{class:'scene-help',text:info.description}),
     el('div',{class:'scene-section-title'},el('h3',{text:'Parametre profili'}),el('span',{id:'effect-profile',class:'scene-profile-state',text:profileForEffect(item)})),
     el('div',{class:'scene-profiles'},...sceneProfiles.map(profile=>button(profile.label,()=>mutate(s=>applySceneProfile(s.effects.find(entry=>entry.id===item.id),profile.key)),{id:`profile-${profile.key}`,'aria-pressed':String(profileForEffect(item)===profile.label)})))
   );
@@ -549,7 +562,7 @@ function renderEffectInspector(){
   const availableTriggers=allowedEffectTriggers(item.type);
   const labels={ambient:'Sürekli',click:'OnClick · Tıklama',hover:'OnHover · Üzerine gelme'};
   host.append(field('Tetikleme',el('select',{
-    id:'effect-trigger','aria-label':'Tetikleme',disabled:availableTriggers.length===1,
+    id:'effect-trigger','aria-label':'Tetikleme',title:'Efekt ne zaman çalışır: sürekli, tıklama veya üzerine gelme.',disabled:availableTriggers.length===1,
     onchange:event=>mutate(s=>{
       const target=s.effects.find(entry=>entry.id===item.id);
       target.trigger=event.target.value;
@@ -557,9 +570,7 @@ function renderEffectInspector(){
     }),
   },...availableTriggers.map(trigger=>el('option',{value:trigger,text:labels[trigger],selected:trigger===selectedTrigger})))));
   if(['hover','click'].includes(selectedTrigger)&&item.type==='glow'){
-    host.append(el('p',{class:'scene-help',text:selectedTrigger==='hover'
-      ?'Nesneye gelince 0→1, ayrılınca bulunduğu noktadan 1→0. Klavye odağı da çalışır.'
-      :'Tıklanınca 0→1→0; mevcut nesne tıklamasını engellemez.'}));
+    host.title=selectedTrigger==='hover'?'Hover: üstüne gelince çalışır, ayrılınca geri döner.':'Click: tıklanınca çalışır.';
     for(const [key,label,fallback] of [['enterMs','İleri hareket (ms)',240],['leaveMs','Geri hareket (ms)',190]]){
       host.append(numberInput(label,item.interaction?.[key]??fallback,value=>mutate(s=>{
         const target=s.effects.find(entry=>entry.id===item.id);
@@ -576,23 +587,22 @@ function renderEffectInspector(){
       onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).params[control.key]=event.target.valueAsNumber;})});
     host.append(el('div',{class:'scene-slider'},el('div',{class:'scene-slider-title'},el('label',{htmlFor:id,text:control.label}),output),input));
   }
-  if(info.trigger==='pulse')host.append(el('p',{class:'scene-help',text:'Tıklayınca · kısa süreli efekt'}),button('Efekti dene',()=>bindPreview(item.id),{id:'preview-pulse',disabled:!item.enabled}));
+  if(info.trigger==='pulse')host.append(button('Efekti dene',()=>bindPreview(item.id),{id:'preview-pulse',disabled:!item.enabled,title:'Kısa süreli efekti önizle'}));
   if(item.type==='glow'&&selectedTrigger==='click')host.append(button('Efekti dene',()=>previewHandle?.triggerEffect(item.id),{id:'preview-interaction-click',disabled:!item.enabled}));
-  if(item.type==='glow'&&selectedTrigger==='hover')host.append(el('p',{class:'scene-help',text:'Önizleme: Görselde nesneye gelin ve ayrılın.'}));
-  if(!item.enabled)host.append(el('p',{class:'scene-help',text:'Efekt kapalı. Önizlemede görmek için Etkin seçeneğini açın.'}));
-  if(!siteSource){
+  if(item.type==='glow'&&selectedTrigger==='hover')host.title='Üzerine gelerek efekti deneyin.';
+  if(!siteSource||object()?.kind==='artwork'){
     advanced.append(field('Tür',el('select',{'aria-label':'Efekt türü',onchange:event=>mutate(s=>{const target=s.effects.find(entry=>entry.id===item.id);target.type=event.target.value;target.params=defaultObjectParams(target.type);if(objectEffectRegistry[target.type].output==='motion'){target.target.layerId=object().motionLayers?.[0];}else delete target.target.layerId;})},
       ...Object.entries(objectEffectRegistry).map(([type,entry])=>el('option',{value:type,text:entry.label,selected:type===item.type})))),
       field('Hedef bağlantı',el('select',{'aria-label':'Efekt hedef bağlantısı',onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target.anchorId=event.target.value;})},
       ...object().anchors.map(entry=>el('option',{value:entry.id,text:entry.id,selected:entry.id===item.target.anchorId})))));
   }
-  if(info.output==='motion')advanced.append(field('Hareketli katman',el('select',{'aria-label':'Hareketli katman',disabled:Boolean(siteSource),onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target.layerId=event.target.value;})},...object().motionLayers.map(id=>el('option',{value:id,text:id,selected:id===item.target.layerId})))));
-  advanced.append(el('p',{class:'scene-help',text:`Hedef: ${object().name} → ${item.target.anchorId}. Kaydırma nesne boyutuna göredir; profiller hizalamayı değiştirmez.`}));
+  if(info.output==='motion')advanced.append(field('Hareketli katman',el('select',{'aria-label':'Hareketli katman',disabled:Boolean(siteSource&&object()?.kind!=='artwork'),onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target.layerId=event.target.value;})},...object().motionLayers.map(id=>el('option',{value:id,text:id,selected:id===item.target.layerId})))));
+  advanced.title='Hedef kaydırması nesne boyutuna göre normalize edilir.';
   for(const [key,label,min,max,step] of [['x','Kaydırma X',-5,5,.01],['y','Kaydırma Y',-5,5,.01]])advanced.append(numberInput(label,item.target.offset[key],value=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target.offset[key]=value;}),{id:`effect-offset-${key}`,min,max,step}));
   for(const [key,label,min,max,step] of [['scale','Ölçek',.01,10,.01],['depth','Efekt derinliği',-100,100,1]])advanced.append(numberInput(label,item.target[key],value=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target[key]=value;}),{min,max,step}));
   advanced.append(field('Efekt tohumu',el('input',{value:item.seed,maxlength:120,onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).seed=event.target.value;})})));
   for(const control of info.controls)advanced.append(numberInput(control.label,item.params[control.key],value=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).params[control.key]=value;}),{min:control.min,max:control.max,step:control.step,'aria-label':control.label}));
-  if(!siteSource)advanced.append(el('div',{class:'scene-button-row'},
+  if(!siteSource||object()?.kind==='artwork')advanced.append(el('div',{class:'scene-button-row'},
     button('Kopyala',()=>mutate(s=>{const copy=structuredClone(item);copy.id=uniqueEffectId(copy.type);copy.seed=`${copy.seed}-copy`;s.effects.push(copy);effectId=copy.id;})),
     button('Sil',()=>mutate(s=>{s.effects=s.effects.filter(entry=>entry.id!==item.id);effectId=null;}),{class:'scene-danger'})));
 }
@@ -609,7 +619,7 @@ function buildObject(item){
     transform:`rotate(${item.pose.rotation}deg)`,zIndex:String(100+Math.round(item.pose.depth))
   });
   node.dataset.visualEditable=String(editableVisual(item));
-  if(item.id==='ceremonial-robe')Object.assign(node.style,visualClipStyle(item,DEFAULT_ROBE_DESK_Y));
+  if(item.id==='ceremonial-robe')Object.assign(node.style,visualClipStyle(item));
   node.addEventListener('pointerdown',event=>{
     if(visualMode&&editableVisual(item)&&event.button===0)beginVisualDrag(event,item,node);
   });
@@ -1081,7 +1091,7 @@ function installPreview(packet){
   $('#scene-viewport').classList.toggle('has-photo',Boolean(preview)&&showPhoto);
   $('#visual-edit-mode').disabled=!siteSource;
   $('#show-photo').disabled=!preview;
-  $('#coordinate-help').textContent=siteSource?'Görsel Taşı: bağımsız taş, kaftan, hançer ve sandık katmanlarını yerleştir. Yakınlaştırma yalnız önizlemeyi büyütür.':'Yerel önizleme; yakınlaştırma kaynak pozisyonlarını değiştirmez.';
+  $('#visual-edit-mode').title='Bağımsız görsel katmanlarını sürükleyerek konumlandır. Efekt hedeflerini ayrıca değiştirebilirsin.';
 }
 function loadText(text,message,options){
   const next=importProject(text);
@@ -1103,7 +1113,7 @@ for(const [type,info]of Object.entries(objectEffectRegistry)){
 }
 $('#add-effect').onclick=()=>{
   const owner=object(),point=anchor();
-  if(siteSource||!owner||!point)return;
+  if((siteSource&&owner?.kind!=='artwork')||!owner||!point)return;
   const type=$('#add-effect-type').value;
   mutate(s=>{
     const id=uniqueEffectId(type);
@@ -1146,6 +1156,31 @@ async function localImageToWebp(file,selected){
       reader.readAsDataURL(blob);
     });
   }finally{bitmap.close();}
+}
+if($('#add-artwork')&&$('#new-artwork-file')){
+$('#add-artwork').onclick=()=>$('#new-artwork-file').click();
+$('#new-artwork-file').onchange=async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  try{
+    const dataUrl=await localImageToWebp(file,null);
+    const image=new Image();image.src=dataUrl;await image.decode();
+    const id='artwork-'+uid().replaceAll('-','').slice(0,12);
+    const asset='/scene-assets/custom/'+id+'.webp';
+    const aspect=image.naturalWidth/image.naturalHeight;
+    const width=.16,height=round(clamp(width*scene.viewport.width/scene.viewport.height/aspect,.03,.45));
+    const name=file.name.replace(/\.[^.]+$/,'').trim().slice(0,80)||'Görsel nesne';
+    const item={id,name,kind:'artwork',visible:true,visual:{asset},
+      pose:{x:round(.5-width/2),y:round(.5-height/2),width,height,rotation:0,depth:15},
+      motionLayers:[],anchors:[{id:'center',x:.5,y:.5}]};
+    previewObjects.set(id,{objectId:id,asset,image:dataUrl,layers:[]});
+    assetReplacements.set(asset,{path:asset,dataUrl});
+    const ok=mutate(s=>{s.objects.push(item);objectId=id;effectId=null;},'object:create:'+id);
+    if(!ok){previewObjects.delete(id);assetReplacements.delete(asset);return;}
+    selectObject(id);setInspectorTab('visual');
+    status('Yeni görsel nesne taslağa eklendi. Kaydet → Siteye hazırla.');
+  }catch(e){error(e);}
+};
 }
 $('#visual-source-file').onchange=async event=>{
   const file=event.target.files?.[0],selected=selectedVisualAsset(object());

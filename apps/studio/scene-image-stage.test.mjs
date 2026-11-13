@@ -9,14 +9,15 @@ import {validateProject} from '../../packages/effect-engine/src/model/project.mj
 test('crop is saved in the authored scene without changing unrelated objects',async()=>{
  const real=siteSceneSource(),source=await real.snapshot();
  const next=structuredClone(source.scene);
- next.objects.find(o=>o.id==='stone-specimen').crop={top:.08,right:0,bottom:0,left:0,deskY:.57};
- next.objects.find(o=>o.id==='ceremonial-robe').crop={top:0,right:.04,bottom:0,left:0,deskY:null};
+ next.objects.find(o=>o.id==='stone-specimen').crop={top:.08,right:0,bottom:0,left:0,cutoffY:.57};
+ next.objects.find(o=>o.id==='ceremonial-robe').crop={top:0,right:.04,bottom:0,left:0,cutoffY:null};
  assert.equal(validateProject(next),next);
  assert.equal(real.readiness(next,source).ready,true);
  assert.doesNotThrow(()=>real.validate(next,source));
- const invalid=structuredClone(next);
- invalid.objects.find(o=>o.id==='metal-pendulum').crop={top:0,right:0,bottom:0,left:0,deskY:null};
- assert.throws(()=>validateProject(invalid),/kırpma/i);
+ const metal=structuredClone(next);
+ metal.objects.find(o=>o.id==='metal-pendulum').crop={top:0,right:0,bottom:0,left:0,cutoffY:null};
+ assert.equal(validateProject(metal),metal);
+ assert.equal(real.readiness(metal,source).ready,true);
 });
 test('an image source stages with scene through a verified isolated working tree',async()=>{
  const real=siteSceneSource(),snapshot=await real.snapshot();
@@ -32,14 +33,14 @@ test('an image source stages with scene through a verified isolated working tree
   const replacement=snapshot.entries.get('public/scene-assets/robe/ceremonial-kaftan.webp');
   const input=[{path:target,dataUrl:'data:image/webp;base64,'+replacement.toString('base64')}];
   const scene=structuredClone(before.scene);
-  scene.objects.find(o=>o.id==='stone-specimen').crop={top:.08,right:0,bottom:0,left:0,deskY:.6};
+  scene.objects.find(o=>o.id==='stone-specimen').crop={top:.08,right:0,bottom:0,left:0,cutoffY:.6};
   const result=await isolated.stage(scene,before.sourceHash,input);
   assert.equal(result.changed,true);
   assert.ok(result.changedFiles.includes('public'+target));
   assert.deepEqual(fs.readFileSync(path.join(dir,'public'+target)),replacement);
   const after=await isolated.snapshot();
   assert.equal(result.sourceHash,after.sourceHash);
-  assert.equal(after.scene.objects.find(o=>o.id==='stone-specimen').crop.deskY,.6);
+  assert.equal(after.scene.objects.find(o=>o.id==='stone-specimen').crop.cutoffY,.6);
   await assert.rejects(isolated.stage(scene,before.sourceHash,input),/Site kaynağı değişmiş/);
   await assert.rejects(isolated.stage(scene,after.sourceHash,[{path:'/scene-assets/approved/room-effects-v4-2to1.webp',dataUrl:input[0].dataUrl}]),/kaynağı|Görsel/i);
   assert.equal((await isolated.snapshot()).sourceHash,after.sourceHash);

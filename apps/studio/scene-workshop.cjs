@@ -89,7 +89,7 @@ class SceneWorkshop {
         validateIdentity(saved.scene);
         this.site.validate(saved.scene, source, saved.presentation ?? source.presentation);
         scene = saved.scene; presentation = saved.presentation ?? source.presentation;
-        assets = saved.assets ?? []; this.site.validateAssets?.(assets, source);
+        assets = saved.assets ?? []; this.site.validateAssets?.(assets, source, scene);
         origin = "draft"; note = "Kayıtlı yerel taslak açıldı.";
       } catch { note = "Eski taslak geçersiz; güncel web sahnesi açıldı."; }
     } else if (saved) note = "Site kaynağı değişmiş; eski taslak yerine güncel sahne açıldı.";
@@ -97,7 +97,12 @@ class SceneWorkshop {
       scene, presentation, assets, origin, sourceHash: source.sourceHash, note,
       readiness: this.site.readiness(scene, source), siteSource: true,
       previewImage: await this.site.preview(source),
-      previewObjects: this.site.previewObjects(source),
+      previewObjects: [
+        ...this.site.previewObjects(source),
+        ...scene.objects.filter(o=>o.kind==='artwork'&&!source.scene.objects.some(entry=>entry.id===o.id))
+          .map(o=>({objectId:o.id,asset:o.visual.asset,layers:[],
+            image:assets.find(a=>a.path===o.visual.asset)?.dataUrl})),
+      ],
       previewArt: this.site.previewArt?.(source) ?? [],
       roomObjects: this.site.roomObjects?.(source) ?? [],
       focusTargets: this.site.focusTargets?.(source) ?? [],
@@ -112,7 +117,7 @@ class SceneWorkshop {
         throw new Error("Web sahnesi değişmiş. Düzenleyiciyi yenilemeden kayıt yapılamaz.");
       const targetPresentation = presentation ?? source.presentation;
       this.site.validate(scene, source, targetPresentation);
-      this.site.validateAssets?.(assets, source);
+      this.site.validateAssets?.(assets, source, scene);
       const readiness = this.site.readiness(scene, source, targetPresentation);
       if (!readiness.ready) throw new Error("Sahne doğrulanamadı: " + readiness.problems.join("; "));
       atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: source.sourceHash, scene, assets, presentation: targetPresentation }, null, 2) + "\n");
@@ -131,7 +136,7 @@ class SceneWorkshop {
       this.site.validate(draft.scene, source, draft.presentation ?? source.presentation);
       const readiness = this.site.readiness(draft.scene, source, draft.presentation ?? source.presentation);
       if (!readiness.ready) throw new Error("Sahne kaynak dosyasına hazır değil: " + readiness.problems.join("; "));
-      this.site.validateAssets?.(draft.assets ?? [], source);
+      this.site.validateAssets?.(draft.assets ?? [], source, draft.scene);
       const staged = await this.site.stage(draft.scene, source.sourceHash, draft.assets ?? [], draft.presentation ?? source.presentation);
       atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: staged.sourceHash, scene: draft.scene, assets: draft.assets ?? [], presentation: draft.presentation ?? source.presentation }, null, 2) + "\n");
       return { ok: true, ...staged, draftHash: digest(draft.scene),

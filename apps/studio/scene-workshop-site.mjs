@@ -1,5 +1,5 @@
 import {writeFile,unlink,chmod} from 'node:fs/promises';
-import {readFileSync,renameSync,statSync,realpathSync,copyFileSync} from 'node:fs';
+import {readFileSync,renameSync,statSync,realpathSync,copyFileSync,existsSync,mkdirSync,unlinkSync} from 'node:fs';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
@@ -135,6 +135,14 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
       throw Error('Sahne görsel kataloğunda geçersiz kaynak yolu.');
     entries.set('public'+asset,read('public'+asset));
   }
+  const draft=JSON.parse(entries.get(SITE_SCENE).toString('utf8'));
+  for(const object of draft.objects??[]){
+    if(object.kind!=='artwork')continue;
+    const asset=object.visual?.asset;
+    if(!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(asset??''))throw Error('Geçersiz bağımsız görsel yolu.');
+    const file='public'+asset;
+    if(!entries.has(file))entries.set(file,read(file));
+  }
   const chestGlowMask='public/scene-assets/chest/interior-light-mask.webp';
   entries.set(chestGlowMask,read(chestGlowMask));
   const daggerMask='public/scene-assets/dagger/dagger-blade-mask.webp';
@@ -149,8 +157,8 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   validate(scene,state);
   return state;
  }
- function slots(state){
-  const {adapter,scene}=state;
+ function slots(state,scene=state.scene){
+  const {adapter}=state;
   const result=new Map();
   for(const id of new Set(Object.values(adapter.CANDLE_EFFECT_IDS).flat())){
    const effect=scene.effects.find(item=>item.id===id);
@@ -169,6 +177,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
    adapter.sceneForPulseObjectEffects(scene,objectId);
    for(const entry of group)result.set(entry.id,{...entry,objectId});
   }
+  const artworkIds=new Set(scene.objects.filter(o=>o.kind==='artwork').map(o=>o.id));
+  for(const item of scene.effects.filter(e=>artworkIds.has(e.target.objectId)))
+    result.set(item.id,{id:item.id,type:item.type,objectId:item.target.objectId,
+      anchorId:item.target.anchorId,layerId:item.target.layerId});
   return result;
  }
  function validate(scene,state,presentation=state.presentation){
@@ -180,7 +192,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
  function readiness(scene,state,presentation=state.presentation){
   const problems=[];
   try{validate(scene,state,presentation);}catch(error){problems.push(error.message);}
-  const allowed=slots(state);
+  const allowed=slots(state,scene);
   for(const effect of scene.effects){
    const slot=allowed.get(effect.id);
    if(!slot||effect.type!==slot.type||effect.target.objectId!==slot.objectId||effect.target.anchorId!==slot.anchorId)
@@ -216,7 +228,16 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
  }
  function focusTargets(state){return state.manifest.objects.filter(o=>['research-journal','community-journal','camera','vefk-stand'].includes(o.id))
    .map(o=>({id:o.id,foundation:o.foundation}));}
- function validateAssets(assets,state){return validateAssetOverrides(assets,state.manifest,state.entries);}
+ function validateAssets(assets,state,scene=state.scene){
+  const prepared=validateAssetOverrides(assets,state.manifest,state.entries,scene);
+  const uploaded=new Set(prepared.map(item=>item.path));
+  for(const item of scene.objects.filter(o=>o.kind==='artwork')){
+    const file='public'+item.visual.asset;
+    if(!state.entries.has(file)&&!uploaded.has(item.visual.asset))
+      throw Error('Yeni görsel nesnesi için WebP dosyası eksik: '+item.visual.asset);
+  }
+  return prepared;
+ }
  function previewArt(state){
   return Object.entries(PHYSICAL_ART_SLOTS).flatMap(([objectId,slots])=>{
     if(!state.manifest.objects.some(o=>o.id===objectId))
@@ -238,7 +259,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     if(!bytes||bytes.length>8*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Geçersiz nesne önizlemesi.');
     return 'data:image/webp;base64,'+bytes.toString('base64');
   };
-  return state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})}));
+  return [
+    ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})})),
+    ...state.scene.objects.filter(o=>o.kind==='artwork').map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:[]})),
+  ];
  }
  async function preview(state){
   const bytes=state.entries.get(PREVIEW);
@@ -252,12 +276,15 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   const targetPresentation=presentation??state.presentation;
   const report=readiness(scene,state,targetPresentation);
   if(!report.ready)throw Error('Site hazırlığı geçersiz: '+report.problems.join('\n'));
-  const uploaded=validateAssets(assets,state);
+  const uploaded=validateAssets(assets,state,scene);
   const contents=exportProject(scene);
   const updates=new Map([[SITE_SCENE,Buffer.from(contents)],
     [PRESENTATION,Buffer.from(JSON.stringify(targetPresentation,null,2)+'\n')],
     ...uploaded.map(item=>['public'+item.path,item.bytes])]);
-  const changedFiles=[...updates].filter(([file,bytes])=>!bytes.equals(state.entries.get(file)));
+  const changedFiles=[...updates].filter(([file,bytes])=>!state.entries.has(file)||!bytes.equals(state.entries.get(file)));
+  const remaining=new Set(scene.objects.filter(o=>o.kind==='artwork').map(o=>o.visual.asset));
+  const removedFiles=[...new Set(state.scene.objects.filter(o=>o.kind==='artwork')
+    .map(o=>o.visual.asset).filter(asset=>!remaining.has(asset)))].map(asset=>'public'+asset);
   const checkRevision=()=>digest([...state.entries.keys()].map(file=>[file,read(file).toString('base64')]));
   const nonce=randomUUID();
   const temporary=[];
@@ -267,25 +294,37 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     // Prepare every replacement first. Nothing is installed until the entire
     // reviewed source inventory still matches the exact loaded revision.
     for(const [file,bytes] of changedFiles){
-      const destination=path(file),mode=statSync(destination).mode & 0o777;
+      const destination=path(file),existed=existsSync(destination);
+      if(!existed&&!/^public\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(file))throw Error('Yeni dosya yalnız sahne görseli olabilir.');
+      if(!existed)mkdirSync(dirname(destination),{recursive:true});
+      const mode=existed?statSync(destination).mode & 0o777:0o644;
       const temp=destination+'.'+nonce+'.tmp',backup=destination+'.'+nonce+'.bak';
-      temporary.push({destination,temp,backup});
+      temporary.push({destination,temp,backup,existed});
       await writeFile(temp,bytes,{flag:'wx',mode});
       await chmod(temp,mode);
+      if(existed)copyFileSync(destination,backup);
+    }
+    for(const file of removedFiles){
+      if(!/^public\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(file))
+        throw Error('Silinecek sahne görseli geçersiz.');
+      const destination=path(file),backup=destination+'.'+nonce+'.bak';
+      if(!existsSync(destination))throw Error('Silinecek sahne görseli bulunamadı.');
       copyFileSync(destination,backup);
+      temporary.push({destination,temp:null,backup,existed:true,remove:true});
     }
     if(checkRevision()!==expectedSourceHash)
       throw Error('Site kaynağı hazırlık sırasında değişmiş; hiçbir kaynak dosya değiştirilmedi.');
     try{
       // Synchronous rename sequence, with original bytes kept for rollback.
       for(const entry of temporary){
-        renameSync(entry.temp,entry.destination);
+        if(entry.remove)unlinkSync(entry.destination);
+        else renameSync(entry.temp,entry.destination);
         committed.push(entry);
       }
     }catch(error){
       const failures=[];
       for(const entry of [...committed].reverse()){
-        try{renameSync(entry.backup,entry.destination);}
+        try{if(entry.existed)renameSync(entry.backup,entry.destination);else unlinkSync(entry.destination);}
         catch(rollbackError){failures.push(rollbackError.message);}
       }
       if(failures.length){rollbackFailed=true;throw Error('Kaynak geri alma başarısız: '+failures.join('; ')+' / '+error.message);}
@@ -293,14 +332,14 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     }
   }finally{
     for(const entry of temporary){
-      await unlink(entry.temp).catch(()=>{});
+      if(entry.temp)await unlink(entry.temp).catch(()=>{});
       if(!rollbackFailed)await unlink(entry.backup).catch(()=>{});
     }
   }
-  const nextEntries=[...state.entries].map(([file,bytes])=>[file,updates.get(file)??bytes]);
-  return {changed:changedFiles.length>0,changedFiles:changedFiles.map(([file])=>file),
-    sourceHash:digest(nextEntries.map(([file,bytes])=>[file,bytes.toString('base64')])),
-    readiness:report};
+  const after=await snapshot();
+  return {changed:changedFiles.length+removedFiles.length>0,
+    changedFiles:[...changedFiles.map(([file])=>file),...removedFiles],
+    sourceHash:after.sourceHash,readiness:report};
  }
  return {snapshot,validate,validateAssets,readiness,preview,previewObjects,previewArt,roomObjects,focusTargets,stage};
 }
