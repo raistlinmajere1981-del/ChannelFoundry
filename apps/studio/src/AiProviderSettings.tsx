@@ -256,7 +256,6 @@ export default function AiProviderSettings() {
             <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover} onClick={() => void discover(true)}>{busy === "models" ? "Getiriliyor…" : "Modelleri getir"}</button>
           </div>
         </div>
-        {stored&&model&&!models.length&&<p className="ai-minimal-saved-model">Kayıtlı model gösteriliyor. Model listesini yeniden almak zorunda değilsin.</p>}
         <select aria-label="Model" value={model} onChange={(event) => chooseModel(event.target.value)}>
           <option value="">Model seç</option>
           {displayModels.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}

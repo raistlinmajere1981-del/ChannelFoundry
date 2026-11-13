@@ -104,11 +104,9 @@ export default function StudioPipeline() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<StudioSidebarMode>(() => initialSidebarMode());
-  // Sahne ve kayıt düzenleme tek yüzeyde çalışır; diğer sayfaların menü tercihi korunur.
-  const [sceneSidebarExpanded, setSceneSidebarExpanded] = useState(false);
+  // Bütün çalışma alanları kullanıcının aynı kalıcı menü tercihini paylaşır.
   const sceneWorkspaceActive = active === "Sahne Atölyesi" || active === "Kayıt Dosyaları";
-  const effectiveSidebarMode: StudioSidebarMode = sceneWorkspaceActive
-    ? (sceneSidebarExpanded ? "expanded" : "collapsed") : sidebarMode;
+  const effectiveSidebarMode: StudioSidebarMode = sidebarMode;
 
   const load = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
@@ -173,7 +171,6 @@ export default function StudioPipeline() {
       setActive("Kayıt Dosyaları");
       return;
     }
-    if ((section === "Sahne Atölyesi" || section === "Kayıt Dosyaları") && active !== section) setSceneSidebarExpanded(false);
     setActive(section);
   };
   const selectProject = async (id: string) => {
@@ -199,10 +196,7 @@ export default function StudioPipeline() {
       setProjectBusy(false);
     }
   };
-  const toggleSidebar = () => {
-    if (sceneWorkspaceActive) setSceneSidebarExpanded((current) => !current);
-    else setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
-  };
+  const toggleSidebar = () => setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
     const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni muhatap", event: "Yeni olay", file: "Yeni dosya" };

@@ -358,13 +358,16 @@ async function pickVisualImage(input) {
     ? await dialog.showOpenDialog(mainWindow, options)
     : await dialog.showOpenDialog(options);
   if (result.canceled || !result.filePaths[0]) return { canceled: true };
-  const profile = visualProfiles.attachFile(database(), app.getPath("userData"), {
-    entityKey: input?.entityKey,
-    entityType: input?.entityType,
-    file: result.filePaths[0],
-  });
+  const target = visualProfiles.targetFile(app.getPath("userData"), input?.entityKey, ".webp");
+  const optimization = await require('./visual-image-optimizer.cjs').optimizeImage(result.filePaths[0], target);
+  let profile;
+  try {
+    profile = visualProfiles.attachStoredFile(database(), input?.entityKey, {
+      entityType: input?.entityType, file: target, source: "manual", provider: "", model: "",
+    });
+  } catch (error) { try { require('node:fs').unlinkSync(target); } catch {} throw error; }
   refreshMainWindow();
-  return { canceled: false, profile };
+  return { canceled: false, profile, optimization };
 }
 
 async function generateVisualImage(input) {
@@ -417,13 +420,16 @@ async function generateVisualImage(input) {
       negativePrompt: profile.negativePrompt,
       size: input?.size,
     });
-    const attached = visualProfiles.attachStoredFile(database(), profile.entityKey, {
-      entityType: profile.entityType,
-      file: generated.file,
-      source: "generated",
-      provider: generated.provider,
-      model: generated.model,
-    });
+    const optimizedFile = visualProfiles.targetFile(app.getPath("userData"), profile.entityKey, ".webp");
+    let optimization, attached;
+    try {
+      optimization = await require('./visual-image-optimizer.cjs').optimizeImage(generated.file, optimizedFile);
+      attached = visualProfiles.attachStoredFile(database(), profile.entityKey, {
+        entityType: profile.entityType,
+        file: optimizedFile, source: "generated", provider: generated.provider, model: generated.model,
+      });
+    } catch (error) { try { require('node:fs').unlinkSync(optimizedFile); } catch {} throw error; }
+    finally { try { require('node:fs').unlinkSync(generated.file); } catch {} }
     const actualModel = generated.model || generated.controllerModel || configuredModel;
     aiActivity.completeRequest(request, {
       label: "Görsel üretildi",
@@ -437,7 +443,7 @@ async function generateVisualImage(input) {
       detail: `“${subject}” görseli hazır.`,
     });
     refreshMainWindow();
-    return { ok: true, profile: attached, generation: generated };
+    return { ok: true, profile: attached, generation: { ...generated, file: optimizedFile, optimization } };
   } catch (error) {
     aiActivity.failRequest(request, error, { label: "Görsel üretimi başarısız" });
     aiActivity.finishSession(activitySession.id, {

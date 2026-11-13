@@ -319,6 +319,7 @@ type StudioUniverseWorkspaceStateResult = StudioUniverseWorkspaceStatus & {
   ok: true; state: StudioUniverseWorkspaceState; requested: number; affected: number; missing: number;
 };
 
+type StudioImageOptimization = { format: "webp"; inputBytes: number; bytes: number; width: number; height: number; sourceWidth: number; sourceHeight: number };
 type StudioVisualProfile = {
   entityKey: string;
   entityType: string;
@@ -499,8 +500,8 @@ interface Window {
     openAiWorkbench(): Promise<boolean>;
     visualProfileGet(entityKey: string): Promise<StudioVisualProfile | null>;
     visualProfileSave(input: StudioVisualProfileInput): Promise<StudioVisualProfile>;
-    visualImagePick(input: { entityKey: string; entityType?: string }): Promise<{ canceled: boolean; profile?: StudioVisualProfile }>;
-    visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536" }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability } }>;
+    visualImagePick(input: { entityKey: string; entityType?: string }): Promise<{ canceled: boolean; profile?: StudioVisualProfile; optimization?: StudioImageOptimization }>;
+    visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536" }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability; optimization: StudioImageOptimization } }>;
     visualImageClear(entityKey: string): Promise<{ cleared: boolean; entityKey: string; profile?: StudioVisualProfile }>;
     visualImageShow(entityKey: string): Promise<boolean>;
     vefkDelete(input: { id: string; confirmed: true }): Promise<{ id: string; revisions: number; catalogRemoved: boolean }>;

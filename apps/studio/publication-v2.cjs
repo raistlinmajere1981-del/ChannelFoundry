@@ -9,6 +9,7 @@ const visualProfiles = require("./visual-profiles.cjs");
 const aiAnalysis = require("./ai-analysis-public.cjs");
 const supportPublic = require("./support-public.cjs");
 const vefkPublication = require("./vefk-publication.cjs");
+const { dimensions } = require("./image-dimensions.cjs");
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
@@ -72,6 +73,7 @@ function fileMetadata(file) {
     file: value,
     extension,
     bytes: buffer.length,
+    dimensions: dimensions(buffer),
     sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
   };
 }
@@ -93,6 +95,7 @@ function addAsset(assetMap, sourceMap, input) {
     ...(input?.caption ? { caption: clean(input.caption, 2000) } : {}),
     sha256: meta.sha256,
     bytes: meta.bytes,
+    ...(meta.dimensions ?? {}),
     provenance: {
       source: clean(input?.source, 80),
       provider: clean(input?.provider, 160),

@@ -30,7 +30,6 @@
 .settings-v3-surface .ai-minimal-form>label,.settings-v3-surface .ai-minimal-form>.ai-minimal-model-heading,.settings-v3-surface .ai-minimal-form>.ai-minimal-actions,.settings-v3-surface .ai-minimal-form>.ai-minimal-note,.settings-v3-surface .ai-minimal-form>.ai-minimal-result,.settings-v3-surface .ai-minimal-form>.ai-minimal-error,.settings-v3-surface .ai-minimal-form>.ai-minimal-saved-model{grid-column:1/-1;}
 .settings-v3-surface .ai-minimal-tabs{width:min(520px,100%);}
 .settings-v3-surface .ai-minimal-form input,.settings-v3-surface .ai-minimal-form select{font-size:13px;min-height:39px;}
-.settings-v3-surface .ai-minimal-saved-model{font-size:11px;color:var(--state-success);background:var(--state-success-soft);padding:8px 10px;border-radius:5px;margin:0;}
 .settings-v3-surface .community-connection-settings{max-width:none;border:1px solid var(--border-soft);padding:14px 16px;background:var(--surface-panel);}
 .settings-v3-surface .community-connection-settings>header{padding:0 0 12px;margin:0 0 10px;}
 .settings-v3-surface .community-connection-settings>p{font-size:12px;color:var(--text-secondary);}

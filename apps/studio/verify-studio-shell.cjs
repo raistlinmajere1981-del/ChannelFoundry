@@ -173,7 +173,8 @@ for (const section of ["Gösterge Paneli", "Video Arşivi", "Altyazı Araştırm
 assert.match(pipeline, /initialSidebarMode/);
 assert.match(pipeline, /saveSidebarMode/);
 assert.match(pipeline, /studio-sidebar-\$\{effectiveSidebarMode\}/);
-assert.match(pipeline, /sceneWorkspaceActive[\s\S]*sceneSidebarExpanded/);
+assert.doesNotMatch(pipeline, /sceneSidebarExpanded/, 'Scene and Records do not force sidebar collapse');
+assert.match(pipeline, /effectiveSidebarMode: StudioSidebarMode = sidebarMode/, 'All workspaces retain the same saved sidebar state');
 assert.match(pipeline, /aria-current=\{active \? "page" : undefined\}/);
 assert.match(pipeline, /aria-label=\{collapsed \? section : undefined\}/);
 assert.match(pipeline, /data-tooltip=\{section\}/);

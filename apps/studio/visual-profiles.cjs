@@ -252,9 +252,8 @@ function attachStoredFile(db, entityKey, input) {
   const extension = path.extname(file).toLowerCase();
   if (!IMAGE_EXTENSIONS.has(extension)) throw new Error("Üretilen görsel desteklenen bir dosya biçiminde değil.");
   const existing = getMetadata(db, key) ?? save(db, { entityKey: key, entityType: input?.entityType ?? "", source: "manual" });
-  if (existing.imagePath && existing.imagePath !== file && existing.imagePath.includes(`${path.sep}visual-assets${path.sep}`)) {
-    try { fs.unlinkSync(existing.imagePath); } catch {}
-  }
+  const replacedFile = existing.imagePath && existing.imagePath !== file
+    && existing.imagePath.includes(`${path.sep}visual-assets${path.sep}`) ? existing.imagePath : "";
   db.prepare(`
     UPDATE entity_visual_profiles
     SET entity_type = CASE WHEN ? <> '' THEN ? ELSE entity_type END,
@@ -269,6 +268,8 @@ function attachStoredFile(db, entityKey, input) {
     String(input?.model ?? "").trim().slice(0, 240),
     key,
   );
+  // Do not remove a previously published image before its new DB link commits.
+  if (replacedFile) { try { fs.unlinkSync(replacedFile); } catch {} }
   return get(db, key);
 }
 

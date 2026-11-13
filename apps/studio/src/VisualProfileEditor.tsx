@@ -128,7 +128,12 @@ export default function VisualProfileEditor({
     try {
       await bridge.visualProfileSave(input());
       const result = await bridge.visualImagePick({ entityKey: item.key, entityType: item.kind });
-      if (!result.canceled && result.profile) { applyProfile(result.profile); onStatus?.("Görsel eklendi.", "success"); }
+      if (!result.canceled && result.profile) {
+        applyProfile(result.profile);
+        onStatus?.(result.optimization
+          ? `Görsel eklendi · WebP ${result.optimization.width}×${result.optimization.height} · ${Math.round(result.optimization.bytes / 1024)} KB`
+          : 'Görsel eklendi.', 'success');
+      }
     } catch (reason) { onStatus?.(errorText(reason), "error"); }
     finally { finish(); }
   };
@@ -141,7 +146,9 @@ export default function VisualProfileEditor({
       const generationInput = { ...input(), size, subject: item.title };
       const result = await bridge.visualImageGenerate(generationInput);
       const controller = result.generation.controllerModel ? ` · yönetici ${result.generation.controllerModel}` : "";
-      applyProfile(result.profile); onStatus?.(`Görsel üretildi · ${generationLabel(result.generation.provider, result.generation.model)}${controller}`, "success");
+      applyProfile(result.profile);
+      const info = result.generation.optimization;
+      onStatus?.(`Görsel üretildi · ${generationLabel(result.generation.provider, result.generation.model)}${controller}${info ? ` · WebP ${info.width}×${info.height} · ${Math.round(info.bytes/1024)} KB` : ''}`, 'success');
     } catch (reason) { onStatus?.(errorText(reason), "error"); }
     finally { finish(); }
   };
