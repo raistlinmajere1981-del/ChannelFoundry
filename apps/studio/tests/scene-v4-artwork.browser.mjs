@@ -32,7 +32,8 @@ try{
     window.__mountStudioSceneV3();
   },packet);
   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.objects.length===14);
-  assert.equal(await page.locator('.scene-tree-group').count(),1,'no site-specific hardcoded categories');
+  assert.equal(await page.locator('.scene-tree-group:not([data-tree-group="Sahne kontrolleri"])').count(),1,'no site-specific hardcoded object categories');
+  assert.equal(await page.locator('[data-tree-group="Sahne kontrolleri"]').count(),1,'the native language switch is a separate site control, not an effect object');
   const webp=readFileSync(new URL('../../../channels/birdesengor/web/public/scene-assets/stone/jade-rock.webp',import.meta.url));
   await page.locator('#new-artwork-file').setInputFiles({name:'v4-artwork.webp',mimeType:'image/webp',buffer:webp});
   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.objects.length===15,{timeout:12000});

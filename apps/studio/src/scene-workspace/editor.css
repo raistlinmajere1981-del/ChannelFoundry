@@ -298,3 +298,26 @@ body.embedded .scene-workspace{padding:8px;gap:8px}
 .scene-editor-root .scene-context-menu button {display:block;width:100%;min-height:30px;border:0;background:transparent;text-align:left;font-size:11px;color:#e3e9e3;padding:5px 8px;}
 .scene-editor-root .scene-context-menu button:hover,.scene-editor-root .scene-context-menu button:focus-visible {background:#3f554d;outline:0;}
 @media (max-width:1130px) { .scene-editor-root .scene-workspace {grid-template-columns:minmax(160px,180px) minmax(0,1fr) minmax(220px,245px);} .scene-editor-root .scene-stage-name .scene-eyebrow {display:none;} .scene-editor-root .scene-toolbar {gap:2px;} .scene-editor-root .scene-toolbar>button {padding:3px 4px;} }
+
+
+/* Native web controls are authored as presentation records, not effect objects.
+   This CSS stays in Studio and never changes the site's copper switch skin. */
+.scene-controls{position:absolute;inset:0;pointer-events:none;z-index:28;}
+.scene-language-switch{position:absolute;transform:translate(-50%,-50%);z-index:2;
+  background:transparent;color:#f4e0bc;border:1px solid transparent;border-radius:4px;
+  padding:0;pointer-events:auto;cursor:pointer;touch-action:none}
+.scene-language-switch[data-selected="true"]{outline:1px dashed #e3b876;outline-offset:3px}
+.scene-language-switch .scene-switch-plate{position:absolute;left:50%;top:50%;
+  width:82%;height:77%;box-sizing:border-box;border:1px solid #c48d5c;border-radius:3px;
+  transform:translate(-50%,-50%) skewX(var(--scene-switch-skew,-23deg)) scaleY(.82) scale(var(--scene-switch-scale,1));
+  display:flex;align-items:center;justify-content:space-around;
+  background:linear-gradient(145deg,#bc8253,#7d492e 48%,#44271c);
+  box-shadow:inset 0 0 0 2px #442b1c,inset 1px 1px 1px #f5c58d88,0 3px 1px #4c2b1e,0 6px 4px #140c09}
+.scene-switch-plate b{font:700 clamp(5px,1.1vw,13px) Georgia,serif;text-shadow:0 1px #130a06;}
+.scene-switch-plate b.is-active{color:#ffe6a4;text-shadow:0 0 7px #ffd584;}
+.scene-switch-track{width:24%;height:25%;border:1px solid #9a6540;background:#1d130d;position:relative;border-radius:3px}
+.scene-switch-track i{position:absolute;left:0;top:-15%;width:51%;height:130%;border-radius:2px;
+  background:linear-gradient(115deg,#eab47c,#8b4d2d);box-shadow:1px 1px 2px #140a06}
+.scene-switch-track[data-language="en"] i{left:49%}
+.scene-control-quick-actions{display:flex;gap:6px;margin:8px 0}
+.scene-control-quick-actions button{flex:1;min-width:0}

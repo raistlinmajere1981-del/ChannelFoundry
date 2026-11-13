@@ -1,3 +1,5 @@
+import {defaultLanguageSwitchLayout,validateLanguageSwitchLayout} from './language-switch-layout.mjs';
+
 /** One validated, versioned contract for the physical focus objects.
  * These are presentation knobs only: publication, auth, effects and Grabfold
  * state remain owned by their existing modules.
@@ -73,6 +75,7 @@ export function defaultBookPresentation(id){
 export function defaultScenePresentation(){
   return {
     version:1,sceneId:PRESENTATION_SCENE_ID,
+    controls:{languageSwitch:defaultLanguageSwitchLayout()},
     objects:Object.fromEntries(FOCUS_OBJECT_IDS.map(id=>[id,{
       focusMs:620,returnMs:520,detailMs:
         id==='camera'?520:id==='vefk-stand'?650:880,
@@ -92,9 +95,11 @@ const within=(value,range,label,whole=false)=>{
     throw Error(label+': '+range.join('–')+(whole?' tam sayı':' sayı')+' gerekli.');
 };
 export function validateScenePresentation(input){
-  exactKeys(input,['version','sceneId','objects'],'Sahne sunumu');
+  exactKeys(input,['version','sceneId','objects','controls'],'Sahne sunumu');
   if(input.version!==1||input.sceneId!==PRESENTATION_SCENE_ID)
     throw Error('Sahne sunumunun sürümü veya sahne kimliği geçersiz.');
+  exactKeys(input.controls,['languageSwitch'],'Sahne kontrolleri');
+  validateLanguageSwitchLayout(input.controls.languageSwitch);
   exactKeys(input.objects,FOCUS_OBJECT_IDS,'Odak nesneleri');
   for(const id of FOCUS_OBJECT_IDS){
     const entry=input.objects[id],isBook=BOOK_OBJECT_IDS.includes(id),isPhysical=PHYSICAL_DEVICE_IDS.includes(id);

@@ -43,6 +43,7 @@ export const sceneTemplate = String.raw`
        <div id="scene-viewport" class="scene-viewport hide-object-areas" aria-label="Normalleştirilmiş sahne görünümü">
         <img id="scene-photo" class="scene-photo" alt="BirDeSenGör güncel çalışma odası" draggable="false" hidden>
         <div id="scene-room-objects" class="scene-room-objects" aria-label="Fiziksel oda nesneleri önizlemesi"></div>
+        <div id="scene-controls" class="scene-controls" aria-label="Sahne arayüz kontrolleri"></div>
         <div id="scene-objects" class="scene-objects"></div>
         <div id="scene-markers" class="scene-markers"></div>
        </div>
@@ -58,6 +59,7 @@ export const sceneTemplate = String.raw`
     <h2 id="selected-object-name">Bir nesne seçin</h2>
     <nav class="scene-inspector-tabs" aria-label="Özellik türü" role="tablist">
       <button type="button" data-inspector-tab="background" role="tab" aria-selected="false">Arka plan</button>
+      <button type="button" data-inspector-tab="control" role="tab" aria-selected="false" hidden>Dil anahtarı</button>
       <button type="button" data-inspector-tab="visual" role="tab" aria-selected="false">Nesne</button>
       <button type="button" data-inspector-tab="effect" role="tab" aria-selected="true">Efekt</button>
       <button type="button" data-inspector-tab="focus" role="tab" aria-selected="false">Görünüm</button>
@@ -65,6 +67,9 @@ export const sceneTemplate = String.raw`
     <div class="scene-inspector-page" data-inspector-page="background" hidden>
       <section id="scene-background-inspector"></section>
       <input type="file" id="scene-background-file" hidden accept="image/png,image/jpeg,image/webp" aria-label="Sahne arka planını değiştir">
+    </div>
+    <div class="scene-inspector-page" data-inspector-page="control" hidden>
+      <section id="scene-control-inspector"></section>
     </div>
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>

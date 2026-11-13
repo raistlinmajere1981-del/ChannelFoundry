@@ -18,6 +18,7 @@ const ADAPTER='src/effects/effectsAdapter.js';
 const PREVIEW='public'+ROOM_BACKGROUND_ASSET;
 const ROOT='src/scene/SceneRoot.jsx';
 const STAGE_CSS='src/scene/study-foundation.css';
+const LANGUAGE_CSS='src/language/language.css';
 // The book/camera/workshop presentation contract depends on these authored
 // styles. Include them in the optimistic source revision before staging.
 const PRESENTATION_STYLES=Object.freeze([
@@ -38,7 +39,7 @@ const EFFECT_CALL_SITES=new Set([CANDLE_HOST,PASSIVE_HOST,EFFECT_HOOK,HOVER_HOST
  * Unknown effect call sites or removed CSS/hosts invalidate staging. */
 function verifiedMounts(entries){
  const code=file=>entries.get(file)?.toString('utf8')??'';
- const scene=code(ROOT),candle=code(CANDLE_HOST),passive=code(PASSIVE_HOST),hover=code(HOVER_HOST),hook=code(EFFECT_HOOK),css=code(STAGE_CSS);
+ const scene=code(ROOT),candle=code(CANDLE_HOST),passive=code(PASSIVE_HOST),hover=code(HOVER_HOST),hook=code(EFFECT_HOOK),css=code(STAGE_CSS),language=code('src/language/LanguageSwitch.jsx'),languageCss=code(LANGUAGE_CSS);
  const checks={
   'V2 has positioned passive hosts':scene.includes("AMBIENT_EFFECT_IDS.has(object.id) ? 'study-effect-host'")
     && scene.includes('ambientHostStyle(object)') && scene.includes('normalizedRoomPose(object)'),
@@ -78,6 +79,12 @@ function verifiedMounts(entries){
   'Runtime compiles and binds canonical scene':hook.includes('compileObjectScene(selected)')
     && hook.includes('bindObjectScene(compiled, () => element')
     && hook.includes('assertAuthoredScene(scene, SCENE_MANIFEST)'),
+  'Physical language switch is presentation-driven but locale-owned':
+    language.includes('languageSwitchStyle(scenePresentation.controls.languageSwitch)')
+    &&language.includes('requestLanguageChange(')
+    &&scene.includes('<LanguageSwitch/>:<LanguagePlate/>')
+    &&languageCss.includes('var(--switch-desktop-x')
+    &&languageCss.includes('var(--switch-mobile-bottom'),
   'Photo-space effect hosts are positioned and non-interactive':/\.study-effect-host\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/.test(css)
     && css.includes('.study-effect-host .object-effect-overlay { pointer-events: none !important; }'),
  };
@@ -106,7 +113,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
  };
  async function snapshot(){
   const entries=new Map();
-  for(const file of [SITE_SCENE,MANIFEST,PRESENTATION,ADAPTER,PREVIEW,STAGE_CSS,...PRESENTATION_STYLES])entries.set(file,read(file));
+  for(const file of [SITE_SCENE,MANIFEST,PRESENTATION,ADAPTER,PREVIEW,STAGE_CSS,LANGUAGE_CSS,...PRESENTATION_STYLES])entries.set(file,read(file));
   // Follow the actual scene's relative JS imports. Dormant effect components
   // elsewhere in src are NOT proof of a mounted runtime slot. A newly wired
   // hook requires a reviewed mount contract before this writer can admit it.

@@ -10,6 +10,7 @@ import {bindObjectScene} from '../../../../packages/effect-engine/src/runtime/ob
 import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
 import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
 import {roomFrameGeometry} from '../../../../packages/effect-engine/src/model/room-frame.mjs';
+import {defaultLanguageSwitchLayout} from '../../../../packages/effect-engine/src/model/language-switch-layout.mjs';
 import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export function mountSceneEditor(root,options={}){
@@ -18,6 +19,8 @@ const surface=root===document?document.body:root;
 const disposers=[];
 let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
 let presentation=defaultScenePresentation(),presentationDevice='desktop';
+let activeControl=null,controlDevice='desktop',controlLanguage='tr',controlDrag=null;
+const switchLayout=()=>siteSource?presentation?.controls?.languageSwitch:null;
 let focusTargets=new Map(),focusPreview=false,roomObjects=new Map(),showRoomObjects=true;
 let previewHandle=null,previewFrame=null;
 let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
@@ -132,6 +135,7 @@ function uniqueEffectId(type){
   throw new Error('Benzersiz efekt kimliği üretilemedi.');
 }
 function selectObject(id){
+  activeControl=null;
   if(id===objectId){draw();return;}
   objectId=id;
   const target=object();
@@ -140,12 +144,14 @@ function selectObject(id){
   draw();if($('#object-search'))setInspectorTab(focusTargets.has(id)?'focus':'visual');
 }
 function selectEffect(id){
+  activeControl=null;
   const next=scene.effects.find(item=>item.id===id);
   if(!next)return;
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
   draw();if($('#object-search'))setInspectorTab('effect');
 }
 function selectForDrag(next){
+  activeControl=null;
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
   renderLists();renderObjectInspector();renderEffectInspector();renderStageSelection();
 }
@@ -191,11 +197,13 @@ function setInspectorTab(tab){
   for(const button of root.querySelectorAll('[data-inspector-tab]')){
     const active=button.dataset.inspectorTab===tab;
     button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
-    if(button.dataset.inspectorTab==='focus')button.hidden=!focusTargets.has(objectId);
+    if(button.dataset.inspectorTab==='focus')button.hidden=Boolean(activeControl)||!focusTargets.has(objectId);
+    if(button.dataset.inspectorTab==='control')button.hidden=!switchLayout();
   }
   for(const page of root.querySelectorAll('[data-inspector-page]'))page.hidden=page.dataset.inspectorPage!==tab;
   const name=$('#selected-object-name');
-  if(name)name.textContent=tab==='background'?(siteSource?'Oda arka planı':'Sahne arka planı'):object()?.name??'Bir nesne seçin';
+  if(name)name.textContent=tab==='background'?(siteSource?'Oda arka planı':'Sahne arka planı')
+    :tab==='control'?'Dil anahtarı':object()?.name??'Bir nesne seçin';
   if($('#open-background'))$('#open-background').setAttribute('aria-pressed',String(tab==='background'));
   if(tab==='background')renderBackgroundInspector();
 }
@@ -242,9 +250,23 @@ function renderTreeLists(){
     }
     children.push(group);
   }
+  if(switchLayout()&&objectFilter==='all'&&(!term||'dil anahtarı arayüz kontrolü language switch'.includes(term))){
+    const details=el('details',{class:'scene-tree-group','data-tree-group':'Sahne kontrolleri'});
+    details.open=term?true:(treeExpanded.get('Sahne kontrolleri')??true);
+    details.addEventListener('toggle',()=>{if(details.isConnected&&!term)treeExpanded.set('Sahne kontrolleri',details.open);});
+    const row=el('div',{class:'scene-tree-control'+(activeControl?' is-current':'')},
+      el('button',{type:'button',id:'scene-control-select-languageSwitch',class:'scene-tree-select',
+        text:'Dil anahtarı','aria-current':String(Boolean(activeControl)),onclick:()=>{
+          activeControl='languageSwitch';setInspectorTab('control');draw();
+        }}),
+      el('span',{class:'scene-tree-meta',text:'TR / EN'}));
+    details.append(el('summary',{},el('span',{text:'Sahne kontrolleri'}),el('span',{class:'scene-count',text:'1'})),row);
+    children.push(details);
+  }
   host.replaceChildren(...(children.length?children:[el('p',{class:'scene-empty',text:'Eşleşen nesne bulunamadı.'})]));
   // Focus controls only exist for supported room objects. Keep the user's selected page when possible.
   if(inspectorTab==='focus'&&!focusTargets.has(objectId))inspectorTab='visual';
+  if(inspectorTab==='control'&&!switchLayout())inspectorTab='visual';
   setInspectorTab(inspectorTab);
 }
 function renderLists(){
@@ -352,6 +374,52 @@ function renderVisualInspector(){
     button('−0,1% Y',()=>adjust({y:round(item.pose.y-.001)},'visual:'+item.id+':y'),{id:'visual-up'}),
     button('+0,1% Y',()=>adjust({y:round(item.pose.y+.001)},'visual:'+item.id+':y'),{id:'visual-down'})));
   host.append(button('Yerleşimi sıfırla',()=>adjust({...base},'visual:'+item.id+':reset'),{id:'visual-reset'}));
+}
+function renderControlInspector(){
+  const host=$('#scene-control-inspector');if(!host)return;
+  host.replaceChildren();
+  const layout=switchLayout();
+  if(!layout||activeControl!=='languageSwitch')return;
+  const view=layout[controlDevice],defaults=defaultLanguageSwitchLayout()[controlDevice];
+  const set=(key,value)=>mutatePresentation(next=>{
+    next.controls.languageSwitch[controlDevice][key]=value;
+  },'control:languageSwitch:'+controlDevice+':'+key);
+  host.append(field('Cihaz görünümü',el('select',{
+    id:'language-device','aria-label':'Dil anahtarı cihaz görünümü',
+    onchange:event=>{
+      controlDevice=event.target.value;
+      if(controlDevice==='mobile'){screenPreset='390x844';[screenWidth,screenHeight]=[390,844];}
+      else {screenPreset='1366x768';[screenWidth,screenHeight]=[1366,768];}
+      fitStage();draw();
+    }},...['desktop','mobile'].map(device=>el('option',{
+      value:device,text:device==='desktop'?'Masaüstü':'Mobil',
+      selected:controlDevice===device,
+    })))));
+  for(const [key,label,min,max,step] of [
+    ['x','Sol konum X (%)',5,85,.1],
+    [controlDevice==='mobile'?'bottom':'y',
+      controlDevice==='mobile'?'Alt kenar mesafesi (px)':'Üst konum Y (%)',
+      controlDevice==='mobile'?22:60,controlDevice==='mobile'?90:96,.1],
+    ['plateScale','Bakır plaka ölçeği (%)',75,140,1],
+    ['skew','Bakır plaka eğimi (°)',-35,-10,1],
+    ['hitWidth','Tıklama alanı genişliği (%)',100,170,1],
+    ['hitHeight','Tıklama alanı yüksekliği (%)',100,170,1],
+  ]){
+    const ratio=['plateScale','hitWidth','hitHeight'].includes(key);
+    host.append(numberInput(label,ratio?round(view[key]*100):view[key],
+      value=>set(key,ratio?round(value/100):value),
+      {id:'language-'+key,min,max,step,'data-testid':'language-'+key}));
+  }
+  host.append(el('div',{class:'scene-control-quick-actions'},
+    button('TR',()=>{controlLanguage='tr';renderControlStage();},{
+      id:'language-preview-tr','aria-pressed':String(controlLanguage==='tr')}),
+    button('EN',()=>{controlLanguage='en';renderControlStage();},{
+      id:'language-preview-en','aria-pressed':String(controlLanguage==='en')})
+  ));
+  host.append(button('Cihaz yerleşimini sıfırla',()=>mutatePresentation(next=>{
+    next.controls.languageSwitch[controlDevice]=structuredClone(defaults);
+  },'control:languageSwitch:'+controlDevice+':reset'),{id:'language-reset'}));
+
 }
 function renderPresentationInspector(){
   const item=object(),parent=$('#focus-presentation-settings'),host=$('#focus-presentation-inspector');
@@ -653,16 +721,19 @@ function renderBackgroundInspector(){
     onchange:event=>{
       screenPreset=event.target.value;
       if(screenPresets[screenPreset])[screenWidth,screenHeight]=screenPresets[screenPreset];
-      fitStage();renderBackgroundInspector();
+      if(switchLayout()&&screenPreset!=='room')controlDevice=screenWidth<760?'mobile':'desktop';
+      fitStage();renderBackgroundInspector();renderControlStage();renderControlInspector();
     }},...options.map(([key,name])=>el('option',{value:key,text:name,selected:screenPreset===key})))));
   if(screenPreset==='custom')host.append(el('div',{class:'scene-background-dimensions'},
     numberInput('Ekran genişliği',screenWidth,value=>{
       if(value<240||value>4096||!Number.isFinite(value))return;
-      screenWidth=Math.round(value);fitStage();renderBackgroundInspector();
+      screenWidth=Math.round(value);
+      if(switchLayout())controlDevice=screenWidth<760?'mobile':'desktop';
+      fitStage();renderBackgroundInspector();renderControlStage();renderControlInspector();
     },{id:'background-screen-width',min:240,max:4096,step:1}),
     numberInput('Ekran yüksekliği',screenHeight,value=>{
       if(value<240||value>4096||!Number.isFinite(value))return;
-      screenHeight=Math.round(value);fitStage();renderBackgroundInspector();
+      screenHeight=Math.round(value);fitStage();renderBackgroundInspector();renderControlStage();
     },{id:'background-screen-height',min:240,max:4096,step:1})));
   const geometry=screenPreviewGeometry();
   if(geometry){
@@ -1087,6 +1158,77 @@ function renderRoomObjects(){
     if(node.childElementCount)host.append(node);
   }
 }
+function renderControlStage(){
+  const host=$('#scene-controls');
+  if(!host)return;
+  host.replaceChildren();
+  const layout=switchLayout();
+  if(!layout)return;
+  const mobile=controlDevice==='mobile',view=layout[controlDevice];
+  const x=view.x;
+  const y=mobile?(100-view.bottom/195*100):view.y;
+  const width=(mobile?82/390*100:8.1)*view.hitWidth;
+  const height=(mobile?44/195*100:8.55)*view.hitHeight;
+  const node=el('button',{type:'button',id:'scene-language-switch',
+    class:'scene-language-switch','data-scene-control':'languageSwitch',
+    'data-selected':String(activeControl==='languageSwitch'),
+    'aria-label':'Dil anahtarı · düzenleme önizlemesi',
+    onclick:()=>{activeControl='languageSwitch';setInspectorTab('control');draw();}});
+  Object.assign(node.style,{left:x+'%',top:y+'%',
+    width:width+'%',height:height+'%',
+    '--scene-switch-skew':view.skew+'deg','--scene-switch-scale':String(view.plateScale)});
+  const track=el('span',{class:'scene-switch-track','data-language':controlLanguage},el('i'));
+  node.append(el('span',{class:'scene-switch-plate'},
+    el('b',{text:'TR',class:controlLanguage==='tr'?'is-active':''}),
+    track,
+    el('b',{text:'EN',class:controlLanguage==='en'?'is-active':''})));
+  node.addEventListener('pointerdown',event=>{
+    if(!visualMode||event.button!==0)return;
+    event.preventDefault();event.stopPropagation();
+    activeControl='languageSwitch';setInspectorTab('control');
+    beginControlDrag(event,node,view);
+  });
+  host.append(node);
+}
+function beginControlDrag(event,node,view){
+  if(controlDrag)return;
+  const box=$('#scene-viewport').getBoundingClientRect();
+  controlDrag={id:event.pointerId,node,startX:event.clientX,startY:event.clientY,
+    start:structuredClone(view),width:box.width,height:box.height,changed:false};
+  node.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove',moveControlDrag);
+  window.addEventListener('pointerup',endControlDrag);
+  window.addEventListener('pointercancel',endControlDrag);
+}
+function moveControlDrag(event){
+  const d=controlDrag;
+  if(!d||event.pointerId!==d.id)return;
+  const dx=(event.clientX-d.startX)/d.width*100;
+  const dy=(event.clientY-d.startY)/d.height*100;
+  const changed={
+    x:round(clamp(d.start.x+dx,5,85)),
+    ...(controlDevice==='mobile'
+      ?{bottom:round(clamp(d.start.bottom-dy*195/100,22,90))}
+      :{y:round(clamp(d.start.y+dy,60,96))}),
+  };
+  if(changed.x===d.start.x&&
+    (controlDevice==='mobile'?changed.bottom===d.start.bottom:changed.y===d.start.y))return;
+  d.latest=changed;d.changed=true;
+  Object.assign(d.node.style,{left:changed.x+'%',top:(controlDevice==='mobile'
+    ?(100-changed.bottom/195*100):changed.y)+'%'});
+}
+function endControlDrag(event){
+  const d=controlDrag;
+  if(!d||event.pointerId!==d.id)return;
+  window.removeEventListener('pointermove',moveControlDrag);
+  window.removeEventListener('pointerup',endControlDrag);
+  window.removeEventListener('pointercancel',endControlDrag);
+  controlDrag=null;
+  if(d.changed)mutatePresentation(next=>{
+    Object.assign(next.controls.languageSwitch[controlDevice],d.latest);
+  },'control:languageSwitch:'+controlDevice+':drag');
+  else draw();
+}
 function renderStage(){
   previewHandle?.destroy();previewHandle=null;
   renderRoomObjects();
@@ -1105,6 +1247,7 @@ function renderStage(){
   }
   bindPreview();
   renderMarkers();
+  renderControlStage();
   refreshRobePreview();
 }
 function applyFocusPreview(){
@@ -1121,8 +1264,9 @@ function applyFocusPreview(){
   }
   const root=$('#scene-viewport');
   root.classList.toggle('presentation-preview',show);
-  for(const selector of ['#scene-photo','#scene-room-objects','#scene-objects','#scene-markers']){
+  for(const selector of ['#scene-photo','#scene-room-objects','#scene-objects','#scene-markers','#scene-controls']){
     const node=$(selector);
+    if(!node)continue;
     node.style.transform=transform;
     node.style.transformOrigin='50% 50%';
     node.style.transition=show?'transform 450ms cubic-bezier(.22,.72,.22,1)':'transform 220ms ease';
@@ -1153,6 +1297,7 @@ function draw(){
   renderObjectInspector();
   renderVisualInspector();
   renderPresentationInspector();
+  renderControlInspector();
   renderSourceInspector();
   renderCropInspector();
   renderLayerInspector();
@@ -1353,6 +1498,7 @@ function installPreview(packet){
   sourceScene=siteSource?structuredClone(packet.scene):null;
   presentation=validateScenePresentation(structuredClone(packet.presentation??defaultScenePresentation()));
   previewRobeVeiled=false;
+  activeControl=null;controlDevice='desktop';controlLanguage='tr';
   focusPreview=false;
   focusTargets=new Map();
   for(const target of packet.focusTargets??[]){
