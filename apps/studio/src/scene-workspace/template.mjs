@@ -21,7 +21,7 @@ export const sceneTemplate = String.raw`
         <div class="scene-stage-name"><button type="button" id="scene-toggle-tree" aria-label="Sahne ağacını göster veya gizle">☰</button><span class="scene-eyebrow">ÇALIŞMA TUVALİ</span></div>
         <div class="scene-toolbar">
           <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
-          <button type="button" id="open-background" title="Oda arka planı ve cihaz kadrajı">Kadraj</button>
+          <button type="button" id="open-background" title="Sahne arka planı ve ekran kadrajı">Kadraj</button>
           <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects">Nesneler</button>
           <button type="button" id="show-object-areas" aria-pressed="false" aria-label="Nesne yerleşim alanları">Sınırlar</button>
           <button type="button" id="show-hit-areas" aria-pressed="true" aria-label="Tıklama alanları">Tıklama</button>
@@ -64,7 +64,7 @@ export const sceneTemplate = String.raw`
     </nav>
     <div class="scene-inspector-page" data-inspector-page="background" hidden>
       <section id="scene-background-inspector"></section>
-      <input type="file" id="scene-background-file" hidden accept="image/png,image/jpeg,image/webp" aria-label="Ana oda fotoğrafını değiştir">
+      <input type="file" id="scene-background-file" hidden accept="image/png,image/jpeg,image/webp" aria-label="Sahne arka planını değiştir">
     </div>
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>

@@ -45,7 +45,7 @@ type StudioSceneDocument = {
 };
 type StudioSceneReadiness = { ready: boolean; effectCount: number; enabledCount: number; mountedCount: number; problems: string[] };
 type StudioSceneWorkshopLoad = { scene: StudioSceneDocument; origin: "site" | "draft"; sourceHash: string; note: string;
-  readiness: StudioSceneReadiness; siteSource: true; previewImage: string; background?: {asset:string;width:number;height:number;bytes:number;aspect:number;layout:string;note:string}|null; previewObjects: unknown[]; previewArt:{objectId:string;path:string;label:string;warning:string;image:string}[]; roomObjects:unknown[]; assets: {path:string;dataUrl:string}[]; presentation:Record<string,unknown>; focusTargets:{id:string;foundation:{x:number;y:number}}[] };
+  readiness: StudioSceneReadiness; siteSource: boolean; canPublish?: boolean; previewImage: string; background?: {asset:string;width:number;height:number;bytes:number;aspect:number;layout:string;note:string}|null; previewObjects: unknown[]; previewArt:{objectId:string;path:string;label:string;warning:string;image:string}[]; roomObjects:unknown[]; assets: {path:string;dataUrl:string}[]; presentation:Record<string,unknown>; focusTargets:{id:string;foundation:{x:number;y:number}}[] };
 type StudioSceneWorkshopSave = { ok: true; sourceHash: string; draftHash: string; readiness: StudioSceneReadiness; message: string };
 type StudioSceneWorkshopPrepare = { ok: true; changed: boolean; sourceHash: string; draftHash: string;
   readiness: StudioSceneReadiness; message: string };
@@ -412,12 +412,14 @@ type StudioCommunitySession = {
 
 interface Window {
   channelFoundryStudio?: {
-    sceneWorkshopLoad(): Promise<StudioSceneWorkshopLoad>;
-    sceneWorkshopSave(input: { scene: StudioSceneDocument; assets?: {path:string;dataUrl:string}[]; presentation?:Record<string,unknown>; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
-    sceneWorkshopPrepare(): Promise<StudioSceneWorkshopPrepare>;
-    sceneWorkshopPreflight(): Promise<StudioSceneWorkshopPreflight>;
-    sceneWorkshopDeploy(input: { token: string }): Promise<{ ok: true; message: string }>;
-    sceneWorkshopInvalidate(): Promise<{ ok: true }>;
+    sceneWorkshopProjects(): Promise<{id:string;label:string;siteBound:boolean;canPublish:boolean;description:string}[]>;
+    sceneWorkshopCreate(input:{name:string}): Promise<{id:string;label:string;siteBound:false;canPublish:false;description:string}>;
+    sceneWorkshopLoad(input?:{projectId:string}): Promise<StudioSceneWorkshopLoad>;
+    sceneWorkshopSave(input: { projectId?:string; scene: StudioSceneDocument; assets?: {path:string;dataUrl:string}[]; presentation?:Record<string,unknown>; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
+    sceneWorkshopPrepare(input?:{projectId:string}): Promise<StudioSceneWorkshopPrepare>;
+    sceneWorkshopPreflight(input?:{projectId:string}): Promise<StudioSceneWorkshopPreflight>;
+    sceneWorkshopDeploy(input: { projectId?:string;token: string }): Promise<{ ok: true; message: string }>;
+    sceneWorkshopInvalidate(input?:{projectId:string}): Promise<{ ok: true }>;
     onSceneWorkshopProgress(callback: (progress: { operation: "preflight" | "deploy"; message: string }) => void): () => void;
     channelProjects(): Promise<StudioChannelProjects>;
     channelNarratorSources(input: { id: string }): Promise<StudioNarratorSourceEntity[]>;

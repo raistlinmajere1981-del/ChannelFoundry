@@ -12,12 +12,14 @@ async function invokeWithOutcome(channel, ...args) {
 }
 
 contextBridge.exposeInMainWorld("channelFoundryStudio", {
-  sceneWorkshopLoad: () => ipcRenderer.invoke("studio:scene-load"),
+  sceneWorkshopProjects: () => ipcRenderer.invoke("studio:scene-projects"),
+  sceneWorkshopCreate: (input) => ipcRenderer.invoke("studio:scene-create", input),
+  sceneWorkshopLoad: (input) => ipcRenderer.invoke("studio:scene-load", input),
   sceneWorkshopSave: (input) => ipcRenderer.invoke("studio:scene-save", input),
-  sceneWorkshopPrepare: () => ipcRenderer.invoke("studio:scene-prepare"),
-  sceneWorkshopPreflight: () => ipcRenderer.invoke("studio:scene-preflight"),
+  sceneWorkshopPrepare: (input) => ipcRenderer.invoke("studio:scene-prepare", input),
+  sceneWorkshopPreflight: (input) => ipcRenderer.invoke("studio:scene-preflight", input),
   sceneWorkshopDeploy: (input) => ipcRenderer.invoke("studio:scene-deploy", input),
-  sceneWorkshopInvalidate: () => ipcRenderer.invoke("studio:scene-invalidate"),
+  sceneWorkshopInvalidate: (input) => ipcRenderer.invoke("studio:scene-invalidate", input),
   onSceneWorkshopProgress: (callback) => {
     const listener = (_event, progress) => callback(progress);
     ipcRenderer.on("studio:scene-progress", listener);

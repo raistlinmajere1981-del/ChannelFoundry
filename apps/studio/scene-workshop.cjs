@@ -2,16 +2,13 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const os = require("node:os");
 const { randomUUID, createHash } = require("node:crypto");
-const { execFile } = require("node:child_process");
-const { promisify } = require("node:util");
-const execFileAsync = promisify(execFile);
 
 const SCENE_ID = "birdesengor-study-v2";
 const DRAFT_FILENAME = "birdesengor-scene-v2.json";
 const APPROVAL_TTL = 10 * 60 * 1000;
 const MAX_SCENE_BYTES = 25 * 1024 * 1024;
+const {createRunner}=require("./scene-workshop-birdesengor-publisher.cjs");
 
 function digest(value) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function atomicWrite(filename, data) {
@@ -36,34 +33,15 @@ function readDraft(filename) {
     return value?.version === 1 && value.scene && typeof value.sourceHash === "string" ? value : null;
   } catch { return null; }
 }
-function createRunner(webRoot) {
-  async function run(executable, args, extraEnv = {}, timeoutMs = 240_000) {
-    try {
-      await execFileAsync(executable, args, {
-        cwd: webRoot, timeout: timeoutMs, maxBuffer: 2 * 1024 * 1024,
-        env: { ...process.env, ...extraEnv },
-      });
-    } catch (error) {
-      const detail = String(error?.stderr || error?.message || "Komut başarısız.").slice(0, 650);
-      throw new Error("BirDeSenGör yayın kontrolü başarısız: " + detail);
-    }
-  }
-  // The already-installed, machine-private wrapper owns FTPS credentials and
-  // executes the same reviewed build, verification and managed-assets policy.
-  // Never pass secrets through Studio IPC, a separate config file or Git.
-  const wrapper = path.join(os.homedir(), ".local", "bin", "birdesengor-natro");
-  return {
-    build: () => run("npm", ["run", "build"]),
-    plan: () => run("npm", ["run", "deploy:natro", "--", "--plan"]),
-    dryRun: () => run(wrapper, ["clean-dry-run"]),
-    deploy: () => run(wrapper, ["clean-deploy"], {}, 600_000),
-    verifyLive: () => run("npm", ["run", "verify:live"], {}, 60_000),
-  };
-}
 class SceneWorkshop {
-  constructor({ userDataDir, site, runner, clock = () => Date.now() }) {
+  constructor({ userDataDir, site, runner, clock = () => Date.now(),
+    identity = validateIdentity, draftFilename = DRAFT_FILENAME, canPublish = site?.siteBound !== false }) {
     if (!userDataDir || !site) throw new Error("Sahne Atölyesi yapılandırması eksik.");
-    this.draftFile = path.join(userDataDir, "scene-workshop", DRAFT_FILENAME);
+    if(!/^[a-z0-9-]+(?:\.json)$/.test(draftFilename))
+      throw Error('Geçersiz sahne taslağı dosyası.');
+    this.draftFile = path.join(userDataDir, "scene-workshop", draftFilename);
+    this.identity = identity;
+    this.canPublish=Boolean(canPublish);
     this.site = site;
     this.runner = runner;
     this.clock = clock;
@@ -77,25 +55,25 @@ class SceneWorkshop {
   }
   async snapshot() {
     const source = await this.site.snapshot();
-    validateIdentity(source.scene);
+    this.identity(source.scene);
     return source;
   }
   async load() {
     const source = await this.snapshot();
     const saved = readDraft(this.draftFile);
-    let scene = source.scene, presentation = source.presentation, assets = [], origin = "site", note = "Güncel web sahnesi açıldı.";
+    let scene = source.scene, presentation = source.presentation, assets = [], origin = "site", note = this.site.siteBound===false ? "Yerel sahne açıldı." : "Güncel web sahnesi açıldı.";
     if (saved && saved.sourceHash === source.sourceHash) {
       try {
-        validateIdentity(saved.scene);
+        this.identity(saved.scene);
         this.site.validate(saved.scene, source, saved.presentation ?? source.presentation);
         scene = saved.scene; presentation = saved.presentation ?? source.presentation;
         assets = saved.assets ?? []; this.site.validateAssets?.(assets, source, scene);
         origin = "draft"; note = "Kayıtlı yerel taslak açıldı.";
-      } catch { note = "Eski taslak geçersiz; güncel web sahnesi açıldı."; }
-    } else if (saved) note = "Site kaynağı değişmiş; eski taslak yerine güncel sahne açıldı.";
+      } catch { note = this.site.siteBound===false ? "Eski yerel taslak geçersiz; kayıtlı sahne açıldı." : "Eski taslak geçersiz; güncel web sahnesi açıldı."; }
+    } else if (saved) note = this.site.siteBound===false ? "Yerel kaynak değişmiş; eski taslak yüklenmedi." : "Site kaynağı değişmiş; eski taslak yerine güncel sahne açıldı.";
     return {
       scene, presentation, assets, origin, sourceHash: source.sourceHash, note,
-      readiness: this.site.readiness(scene, source), siteSource: true,
+      readiness: this.site.readiness(scene, source), siteSource: this.site.siteBound !== false, canPublish:this.canPublish,
       previewImage: await this.site.preview(source),
       background: this.site.backgroundInfo?.(source) ?? null,
       previewObjects: [
@@ -114,10 +92,12 @@ class SceneWorkshop {
   async save({ scene, presentation = null, assets = [], expectedSourceHash }) {
     return this.locked(async () => {
       this.approved = null;
-      validateIdentity(scene);
+      this.identity(scene);
       const source = await this.snapshot();
       if (!expectedSourceHash || expectedSourceHash !== source.sourceHash)
-        throw new Error("Web sahnesi değişmiş. Düzenleyiciyi yenilemeden kayıt yapılamaz.");
+        throw new Error(this.site.siteBound===false
+          ? "Yerel sahne değişmiş. Düzenleyiciyi yenilemeden kayıt yapılamaz."
+          : "Web sahnesi değişmiş. Düzenleyiciyi yenilemeden kayıt yapılamaz.");
       const targetPresentation = presentation ?? source.presentation;
       this.site.validate(scene, source, targetPresentation);
       this.site.validateAssets?.(assets, source, scene);
@@ -125,7 +105,9 @@ class SceneWorkshop {
       if (!readiness.ready) throw new Error("Sahne doğrulanamadı: " + readiness.problems.join("; "));
       atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: source.sourceHash, scene, assets, presentation: targetPresentation }, null, 2) + "\n");
       return { ok: true, sourceHash: source.sourceHash, draftHash: digest(scene), readiness,
-        message: "Efekt taslağı kaydedildi; web kaynağı ve canlı site değişmedi." };
+        message: this.site.siteBound===false
+          ? "Yerel sahne taslağı kaydedildi. Yayın bağlantısı yok."
+          : "Efekt taslağı kaydedildi; web kaynağı ve canlı site değişmedi." };
     });
   }
   async prepare() {
@@ -135,7 +117,7 @@ class SceneWorkshop {
       const draft = readDraft(this.draftFile);
       if (!draft || draft.sourceHash !== source.sourceHash)
         throw new Error("Güncel kaynakla kaydedilmiş taslak yok. Önce Kaydet kullanılmalı.");
-      validateIdentity(draft.scene);
+      this.identity(draft.scene);
       this.site.validate(draft.scene, source, draft.presentation ?? source.presentation);
       const readiness = this.site.readiness(draft.scene, source, draft.presentation ?? source.presentation);
       if (!readiness.ready) throw new Error("Sahne kaynak dosyasına hazır değil: " + readiness.problems.join("; "));
@@ -143,11 +125,14 @@ class SceneWorkshop {
       const staged = await this.site.stage(draft.scene, source.sourceHash, draft.assets ?? [], draft.presentation ?? source.presentation);
       atomicWrite(this.draftFile, JSON.stringify({ version: 1, sourceHash: staged.sourceHash, scene: draft.scene, assets: draft.assets ?? [], presentation: draft.presentation ?? source.presentation }, null, 2) + "\n");
       return { ok: true, ...staged, draftHash: digest(draft.scene),
-        message: staged.changed ? "BirDeSenGör yerel efekt sahnesi hazırlandı. Canlıya yayın yapılmadı."
+        message: this.site.siteBound===false
+          ? staged.changed?"Yerel sahne dosyaları hazırlandı. Yayın bağlantısı yok.":"Yerel sahne zaten güncel."
+          : staged.changed ? "BirDeSenGör yerel efekt sahnesi hazırlandı. Canlıya yayın yapılmadı."
           : "Web sahnesi zaten güncel. Canlıya yayın yapılmadı." };
     });
   }
   async preflight(onProgress = () => {}) {
+    if(!this.canPublish)throw Error('Bu yerel sahne için canlı yayın bağlantısı tanımlı değil.');
     return this.locked(async () => {
       this.approved = null;
       const source = await this.snapshot();
@@ -179,6 +164,7 @@ class SceneWorkshop {
     });
   }
   async deploy({ token }, onProgress = () => {}) {
+    if(!this.canPublish)throw Error('Bu yerel sahne için canlı yayın bağlantısı tanımlı değil.');
     return this.locked(async () => {
       const approved = this.approved;
       this.approved = null;
@@ -207,26 +193,45 @@ class SceneWorkshop {
 }
 async function registerSceneWorkshopIpc(ipcMain, app) {
   const { siteSceneSource, BIRDESENGOR_SITE } = await import("./scene-workshop-site.mjs");
-  const instance = new SceneWorkshop({
-    userDataDir: app.getPath("userData"),
-    site: siteSceneSource(),
-    runner: createRunner(BIRDESENGOR_SITE),
+  const {localSceneSource,listLocalScenes,createLocalScene}=await import("./scene-workshop-local.mjs");
+  const userDataDir=app.getPath("userData");
+  const instances=new Map([['birdesengor',new SceneWorkshop({
+    userDataDir,site:siteSceneSource(),runner:createRunner(BIRDESENGOR_SITE),
+  })]]);
+  const projects=()=>[{id:'birdesengor',label:'BirDeSenGör',
+    siteBound:true,canPublish:true,description:'Mevcut web sahnesi ve onaylı yayın bağlantısı'},
+    ...listLocalScenes(userDataDir)];
+  const getService=input=>{
+    const projectId=input?.projectId??'birdesengor';
+    if(typeof projectId!=='string'||!projects().some(project=>project.id===projectId))
+      throw Error('Sahne projesi bulunamadı.');
+    if(!instances.has(projectId)){
+      const site=localSceneSource(userDataDir,projectId);
+      instances.set(projectId,new SceneWorkshop({
+        userDataDir,site,runner:null,identity:site.identity,
+        draftFilename:projectId+'.json',canPublish:false,
+      }));
+    }
+    return instances.get(projectId);
+  };
+  ipcMain.handle("studio:scene-projects",()=>projects());
+  ipcMain.handle("studio:scene-create",(_event,input)=>{
+    const project=createLocalScene(userDataDir,input?.name);
+    return project;
   });
-  ipcMain.handle("studio:scene-load", () => instance.load());
-  ipcMain.handle("studio:scene-save", (_event, input) => instance.save(input || {}));
-  ipcMain.handle("studio:scene-prepare", () => instance.prepare());
-  // IPC progress contains only predefined phase text; never subprocess
-  // stdout/stderr or FTPS credentials.
-  function progressTo(sender, operation) {
-    return (message) => {
-      if (!sender.isDestroyed()) sender.send("studio:scene-progress", { operation, message });
-    };
+  ipcMain.handle("studio:scene-load",(_event,input)=>getService(input).load());
+  ipcMain.handle("studio:scene-save",(_event,input)=>getService(input).save(input??{}));
+  ipcMain.handle("studio:scene-prepare",(_event,input)=>getService(input).prepare());
+  function progressTo(sender,operation) {
+    return message=>{if(!sender.isDestroyed())sender.send('studio:scene-progress',{operation,message});};
   }
-  ipcMain.handle("studio:scene-preflight", (event) =>
-    instance.preflight(progressTo(event.sender, "preflight")));
-  ipcMain.handle("studio:scene-deploy", (event, input) =>
-    instance.deploy(input || {}, progressTo(event.sender, "deploy")));
-  ipcMain.handle("studio:scene-invalidate", () => { instance.invalidate(); return { ok: true }; });
-  return instance;
+  ipcMain.handle("studio:scene-preflight",(event,input)=>
+    getService(input).preflight(progressTo(event.sender,"preflight")));
+  ipcMain.handle("studio:scene-deploy",(event,input)=>
+    getService(input).deploy(input??{},progressTo(event.sender,"deploy")));
+  ipcMain.handle("studio:scene-invalidate",(_event,input)=>{
+    getService(input).invalidate();return {ok:true};
+  });
+  return instances.get('birdesengor');
 }
 module.exports = { SceneWorkshop, createRunner, registerSceneWorkshopIpc, digest, validateIdentity };

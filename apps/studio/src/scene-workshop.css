@@ -5,6 +5,11 @@
 .scene-workshop-heading strong {font-size:13px;white-space:nowrap;}
 .scene-workshop-heading span {font-size:11px;color:#a4b3b3;white-space:nowrap;}
 .scene-workshop-heading .scene-workshop-dirty {color:#efb86a;}
+.scene-workshop-project-label {font-size:11px;color:#b8c5c2;white-space:nowrap;}
+.scene-workshop-heading .scene-project-select-label{min-width:105px;max-width:220px;display:block}
+.scene-workshop-heading .scene-project-select-label select{width:100%;min-height:29px;padding:4px 23px 4px 7px;border:1px solid #52625f;border-radius:5px;background:#283631;color:#dfede7;font-size:11px;text-overflow:ellipsis}
+.scene-workshop-heading .scene-project-create{min-height:29px;padding:4px 7px;border:1px solid #52625f;border-radius:5px;background:#293733;color:#dfede7;font-size:11px;white-space:nowrap;cursor:pointer}
+.scene-workshop-heading .scene-project-create:disabled{opacity:.4;cursor:default}
 .scene-workshop-actions {display:flex;gap:5px;align-items:center;}
 .scene-workshop-actions button {padding:5px 9px;min-height:29px;border:1px solid #52625f;background:#293733;color:#dfede7;border-radius:5px;font-size:11px;cursor:pointer;white-space:nowrap;}
 .scene-workshop-actions button:hover:not(:disabled) {background:#395047;}

@@ -195,7 +195,7 @@ function setInspectorTab(tab){
   }
   for(const page of root.querySelectorAll('[data-inspector-page]'))page.hidden=page.dataset.inspectorPage!==tab;
   const name=$('#selected-object-name');
-  if(name)name.textContent=tab==='background'?'Oda arka planı':object()?.name??'Bir nesne seçin';
+  if(name)name.textContent=tab==='background'?(siteSource?'Oda arka planı':'Sahne arka planı'):object()?.name??'Bir nesne seçin';
   if($('#open-background'))$('#open-background').setAttribute('aria-pressed',String(tab==='background'));
   if(tab==='background')renderBackgroundInspector();
 }
@@ -517,7 +517,7 @@ function exportSelectedAsset(slot,data,suffix=''){
 }
 function renderSourceInspector(){
   const item=object(),parent=$('#visual-source-settings'),host=$('#visual-source-inspector');
-  parent.hidden=!siteSource||!visualAssetSlots(item).length;
+  parent.hidden=!visualAssetSlots(item).length;
   host.replaceChildren();
   if(parent.hidden)return;
   const slots=visualAssetSlots(item),chosen=selectedVisualAsset(item);
@@ -810,7 +810,7 @@ function renderObjectInspector(){
   if(item.kind!=='artwork')for(const [key,label,min,max,step] of [['x','X',0,1,.001],['y','Y',0,1,.001],['width','Genişlik',.001,1,.001],['height','Yükseklik',.001,1,.001],['rotation','Dönüş (derece)',-360,360,1],['depth','Derinlik',-100,100,1]]){
     host.append(numberInput(label,item.pose[key],value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).pose[key]=value;},`object:${item.id}:${key}`),{min,max,step}));
   }
-  if(!siteSource)host.append(field('Hareketli katman kimlikleri',el('input',{value:(item.motionLayers??[]).join(','),'aria-label':'Hareketli katman kimlikleri',onchange:event=>mutate(s=>{s.objects.find(o=>o.id===item.id).motionLayers=event.target.value.split(',').map(v=>v.trim()).filter(Boolean);})})));
+  if(!siteSource&&item.kind!=='artwork')host.append(field('Hareketli katman kimlikleri',el('input',{value:(item.motionLayers??[]).join(','),'aria-label':'Hareketli katman kimlikleri',onchange:event=>mutate(s=>{s.objects.find(o=>o.id===item.id).motionLayers=event.target.value.split(',').map(v=>v.trim()).filter(Boolean);})})));
   if(item.kind==='artwork')host.append(button('Nesneyi çoğalt',
     ()=>duplicateArtwork(item),{id:'duplicate-artwork',title:'Bağımsız kaynak görselleri ve bağlı efektleriyle kopyala'}));
   if(item.kind==='artwork')host.append(button('Nesneyi sil',()=>{
@@ -1318,10 +1318,11 @@ function installPreview(packet){
   if(preview!==undefined&&(typeof preview!=='string'||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(preview)))throw new Error('Site önizleme görseli geçersiz.');
   assetReplacements=new Map();assetPayloads.clear();assetChoices=new Map();
   artworkSlots=new Map();
-  const approvedSources=new Set([...previewObjects].filter(([id])=>canCropVisual(
-    packet.scene.objects.find(o=>o.id===id))).flatMap(([,art])=>[
+  const approvedSources=new Set([...(backgroundMeta?[backgroundMeta.asset]:[]),
+    ...[...previewObjects].filter(([id])=>canCropVisual(
+      packet.scene.objects.find(o=>o.id===id))).flatMap(([,art])=>[
       art.asset,...art.layers.map(layer=>layer.asset)
-    ]));
+    ])]);
   const usedArtPaths=new Set();
   for(const record of packet.previewArt??[]){
     const validImage=value=>typeof value==='string'&&value.length<12*1024*1024
@@ -1383,11 +1384,12 @@ function installPreview(packet){
     }
     roomObjects.set(record.id,record);
   }
-  if(packet.roomObjects!==undefined&&roomObjects.size!==4)
+  if(siteSource&&packet.roomObjects!==undefined&&roomObjects.size!==4)
     throw Error('Oda önizlemesi dört ana nesneyi içermeli.');
   $('#show-room-objects').disabled=!siteSource||!roomObjects.size;
   $('#advanced-settings').open=false;
   const photo=$('#scene-photo');
+  photo.alt=(packet.scene?.name??'Sahne')+' arka plan görseli';
   photo.onload=()=>{
     $('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);
     fitStage();renderBackgroundInspector();
@@ -1397,7 +1399,7 @@ function installPreview(packet){
   else photo.removeAttribute('src');
   photo.hidden=!preview||!showPhoto;
   $('#scene-viewport').classList.toggle('has-photo',Boolean(preview)&&showPhoto);
-  $('#visual-edit-mode').disabled=!siteSource;
+  $('#visual-edit-mode').disabled=!siteSource&&!packet.genericEditable;
   $('#show-photo').disabled=!preview;
   $('#visual-edit-mode').title='Bağımsız görsel katmanlarını sürükleyerek konumlandır. Efekt hedeflerini ayrıca değiştirebilirsin.';
 }
@@ -1526,7 +1528,7 @@ if($('#scene-background-file'))$('#scene-background-file').onchange=async event=
   const file=event.target.files?.[0];event.target.value='';
   if(!file)return;
   try{
-    if(!siteSource||!backgroundMeta)throw Error('Arka plan kaynağı bağlı değil.');
+    if(!backgroundMeta)throw Error('Arka plan kaynağı bağlı değil.');
     const bitmap=await createImageBitmap(file);
     try{
       if(bitmap.width!==bitmap.height*2||bitmap.width<1024)
@@ -1539,7 +1541,7 @@ if($('#scene-background-file'))$('#scene-background-file').onchange=async event=
     recordHistory(scene,'asset:'+backgroundMeta.asset+':import');
     setAssetReplacement(backgroundMeta.asset,dataUrl);
     syncBackgroundPhoto();draw();pruneArtworkHistory();changed();
-    status('Oda fotoğrafı taslağa alındı. Kaydet → Siteye hazırla ile yerel web dosyası güncellenir.');
+    status('Arka plan görseli taslağa alındı. Kaydet → Yerelde hazırla ile dosya güncellenir.');
   }catch(e){error(e);}
 };
 $('#visual-source-file').onchange=async event=>{
@@ -1547,7 +1549,7 @@ $('#visual-source-file').onchange=async event=>{
   event.target.value='';
   if(!file)return;
   try{
-    if(!siteSource||!selected)throw Error('Değiştirilebilir bir görsel seçin.');
+    if(!selected)throw Error('Değiştirilebilir bir görsel seçin.');
     const dataUrl=await localImageToWebp(file,selected);
     recordHistory(scene,'asset:'+selected.path+':import');
     setAssetReplacement(selected.path,dataUrl);
