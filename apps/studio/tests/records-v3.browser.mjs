@@ -20,13 +20,36 @@ try{
  assert.equal(await page.locator('.record-tabs,.record-detail-tabs').count(),0,'nested navigation removed');
  assert.equal(await page.locator('.records-v3-visual-dock,.record-visual-dock').count(),1,'visual dock visible by default');
  assert.equal(await page.getByRole('button',{name:/Görsel ekle/}).count(),1);
- await page.getByRole('button',{name:'Üretim ayarları'}).click();
+ assert.equal(await page.getByRole('button',{name:'Üretim ayarları'}).count(),0,'redundant production-settings button removed');
+ await page.locator('.record-visual-config > summary').click();
  assert.equal(await page.locator('.record-visual-config').getAttribute('open'),'','missing prompt expands visual editor');
  await page.locator('.record-visual-config textarea.prompt-area').fill('Karakalem çizimi, eski oda ve defter.');
  await page.getByRole('button',{name:'Görsel üret',exact:true}).first().click();
  await page.waitForFunction(()=>window.__actions.some(a=>a.name==='visual-generate'));
  await page.locator('.record-visual-quick-actions').getByRole('button',{name:/Görsel ekle/}).click();
  await page.waitForFunction(()=>window.__actions.some(a=>a.name==='visual-pick'));
+ await page.locator('.record-visual-file-actions').waitFor();
+ for(const viewport of [{width:1500,height:870},{width:1366,height:768},{width:1280,height:720}]){
+   await page.setViewportSize(viewport);
+   const state=await page.evaluate(()=>{
+     const preview=document.querySelector('.record-visual-dock .entity-visual-preview');
+     const actions=document.querySelector('.record-visual-file-actions');
+     const rail=document.querySelector('.records-v3-context-scroll');
+     const buttons=Array.from(actions.querySelectorAll('button'));
+     const previewRect=preview.getBoundingClientRect(), actionRect=actions.getBoundingClientRect(), railRect=rail.getBoundingClientRect();
+     const buttonVisible=buttons.map(button=>{
+       const rect=button.getBoundingClientRect();
+       const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+       return rect.width>30&&rect.height>=24&&rect.top>=railRect.top&&rect.bottom<=railRect.bottom&&button.contains(hit);
+     });
+     return {previewBottom:previewRect.bottom,actionsTop:actionRect.top,actionsBottom:actionRect.bottom,railBottom:railRect.bottom,buttonVisible};
+   });
+   assert.ok(state.actionsTop>=state.previewBottom-1,JSON.stringify({viewport,state}));
+   assert.ok(state.buttonVisible.every(Boolean),JSON.stringify({viewport,state}));
+ }
+ await page.setViewportSize({width:1500,height:870});
+ await page.locator('.record-visual-file-actions').getByRole('button',{name:'Dosyayı göster'}).click();
+ await page.waitForFunction(()=>window.__actions.some(a=>a.name==='visual-show'));
  await page.locator('.records-v3-item').first().click({button:'right'});
  assert.equal(await page.locator('.records-v3-context-menu').isVisible(),true);
  assert.match(await page.locator('.records-v3-context-menu').innerText(),/Görsel işlemlerini aç/);
@@ -65,5 +88,5 @@ try{
    assert.ok(overflows.root<=2 && overflows.workspace<=2 && overflows.grid<=2,JSON.stringify({size,overflows}));
  }
  assert.deepEqual(errors,[]);
- console.log('PASS records V3: unified list, visual dock generate/pick, right-click, unsaved guard, support CRUD, protected bulk operation, no nested tabs, 1280–1500 viewport');
+ console.log('PASS records V3: unified list, visual dock generate/pick + unclipped file actions, right-click, unsaved guard, support CRUD, protected bulk operation, no nested tabs, 1280–1500 viewport');
 }finally{await browser?.close();server.kill('SIGTERM');}

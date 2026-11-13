@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type VisualEditorItem = { key: string; kind: string; title: string };
 type SeedVisual = Partial<StudioVisualDefinition> | undefined;
@@ -57,7 +57,6 @@ export default function VisualProfileEditor({
   const [busy, setBusy] = useState(false);
   const [operation, setOperation] = useState<VisualOperation>(null);
   const [savedFields, setSavedFields] = useState<string>("");
-  const dockConfig = useRef<HTMLDetailsElement>(null);
 
   const applyProfile = (value: StudioVisualProfile | null, seed: SeedVisual = undefined) => {
     setProfile(value);
@@ -172,24 +171,26 @@ export default function VisualProfileEditor({
     {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
     {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}
   </div>;
+  // In the compact dock the file actions must live outside the aspect-ratio
+  // image viewport; otherwise its overflow clipping hides the lower controls.
+  const fileActions = profile?.imagePath && productionActions && !generating ? <>
+    <button onClick={() => void bridge?.visualImageShow(item.key)}>Dosyayı göster</button>
+    <button className="danger-text" disabled={busy} onClick={() => void clear()}>{operation === "clear" ? "Kaldırılıyor…" : "Görseli kaldır"}</button>
+  </> : null;
   const preview = <div className={`entity-visual-preview${generating ? " is-generating" : ""}`}>
     {generating ? <div><span>GÖRSEL ÜRETİLİYOR</span><strong>Görsel hazırlanıyor…</strong><p>Görsel üretimi sürüyor.</p></div>
       : profile?.imageDataUrl ? <img src={profile.imageDataUrl} alt={`${item.title} görseli`}/>
       : <div><span>GÖRSEL DOSYASI</span><strong>Henüz eklenmedi</strong><p>Görsel ekleyebilir veya üretebilirsin.</p></div>}
-    {profile?.imagePath && productionActions && !generating && <footer><button onClick={() => void bridge?.visualImageShow(item.key)}>Dosyayı göster</button><button className="danger-text" disabled={busy} onClick={() => void clear()}>{operation === "clear" ? "Kaldırılıyor…" : "Görseli kaldır"}</button></footer>}
+    {!dock && fileActions && <footer>{fileActions}</footer>}
   </div>;
-  const generateFromDock = () => {
-    if (!prompt.trim()) { dockConfig.current && (dockConfig.current.open = true); dockConfig.current?.querySelector<HTMLTextAreaElement>("textarea.prompt-area")?.focus(); return; }
-    void generate();
-  };
   if (dock) return <section className="entity-visual-editor record-visual-dock">
     <div className="record-visual-head"><strong>GÖRSEL</strong><span>{generating ? "Üretiliyor" : profile?.imagePath ? "Hazır" : "Eksik"}</span></div>
     {preview}
+    {fileActions && <div className="record-visual-file-actions">{fileActions}</div>}
     <div className="record-visual-quick-actions">
       {productionActions && <button type="button" disabled={busy} onClick={() => void pick()}><span>＋</span> Görsel ekle</button>}
-      {productionActions && capability?.supported && <button type="button" disabled={busy} onClick={generateFromDock}><span>✦</span> {prompt.trim() ? "Görsel üret" : "Üretim ayarları"}</button>}
     </div>
-    <details className="record-visual-config" ref={dockConfig}>
+    <details className="record-visual-config">
       <summary>Görsel tarifi ve üretim ayarları {changed ? "●" : ""}</summary>
       <div className="entity-visual-form">
         <label><span>Görsel açıklaması</span><textarea disabled={busy} value={description} onChange={event => setDescription(event.target.value)}/></label>

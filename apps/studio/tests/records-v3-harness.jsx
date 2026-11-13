@@ -45,7 +45,7 @@ window.channelFoundryStudio={
  visualProfileSave:async data=>{actions.push({name:'visual-save',data});return {...data,attributes:data.attributes??[],imagePath:null,imageDataUrl:null};},
  visualImagePick:async data=>{actions.push({name:'visual-pick',data});return {canceled:false,profile:{source:'manual',description:'',attributes:[],atmosphere:'',prompt:'',negativePrompt:'',imagePath:'/tmp/test.png',imageDataUrl:'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}};},
  visualImageGenerate:async data=>{actions.push({name:'visual-generate',data});return {generation:{provider:'test',model:'fixture'},profile:{...data,imagePath:'/tmp/generated.png',imageDataUrl:'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}};},
- visualImageClear:async key=>{actions.push({name:'visual-clear',key});return {profile:null};},visualImageShow:async()=>{},
+ visualImageClear:async key=>{actions.push({name:'visual-clear',key});return {profile:null};},visualImageShow:async key=>{actions.push({name:'visual-show',key});},
  universeWorkspaceUpdate:async data=>{actions.push({name:'update',data});const index=nodes.findIndex(n=>n.key===data.key);nodes[index]={...nodes[index],...data,updatedAt:new Date().toISOString()};return nodes[index];},
  saveItem:async data=>{actions.push({name:'save-item',data});const idx=legacy.findIndex(i=>i.key===data.key);legacy[idx]={...legacy[idx],...data};},
  bulkApply:async data=>{actions.push({name:'bulk',data});return {affected:data.keys.length,affectedRelations:0};},
