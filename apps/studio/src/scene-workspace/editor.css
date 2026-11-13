@@ -55,6 +55,10 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-full{width:100%}
 .scene-empty{color:var(--muted);font-size:12px;font-style:italic;padding:6px 2px}
 .scene-add-artwork{width:100%;min-height:29px;padding:5px;margin:0 0 8px;font-size:11px}
+.scene-layer-entry{border:1px solid var(--line);border-radius:7px;padding:7px;margin:7px 0}
+.scene-layer-heading{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:11px;margin-bottom:8px}
+.scene-layer-heading strong{overflow:hidden;text-overflow:ellipsis}
+.scene-layer-heading button{min-height:26px;padding:3px 7px;font-size:11px}
 
 .scene-stage-column{min-width:0;display:flex;flex-direction:column;gap:8px}
 .scene-stage-well{display:grid;place-items:center;min-height:0;aspect-ratio:16/9;max-height:760px;background:#101416;border-radius:10px;overflow:hidden}

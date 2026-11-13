@@ -138,10 +138,12 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   const draft=JSON.parse(entries.get(SITE_SCENE).toString('utf8'));
   for(const object of draft.objects??[]){
     if(object.kind!=='artwork')continue;
-    const asset=object.visual?.asset;
-    if(!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(asset??''))throw Error('Geçersiz bağımsız görsel yolu.');
-    const file='public'+asset;
-    if(!entries.has(file))entries.set(file,read(file));
+    for(const asset of [object.visual?.asset,...(object.visual?.layers??[]).map(layer=>layer.asset)]){
+      if(!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(asset??''))
+        throw Error('Geçersiz bağımsız görsel yolu.');
+      const file='public'+asset;
+      if(!entries.has(file))entries.set(file,read(file));
+    }
   }
   const chestGlowMask='public/scene-assets/chest/interior-light-mask.webp';
   entries.set(chestGlowMask,read(chestGlowMask));
@@ -232,9 +234,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   const prepared=validateAssetOverrides(assets,state.manifest,state.entries,scene);
   const uploaded=new Set(prepared.map(item=>item.path));
   for(const item of scene.objects.filter(o=>o.kind==='artwork')){
-    const file='public'+item.visual.asset;
-    if(!state.entries.has(file)&&!uploaded.has(item.visual.asset))
-      throw Error('Yeni görsel nesnesi için WebP dosyası eksik: '+item.visual.asset);
+    for(const asset of [item.visual.asset,...(item.visual.layers??[]).map(layer=>layer.asset)]){
+      if(!state.entries.has('public'+asset)&&!uploaded.has(asset))
+        throw Error('Yeni görsel katmanı için WebP dosyası eksik: '+asset);
+    }
   }
   return prepared;
  }
@@ -261,7 +264,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   };
   return [
     ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})})),
-    ...state.scene.objects.filter(o=>o.kind==='artwork').map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:[]})),
+    ...state.scene.objects.filter(o=>o.kind==='artwork').map(o=>({
+      objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,
+      layers:(o.visual.layers??[]).map(layer=>({...layer,image:image(layer.asset)}))
+    })),
   ];
  }
  async function preview(state){
@@ -282,9 +288,11 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     [PRESENTATION,Buffer.from(JSON.stringify(targetPresentation,null,2)+'\n')],
     ...uploaded.map(item=>['public'+item.path,item.bytes])]);
   const changedFiles=[...updates].filter(([file,bytes])=>!state.entries.has(file)||!bytes.equals(state.entries.get(file)));
-  const remaining=new Set(scene.objects.filter(o=>o.kind==='artwork').map(o=>o.visual.asset));
-  const removedFiles=[...new Set(state.scene.objects.filter(o=>o.kind==='artwork')
-    .map(o=>o.visual.asset).filter(asset=>!remaining.has(asset)))].map(asset=>'public'+asset);
+  const assetsFor=objects=>objects.filter(o=>o.kind==='artwork')
+    .flatMap(o=>[o.visual.asset,...(o.visual.layers??[]).map(layer=>layer.asset)]);
+  const remaining=new Set(assetsFor(scene.objects));
+  const removedFiles=[...new Set(assetsFor(state.scene.objects).filter(asset=>!remaining.has(asset)))]
+    .map(asset=>'public'+asset);
   const checkRevision=()=>digest([...state.entries.keys()].map(file=>[file,read(file).toString('base64')]));
   const nonce=randomUUID();
   const temporary=[];

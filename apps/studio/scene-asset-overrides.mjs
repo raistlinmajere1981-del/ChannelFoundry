@@ -48,8 +48,9 @@ export function editableAssets(manifest,scene=null) {
       if(typeof path==='string' && /^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(path))paths.add(path);
   }
   for(const item of scene?.objects??[]){
-    if(item.kind==='artwork'&&/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(item.visual?.asset??''))
-      paths.add(item.visual.asset);
+    if(item.kind!=='artwork')continue;
+    for(const asset of [item.visual?.asset,...(item.visual?.layers??[]).map(layer=>layer.asset)])
+      if(/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(asset??''))paths.add(asset);
   }
   return paths;
 }

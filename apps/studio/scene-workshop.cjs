@@ -100,8 +100,10 @@ class SceneWorkshop {
       previewObjects: [
         ...this.site.previewObjects(source),
         ...scene.objects.filter(o=>o.kind==='artwork'&&!source.scene.objects.some(entry=>entry.id===o.id))
-          .map(o=>({objectId:o.id,asset:o.visual.asset,layers:[],
-            image:assets.find(a=>a.path===o.visual.asset)?.dataUrl})),
+          .map(o=>({objectId:o.id,asset:o.visual.asset,
+            image:assets.find(a=>a.path===o.visual.asset)?.dataUrl,
+            layers:(o.visual.layers??[]).map(layer=>({...layer,
+              image:assets.find(a=>a.path===layer.asset)?.dataUrl}))})),
       ],
       previewArt: this.site.previewArt?.(source) ?? [],
       roomObjects: this.site.roomObjects?.(source) ?? [],

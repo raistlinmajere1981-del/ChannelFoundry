@@ -29,7 +29,8 @@ function visualAssetSlots(item){
   const artwork=previewObjects.get(item?.id);
   const detached=artwork
     ?[{path:artwork.asset,label:'Temel görsel',image:artwork.image,warning:''},
-      ...(artwork.layers??[]).map(layer=>({
+      ...(artwork.layers??[]).filter(layer=>item?.kind!=='artwork'||item.motionLayers?.includes(layer.id))
+        .sort((a,b)=>item?.kind!=='artwork'?0:item.motionLayers.indexOf(a.id)-item.motionLayers.indexOf(b.id)).map(layer=>({
         path:layer.asset,label:'Hareketli katman · '+layer.id,image:layer.image,warning:''
       }))]
     :[];
@@ -41,8 +42,50 @@ function selectedVisualAsset(item){
   return slots.find(entry=>entry.path===path)??slots.find(entry=>entry.label.startsWith('Hareketli'))??slots[0];
 }
 
+// Binary data is stored once per revision. History snapshots retain only
+// lightweight references so thirty undo steps do not copy every WebP.
+const assetPayloads=new Map();
+function setAssetReplacement(path,dataUrl){
+  const version=uid();
+  assetPayloads.set(version,dataUrl);
+  assetReplacements.set(path,{path,dataUrl,version});
+}
+function currentAssetRefs(){
+  const activeCustom=new Set((scene?.objects??[]).filter(o=>o.kind==='artwork')
+    .flatMap(o=>[o.visual.asset,...(o.visual.layers??[]).map(layer=>layer.asset)]));
+  return [...assetReplacements].filter(([path])=>
+    !path.startsWith('/scene-assets/custom/')||activeCustom.has(path))
+    .map(([path,entry])=>[path,entry.version]);
+}
+function restoreAssetRefs(refs){
+  assetReplacements=new Map((refs??[]).map(([path,version])=>{
+    const dataUrl=assetPayloads.get(version);
+    if(!dataUrl)throw Error('Görsel geçmişi bulunamadı: '+path);
+    return [path,{path,dataUrl,version}];
+  }));
+}
 const objectElements=new Map(),markerElements=new Map();
 const history=new History();
+function pruneArtworkHistory(){
+  const states=[...history.past,...history.future];
+  const activeIds=new Set((scene?.objects??[]).map(o=>o.id));
+  for(const entry of states)for(const o of entry.scene?.objects??[])activeIds.add(o.id);
+  for(const id of previewObjects.keys())
+    if(id.startsWith('artwork-')&&!activeIds.has(id))previewObjects.delete(id);
+  const activeVersions=new Set([
+    ...currentAssetRefs().map(([,version])=>version),
+    ...states.flatMap(entry=>(entry.assets??[]).map(([,version])=>version)),
+  ]);
+  for(const version of assetPayloads.keys())
+    if(!activeVersions.has(version))assetPayloads.delete(version);
+  const activePaths=new Set([
+    ...currentAssetRefs().map(([path])=>path),
+    ...states.flatMap(entry=>(entry.assets??[]).map(([path])=>path)),
+  ]);
+  for(const [path] of assetReplacements)
+    if(path.startsWith('/scene-assets/custom/')&&!activePaths.has(path))
+      assetReplacements.delete(path);
+}
 // This controller has no window-message transport; only the React host owns dirty state.
 const standalone=root===document;
 const embedded=!standalone;
@@ -91,7 +134,7 @@ function selectForDrag(next){
   effectId=next.id;objectId=next.target.objectId;anchorId=next.target.anchorId;
   renderLists();renderObjectInspector();renderEffectInspector();renderStageSelection();
 }
-function recordHistory(before,key=null){history.record({scene:before,presentation},key);}
+function recordHistory(before,key=null,assets=currentAssetRefs()){history.record({scene:before,presentation,assets},key);}
 function mutatePresentation(action,key=null){
   if(!siteSource||!presentation)return false;
   try{
@@ -101,15 +144,16 @@ function mutatePresentation(action,key=null){
     status('Odak görünümü güncellendi; ayarlar taslakta.');changed();return true;
   }catch(e){error(e);draw();return false;}
 }
-function mutate(action,key=null){
+function mutate(action,key=null,assetsBefore=null){
   if(!scene)return false;
   try{
     const next=structuredClone(scene);
     action(next);
     validateScene(next);
-    recordHistory(scene,key);
+    recordHistory(scene,key,assetsBefore??currentAssetRefs());
     scene=next;
     draw();
+    pruneArtworkHistory();
     status(embedded?'Değişiklik yapıldı.':'Değişiklik uygulandı. JSON dışa aktararak kaydedin.');
     changed();
     return true;
@@ -205,6 +249,11 @@ function renderLists(){
   ));
   $('#effect-list').replaceChildren(...(effectRows.length?effectRows:[el('p',{class:'scene-empty',text:siteSource?'Bu nesneye bağlı site efekti yok.':'Bu nesnede efekt yok; desteklenen bir tür ekleyin.'})]));
   $('#add-effect-controls').hidden=siteSource&&object()?.kind!=='artwork';
+  const permitted=Object.entries(objectEffectRegistry).filter(([,info])=>
+    info.output!=='motion'||(object()?.motionLayers?.length??0)>0);
+  const typeControl=$('#add-effect-type'),currentType=typeControl.value;
+  typeControl.replaceChildren(...permitted.map(([type,info])=>
+    el('option',{value:type,text:info.label,selected:type===currentType})));
   $('#add-effect').disabled=!object()?.anchors.length;
   $('#source-note').hidden=true;
   $('#site-effects-note').hidden=true;
@@ -252,6 +301,30 @@ function renderVisualInspector(){
     const cx=item.pose.x+item.pose.width/2,cy=item.pose.y+item.pose.height/2;
     adjust({width,height,x:round(cx-width/2),y:round(cy-height/2)},'visual:'+item.id+':scale');
   },{id:'visual-scale',min:30,max:250,step:1,'data-testid':'visual-scale'}));
+  if(item.kind==='artwork'){
+    host.append(numberInput('Dönüş (°)',item.pose.rotation,
+      value=>adjust({rotation:value},'visual:'+item.id+':rotation'),
+      {id:'visual-rotation',min:-360,max:360,step:1}));
+    host.append(numberInput('Katman derinliği',item.pose.depth,
+      value=>adjust({depth:value},'visual:'+item.id+':depth'),
+      {id:'visual-depth',min:-100,max:100,step:1}));
+    for(const [key,label] of [['width','Genişlik (%)'],['height','Yükseklik (%)']])
+      host.append(numberInput(label,round(item.pose[key]*100),value=>{
+        adjust({[key]:round(value/100)},'visual:'+item.id+':'+key);
+      },{id:'visual-'+key,min:.1,max:100,step:.1}));
+  }
+  if(item.kind==='artwork'){
+    host.append(numberInput('Dönüş (°)',item.pose.rotation,
+      value=>adjust({rotation:value},'visual:'+item.id+':rotation'),
+      {id:'visual-rotation',min:-360,max:360,step:1}));
+    host.append(numberInput('Katman derinliği',item.pose.depth,
+      value=>adjust({depth:value},'visual:'+item.id+':depth'),
+      {id:'visual-depth',min:-100,max:100,step:1}));
+    for(const [key,label] of [['width','Genişlik (%)'],['height','Yükseklik (%)']])
+      host.append(numberInput(label,round(item.pose[key]*100),value=>{
+        adjust({[key]:round(value/100)},'visual:'+item.id+':'+key);
+      },{id:'visual-'+key,min:.1,max:100,step:.1}));
+  }
   host.append(el('label',{class:'scene-visual-check'},
     el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
       onchange:event=>{linkVisual=event.target.checked;}}),
@@ -448,8 +521,68 @@ function renderSourceInspector(){
     button('Aktifi dışa aktar',()=>exportSelectedAsset(chosen,source,modified?'-taslak':''),{id:'visual-source-export',title:'Atölyede seçili WebP görselini dışa aktar'}),
     button('Orijinali dışa aktar',()=>exportSelectedAsset(chosen,chosen.image),{id:'visual-source-export-original',title:'Kaydedilmiş WebP görselini dışa aktar'}),
     button('Taslak değişimini kaldır',()=>{
-      if(assetReplacements.delete(chosen.path)){changed();draw();status('Kaynak değişikliği taslaktan kaldırıldı. Webdeki mevcut dosya korunur.');}
+      if(assetReplacements.has(chosen.path)){
+        recordHistory(scene,'asset:'+chosen.path+':restore');
+        assetReplacements.delete(chosen.path);
+        changed();draw();pruneArtworkHistory();
+        status('Kaynak değişikliği taslaktan kaldırıldı.');
+      }
     },{id:'visual-source-restore',disabled:!modified})));
+}
+function renderLayerInspector(){
+  const item=object(),panel=$('#visual-layers-settings'),host=$('#visual-layers-inspector');
+  if(!panel||!host)return;
+  panel.hidden=item?.kind!=='artwork';
+  host.replaceChildren();
+  if(panel.hidden)return;
+  const layers=item.visual.layers??[];
+  host.append(button('＋ Hareketli katman ekle',()=>$('#visual-layer-file').click(),
+    {id:'add-visual-layer',title:'İkinci WebP görselini ayrı hareket/efekt katmanı olarak ekle',disabled:layers.length>=8}));
+  for(const [index,layer] of layers.entries()){
+    const entry=el('div',{class:'scene-layer-entry'});
+    entry.append(el('div',{class:'scene-layer-heading'},
+      el('strong',{text:layer.id}),
+      ...[-1,1].map(delta=>button(delta===-1?'↑':'↓',()=>{
+        mutate(s=>{
+          const target=s.objects.find(o=>o.id===item.id),list=target.visual.layers;
+          const other=index+delta;
+          [list[index],list[other]]=[list[other],list[index]];
+          target.motionLayers=list.map(l=>l.id);
+        },'layer:'+item.id+':order');
+      },{disabled:index+delta<0||index+delta>=layers.length,
+         'aria-label':delta===-1?'Katmanı üste taşı':'Katmanı alta taşı',
+         title:'Görsel katmanının çizim sırasını değiştir'})),
+      button('Sil',()=>{
+        const id=layer.id,path=layer.asset;
+        const ok=mutate(s=>{
+          const target=s.objects.find(o=>o.id===item.id);
+          target.motionLayers=target.motionLayers.filter(v=>v!==id);
+          target.visual.layers=target.visual.layers.filter(l=>l.id!==id);
+          s.effects=s.effects.filter(e=>e.target.objectId!==item.id||e.target.layerId!==id);
+          if(effectId&&!s.effects.some(e=>e.id===effectId))effectId=null;
+        },'layer:'+item.id+':delete');
+        if(!ok)return;
+        // Keep deleted artwork in the temporary registry so Undo can restore
+        // its pixels; snapshot() filters unreachable sources.
+        if(assetChoices.get(item.id)===path)assetChoices.delete(item.id);
+        draw();
+      },{class:'scene-danger',title:'Katman ve ona bağlı hareket efektlerini kaldır'})));
+    for(const [key,label] of [['x','Sol X'],['y','Üst Y'],['width','Genişlik'],['height','Yükseklik']]){
+      entry.append(numberInput(label+' (%)',round(layer.box[key]*100),value=>{
+        const ok=mutate(s=>{
+          const target=s.objects.find(o=>o.id===item.id);
+          target.visual.layers.find(l=>l.id===layer.id).box[key]=round(value/100);
+        },'layer:'+item.id+':'+layer.id+':'+key);
+        if(ok){
+          const preview=previewObjects.get(item.id)?.layers.find(l=>l.id===layer.id);
+          if(preview)preview.box[key]=round(value/100);
+          draw();
+        }
+      },{min:key==='width'||key==='height'?.1:0,max:100,step:.1,
+         'data-layer':layer.id,'data-field':key}));
+    }
+    host.append(entry);
+  }
 }
 function renderCropInspector(){
   const item=object(),parent=$('#visual-crop-settings'),host=$('#visual-crop-inspector');
@@ -497,14 +630,70 @@ function renderVeilInspector(){
     {id:'robe-veil-preview'}));
   host.append(el('p',{class:'scene-visual-tip',text:'Önizleme durumu kayda girmez. Askı ve masa fotoğrafı sabit kalır.'}));
 }
+function duplicateArtwork(item){
+  if(item?.kind!=='artwork')return false;
+  const original=previewObjects.get(item.id);
+  if(!original)throw Error('Kopyalanacak görsel bulunamadı.');
+  const copy=structuredClone(item);
+  copy.id='artwork-'+uid().replaceAll('-','').slice(0,12);
+  copy.name=(item.name+' kopyası').slice(0,160);
+  copy.pose.x=round(clamp(copy.pose.x+.025,0,1-copy.pose.width));
+  copy.pose.y=round(clamp(copy.pose.y+.025,0,1-copy.pose.height));
+  const beforeAssets=currentAssetRefs();
+  const replicated={objectId:copy.id,asset:'/scene-assets/custom/'+copy.id+'.webp',layers:[]};
+  for(const [originalPath,newPath] of [
+    [item.visual.asset,replicated.asset],
+    ...(item.visual.layers??[]).map(layer=>[layer.asset,'/scene-assets/custom/'+copy.id+'-'+layer.id+'.webp']),
+  ]){
+    const slot=[original,...original.layers].find(entry=>entry.asset===originalPath);
+    const dataUrl=replacementSource(originalPath,slot?.image);
+    if(!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(dataUrl??''))
+      throw Error('Nesnenin kopyalanabilir WebP kaynağı eksik.');
+    setAssetReplacement(newPath,dataUrl);
+    if(originalPath===item.visual.asset)replicated.image=dataUrl;
+    else {
+      const sourceLayer=item.visual.layers.find(layer=>layer.asset===originalPath);
+      replicated.layers.push({...structuredClone(sourceLayer),asset:newPath,image:dataUrl});
+    }
+  }
+  copy.visual.asset=replicated.asset;
+  copy.visual.layers=replicated.layers.map(({id,asset,box})=>({id,asset,box}));
+  const effects=scene.effects.filter(fx=>fx.target.objectId===item.id)
+    .map(fx=>{const next=structuredClone(fx);next.id=fx.type+'-'+uid().slice(0,8);
+      next.seed=fx.seed+'-copy';next.target.objectId=copy.id;return next;});
+  previewObjects.set(copy.id,replicated);
+  const ok=mutate(next=>{
+    next.objects.push(copy);next.effects.push(...effects);
+    objectId=copy.id;effectId=effects[0]?.id??null;anchorId=copy.anchors[0]?.id??null;
+  },'object:'+copy.id+':duplicate',beforeAssets);
+  if(!ok){
+    previewObjects.delete(copy.id);
+    for(const path of [replicated.asset,...replicated.layers.map(layer=>layer.asset)])
+      assetReplacements.delete(path);
+    return false;
+  }
+  setInspectorTab('visual');
+  status('Bağımsız görsel nesnesi, katmanları ve efektleri çoğaltıldı.');
+  return true;
+}
 function renderObjectInspector(){
   const host=$('#object-inspector'),hitHost=$('#hit-inspector'),item=object();
-  host.replaceChildren(el('h3',{text:'Nesne ve bağlantı'}));
+  host.replaceChildren();
   hitHost.replaceChildren();
-  $('#hit-area-settings').hidden=!item?.hitArea;
+  $('#hit-area-settings').hidden=!(item?.hitArea||item?.kind==='artwork');
   if(!item)return;
+  if(item.kind==='artwork'){
+    hitHost.append(checkField('Özel tıklama alanı',Boolean(item.hitArea),
+      enabled=>mutate(s=>{
+        const target=s.objects.find(o=>o.id===item.id);
+        if(enabled)target.hitArea={
+          x:target.pose.x,y:target.pose.y,width:target.pose.width,height:target.pose.height};
+        else delete target.hitArea;
+      },'hit:'+item.id+':toggle'),
+      {id:'artwork-hit-enabled',title:'Kapatılırsa görselin tamamı etkileşim alanıdır.'}));
+  }
   if(item.hitArea){
-    hitHost.append(el('p',{class:'scene-help',text:'Alan çerçevesinin kenarından sürükleyin; yuvarlak turuncu nokta yalnız efekt hedefini taşır. Genişliği ve yüksekliği aşağıdan ayarlayın.'}));
+    $('#hit-area-settings').title='Kesikli alanı sürükleyerek yerleştirin; efekt hedefi ayrı taşınır.';
     for(const [key,label] of [['x','Sol X %'],['y','Üst Y %'],['width','Genişlik %'],['height','Yükseklik %']]){
       hitHost.append(numberInput(label,round(item.hitArea[key]*100),value=>mutate(s=>{
         const area=s.objects.find(entry=>entry.id===item.id).hitArea;
@@ -521,10 +710,12 @@ function renderObjectInspector(){
     field('Nesne adı',el('input',{value:item.name,maxlength:160,onchange:event=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).name=event.target.value;},`object:${item.id}:name`)})),
     checkField('Görünür',item.visible,value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).visible=value;},`object:${item.id}:visible`))
   );
-  for(const [key,label,min,max,step] of [['x','X',0,1,.001],['y','Y',0,1,.001],['width','Genişlik',.001,1,.001],['height','Yükseklik',.001,1,.001],['rotation','Dönüş (derece)',-360,360,1],['depth','Derinlik',-100,100,1]]){
+  if(item.kind!=='artwork')for(const [key,label,min,max,step] of [['x','X',0,1,.001],['y','Y',0,1,.001],['width','Genişlik',.001,1,.001],['height','Yükseklik',.001,1,.001],['rotation','Dönüş (derece)',-360,360,1],['depth','Derinlik',-100,100,1]]){
     host.append(numberInput(label,item.pose[key],value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).pose[key]=value;},`object:${item.id}:${key}`),{min,max,step}));
   }
   if(!siteSource)host.append(field('Hareketli katman kimlikleri',el('input',{value:(item.motionLayers??[]).join(','),'aria-label':'Hareketli katman kimlikleri',onchange:event=>mutate(s=>{s.objects.find(o=>o.id===item.id).motionLayers=event.target.value.split(',').map(v=>v.trim()).filter(Boolean);})})));
+  if(item.kind==='artwork')host.append(button('Nesneyi çoğalt',
+    ()=>duplicateArtwork(item),{id:'duplicate-artwork',title:'Bağımsız kaynak görselleri ve bağlı efektleriyle kopyala'}));
   if(item.kind==='artwork')host.append(button('Nesneyi sil',()=>{
     const removed=item.id,path=item.visual.asset;
     const ok=mutate(s=>{
@@ -533,8 +724,8 @@ function renderObjectInspector(){
       objectId=null;effectId=null;
     },'object:'+removed+':delete');
     if(ok){
-      previewObjects.delete(removed);
-      if(!scene.objects.some(o=>o.visual?.asset===path))assetReplacements.delete(path);
+      // Keep the detached image in the temporary registry for Undo.
+      // The serialized draft excludes deleted art and unused custom files.
       draw();
     }
   },{class:'scene-danger',id:'delete-artwork',title:'Nesne ve bağlı efektlerini kaldır'}));
@@ -551,7 +742,7 @@ function renderObjectInspector(){
 function renderEffectInspector(){
   const host=$('#effect-inspector'),advanced=$('#effect-advanced'),item=effect();
   host.replaceChildren(el('h2',{text:'Efekt'}));advanced.replaceChildren();
-  if(!item){host.append(el('p',{class:'scene-empty',text:siteSource?'Bu nesnenin siteye bağlı efekti bulunmuyor. Bu kaynakta yeni efekt ekleme desteklenmiyor.':'Bir efekt seçin veya ekleyin.'}));return;}
+  if(!item){host.append(el('p',{class:'scene-empty',text:'Bağlı efekt yok.'}));return;}
   const info=objectEffectRegistry[item.type];
   host.append(el('p',{class:'scene-effect-title',text:info.label,title:info.description}),
     checkField('Etkin',item.enabled,value=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).enabled=value;},`effect:${item.id}:enabled`),{id:'effect-enabled'}),
@@ -592,7 +783,9 @@ function renderEffectInspector(){
   if(item.type==='glow'&&selectedTrigger==='hover')host.title='Üzerine gelerek efekti deneyin.';
   if(!siteSource||object()?.kind==='artwork'){
     advanced.append(field('Tür',el('select',{'aria-label':'Efekt türü',onchange:event=>mutate(s=>{const target=s.effects.find(entry=>entry.id===item.id);target.type=event.target.value;target.params=defaultObjectParams(target.type);if(objectEffectRegistry[target.type].output==='motion'){target.target.layerId=object().motionLayers?.[0];}else delete target.target.layerId;})},
-      ...Object.entries(objectEffectRegistry).map(([type,entry])=>el('option',{value:type,text:entry.label,selected:type===item.type})))),
+      ...Object.entries(objectEffectRegistry).filter(([type,entry])=>
+        type===item.type||entry.output!=='motion'||object().motionLayers?.length
+      ).map(([type,entry])=>el('option',{value:type,text:entry.label,selected:type===item.type})))),
       field('Hedef bağlantı',el('select',{'aria-label':'Efekt hedef bağlantısı',onchange:event=>mutate(s=>{s.effects.find(entry=>entry.id===item.id).target.anchorId=event.target.value;})},
       ...object().anchors.map(entry=>el('option',{value:entry.id,text:entry.id,selected:entry.id===item.target.anchorId})))));
   }
@@ -634,14 +827,19 @@ function buildObject(item){
   }
   if(artwork){
     const fixed=el('img',{src:replacementSource(artwork.asset,artwork.image),alt:'',class:'scene-motion-fixed'});
-    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',filter:'brightness(.72) saturate(.72)',...(item.id==='archive-chest'?{width:'150%',zIndex:'1',...visualClipStyle(item)}:{})});node.append(fixed);
+    Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',
+      filter:item.kind==='artwork'?'none':'brightness(.72) saturate(.72)',
+      ...(item.kind==='artwork'?visualClipStyle(item):{}),
+      ...(item.id==='archive-chest'?{width:'150%',zIndex:'1',...visualClipStyle(item)}:{})});node.append(fixed);
   }
   for(const id of item.motionLayers??[]){
     const layer=el('span',{'data-effect-layer':id,'aria-hidden':'true'});
     Object.assign(layer.style,{position:'absolute',inset:0,width:item.id==='archive-chest'?'150%':'100%',
       height:'100%',pointerEvents:'none',...(item.id==='archive-chest'?{zIndex:'3',transformStyle:'preserve-3d'}:{}),...(item.id==='ceremonial-robe'?{}:visualClipStyle(item))});
     const picture=artwork?.layers.find(entry=>entry.id===id);
-    if(picture){const image=el('img',{src:replacementSource(picture.asset,picture.image),alt:''});const b=picture.box;Object.assign(image.style,{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,filter:'brightness(.7) saturate(.7)'});layer.append(image);}
+    if(item.kind==='artwork')Object.assign(layer.style,visualClipStyle(item));
+    if(picture){const image=el('img',{src:replacementSource(picture.asset,picture.image),alt:''});
+      const b=item.kind==='artwork'?item.visual.layers.find(entry=>entry.id===id)?.box??picture.box:picture.box;Object.assign(image.style,{position:'absolute',left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,filter:item.kind==='artwork'?'none':'brightness(.7) saturate(.7)'});layer.append(image);}
     else {const sample=el('span');Object.assign(sample.style,{position:'absolute',left:'49%',top:'10%',width:'2%',height:'50%',background:'#b68d4b',borderRadius:'50%'});layer.append(sample);}
     node.append(layer);
   }
@@ -860,6 +1058,7 @@ function draw(){
   renderPresentationInspector();
   renderSourceInspector();
   renderCropInspector();
+  renderLayerInspector();
   renderVeilInspector();
   renderEffectInspector();
   renderStage();
@@ -1012,7 +1211,7 @@ function installPreview(packet){
     previewObjects.set(owner.id,artwork);
   }
   if(preview!==undefined&&(typeof preview!=='string'||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(preview)))throw new Error('Site önizleme görseli geçersiz.');
-  assetReplacements=new Map();assetChoices=new Map();
+  assetReplacements=new Map();assetPayloads.clear();assetChoices=new Map();
   artworkSlots=new Map();
   const approvedSources=new Set([...previewObjects].filter(([id])=>canCropVisual(
     packet.scene.objects.find(o=>o.id===id))).flatMap(([,art])=>[
@@ -1042,7 +1241,7 @@ function installPreview(packet){
       ||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(replacement.dataUrl)
       ||replacement.dataUrl.length>12*1024*1024||assetReplacements.has(replacement.path))
       throw Error('Geçersiz kaynak görsel taslağı.');
-    assetReplacements.set(replacement.path,replacement);
+    setAssetReplacement(replacement.path,replacement.dataUrl);
   }
   siteSource=packet.siteSource===true;
   sourceScene=siteSource?structuredClone(packet.scene):null;
@@ -1100,10 +1299,15 @@ function loadText(text,message,options){
 }
 function travel(direction){
   if(!scene)return;
-  const next=history[direction]({scene,presentation});
+  const next=history[direction]({scene,presentation,assets:currentAssetRefs()});
   scene=validateScene(next.scene);
   presentation=validateScenePresentation(next.presentation);
+  restoreAssetRefs(next.assets);
+  if(!scene.objects.some(o=>o.id===objectId))objectId=scene.objects[0]?.id??null;
+  if(!scene.effects.some(e=>e.id===effectId))effectId=scene.effects.find(e=>e.target.objectId===objectId)?.id??null;
+  anchorId=scene.objects.find(o=>o.id===objectId)?.anchors[0]?.id??null;
   draw();
+  pruneArtworkHistory();
   status(direction==='undo'?'Geri alındı.':'Yinelendi.');
   changed();
 }
@@ -1173,15 +1377,42 @@ $('#new-artwork-file').onchange=async event=>{
     const item={id,name,kind:'artwork',visible:true,visual:{asset},
       pose:{x:round(.5-width/2),y:round(.5-height/2),width,height,rotation:0,depth:15},
       motionLayers:[],anchors:[{id:'center',x:.5,y:.5}]};
+    const beforeAssets=currentAssetRefs();
     previewObjects.set(id,{objectId:id,asset,image:dataUrl,layers:[]});
-    assetReplacements.set(asset,{path:asset,dataUrl});
-    const ok=mutate(s=>{s.objects.push(item);objectId=id;effectId=null;},'object:create:'+id);
+    setAssetReplacement(asset,dataUrl);
+    const ok=mutate(s=>{s.objects.push(item);objectId=id;effectId=null;},'object:create:'+id,beforeAssets);
     if(!ok){previewObjects.delete(id);assetReplacements.delete(asset);return;}
     selectObject(id);setInspectorTab('visual');
     status('Yeni görsel nesne taslağa eklendi. Kaydet → Siteye hazırla.');
   }catch(e){error(e);}
 };
 }
+if($('#visual-layer-file'))$('#visual-layer-file').onchange=async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  const item=object();
+  if(!file||item?.kind!=='artwork')return;
+  try{
+    if((item.visual.layers??[]).length>=8)throw Error('En fazla sekiz katman eklenebilir.');
+    const dataUrl=await localImageToWebp(file,null);
+    const id='layer-'+uid().replaceAll('-','').slice(0,8);
+    const asset='/scene-assets/custom/'+item.id+'-'+id+'.webp';
+    const box={x:0,y:0,width:1,height:1};
+    const preview=previewObjects.get(item.id);
+    if(!preview)throw Error('Görsel önizlemesi bulunamadı.');
+    const beforeAssets=currentAssetRefs();
+    preview.layers.push({id,asset,box:{...box},image:dataUrl});
+    setAssetReplacement(asset,dataUrl);
+    const ok=mutate(s=>{
+      const target=s.objects.find(o=>o.id===item.id);
+      target.visual.layers??=[];
+      target.visual.layers.push({id,asset,box});
+      target.motionLayers.push(id);
+    },'layer:'+item.id+':create',beforeAssets);
+    if(!ok){preview.layers.pop();assetReplacements.delete(asset);return;}
+    $('#visual-layers-settings').open=true;
+    status('Görsel alt katmanı eklendi. Hareket efektleri artık seçilebilir.');
+  }catch(e){error(e);}
+};
 $('#visual-source-file').onchange=async event=>{
   const file=event.target.files?.[0],selected=selectedVisualAsset(object());
   event.target.value='';
@@ -1189,8 +1420,9 @@ $('#visual-source-file').onchange=async event=>{
   try{
     if(!siteSource||!selected)throw Error('Değiştirilebilir bir görsel seçin.');
     const dataUrl=await localImageToWebp(file,selected);
-    assetReplacements.set(selected.path,{path:selected.path,dataUrl});
-    changed();draw();
+    recordHistory(scene,'asset:'+selected.path+':import');
+    setAssetReplacement(selected.path,dataUrl);
+    changed();draw();pruneArtworkHistory();
     status('Görsel taslakta değiştirildi. Kaydet → Siteye hazırla ile kaynak dosyaya aktarın.');
   }catch(e){error(e);}
 };
@@ -1225,7 +1457,16 @@ if($('#object-search')){
         if(owner.hitArea)addMenuAction('Tıklama alanını düzenle',()=>{selectObject(owner.id);setInspectorTab('visual');$('#hit-area-settings').open=true;});
         if(visualAssetSlots(owner).length)addMenuAction('Kaynak görsel',()=>{selectObject(owner.id);setInspectorTab('visual');$('#visual-source-settings').open=true;});
       }
-      if(!siteSource)addMenuAction(owner.visible?'Nesneyi gizle':'Nesneyi göster',()=>mutate(s=>{s.objects.find(o=>o.id===owner.id).visible=!owner.visible;}));
+      if(owner.kind==='artwork'){
+        addMenuAction('Nesneyi çoğalt',()=>duplicateArtwork(owner));
+        addMenuAction('Nesneyi sil',()=>{
+          selectObject(owner.id);
+          $('#delete-artwork')?.click();
+        });
+      }
+      if(!siteSource||owner.kind==='artwork')
+        addMenuAction(owner.visible?'Nesneyi gizle':'Nesneyi göster',
+          ()=>mutate(s=>{s.objects.find(o=>o.id===owner.id).visible=!owner.visible;}));
     }else{
       addMenuAction('Sahneye sığdır',()=>setZoom(1));
       addMenuAction('Efekt hedeflerini göster/gizle',()=>$('#show-markers').click());
@@ -1362,8 +1603,15 @@ const statusInterval=setInterval(()=>{
 },600);disposers.push(()=>clearInterval(statusInterval));
 
 // Small read-only surface for local browser smoke tests; never part of the JSON.
+const sceneSnapshot=()=>{
+  validateScene(scene);
+  return {scene:structuredClone(scene),
+    assets:currentAssetRefs().map(([path,version])=>({path,dataUrl:assetPayloads.get(version)})),
+    presentation:structuredClone(presentation)};
+};
 window.__sceneEditor={
   getScene:()=>scene?structuredClone(scene):null,
+  snapshot:sceneSnapshot,
   inspect:()=>previewHandle?.inspect()??null,
   selectObject,
   selectEffect,
@@ -1377,7 +1625,11 @@ return {
     installPreview(packet);
     loadText(JSON.stringify(packet.scene),'Sahne hazır.',{resetHistory:true});
   },
-  snapshot(){validateScene(scene);return {scene:structuredClone(scene),assets:[...assetReplacements.values()],presentation:structuredClone(presentation)};},
+  snapshot(){
+    validateScene(scene);
+    const assets=currentAssetRefs().map(([path,version])=>({path,dataUrl:assetPayloads.get(version)}));
+    return {scene:structuredClone(scene),assets,presentation:structuredClone(presentation)};
+  },
   destroy(){
     previewHandle?.destroy();previewHandle=null;
     if(previewFrame)cancelAnimationFrame(previewFrame);

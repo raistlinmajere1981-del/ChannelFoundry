@@ -70,10 +70,32 @@ function validateObjectScene(scene) {
     keys(item,['id','name','group','kind','visual','visible','pose','anchors','motionLayers','hitArea','veil','crop'],'Nesne');
     if(item.kind!==undefined&&item.kind!=='artwork')fail('Bilinmeyen nesne türü.');
     if(item.visual!==undefined){
-      keys(item.visual,['asset'],'Nesne görseli');
-      if(typeof item.visual.asset!=='string'||!/^\/[a-z0-9][a-z0-9/-]*\.webp$/.test(item.visual.asset))fail('Görsel yolu yerel WebP kaynağı olmalı.');
+      keys(item.visual,['asset','layers'],'Nesne görseli');
+      if(typeof item.visual.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(item.visual.asset))
+        fail('Bağımsız görsel kaynağı yalnız yerel custom WebP olabilir.');
+      if(item.visual.layers!==undefined){
+        if(item.kind!=='artwork'||!Array.isArray(item.visual.layers)||item.visual.layers.length>8)
+          fail('En fazla sekiz bağımsız hareketli görsel katmanı kullanılabilir.');
+        const layerIds=new Set(),layerAssets=new Set([item.visual.asset]);
+        for(const layer of item.visual.layers){
+          keys(layer,['id','asset','box'],'Görsel alt katmanı');
+          if(typeof layer.id!=='string'||!/^[a-z][a-z0-9-]{0,79}$/.test(layer.id)||layerIds.has(layer.id))
+            fail('Hareket katmanı kimliği geçersiz veya tekrar ediyor.');
+          if(typeof layer.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(layer.asset)||layerAssets.has(layer.asset))
+            fail('Katman görseli benzersiz bir custom WebP olmalı.');
+          keys(layer.box,['x','y','width','height'],'Katman alanı');
+          for(const key of ['x','y','width','height'])
+            num(layer.box[key],key==='width'||key==='height'?.001:0,1,'Katman '+key);
+          if(layer.box.x+layer.box.width>1.000000001||layer.box.y+layer.box.height>1.000000001)
+            fail('Katman görsel alanı nesne sınırlarının dışına taşamaz.');
+          layerIds.add(layer.id);layerAssets.add(layer.asset);
+        }
+        if(JSON.stringify([...layerIds])!==JSON.stringify(item.motionLayers??[]))
+          fail('Görsel katman sırası ve hareket katmanı kimlikleri eşit olmalı.');
+      }
     }
-    if(item.kind==='artwork'&&(!item.visual||item.motionLayers?.length))fail('Bağımsız görsel nesnesi tek görsel kaynağı gerektirir.');
+    if(item.kind==='artwork'&&(!item.visual||item.motionLayers?.length!==(item.visual.layers??[]).length))
+      fail('Bağımsız nesne hareket katmanları, görsel katman kayıtlarına eşit olmalı.');
     if(item.group!==undefined)string(item.group,'Nesne grubu',80);
     if(item.crop!==undefined){
       if(!canCropVisual(item))fail('Görsel kırpma yalnız bağımsız resimli nesnelerde düzenlenebilir.');

@@ -61,6 +61,7 @@ export const sceneTemplate = String.raw`
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>
       <details id="visual-source-settings" class="scene-advanced" open hidden><summary>Kaynak görsel</summary><section id="visual-source-inspector"></section><input type="file" id="visual-source-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Yeni nesne resmi seç"></details>
+      <details id="visual-layers-settings" class="scene-advanced" hidden><summary>Görsel katmanları</summary><section id="visual-layers-inspector"></section><input type="file" id="visual-layer-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Hareketli görsel katmanı ekle"></details>
       <details id="visual-crop-settings" class="scene-advanced" open hidden><summary>Kırpma ve örtme</summary><section id="visual-crop-inspector"></section></details>
       <details id="robe-veil-settings" class="scene-advanced" open hidden><summary>Görünmezlik</summary><section id="robe-veil-inspector"></section></details>
       <details id="hit-area-settings" class="scene-advanced" hidden><summary>Tıklama alanı</summary><section id="hit-inspector"></section></details>
