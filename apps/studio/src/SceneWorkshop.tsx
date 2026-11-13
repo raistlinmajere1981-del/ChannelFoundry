@@ -46,7 +46,7 @@ export default function SceneWorkshop() {
       const reply = await bridge.sceneWorkshopLoad();
       if (!editor.current) throw new Error("Sahne modülü henüz hazır değil.");
       editor.current.load({
-        scene: reply.scene, previewImage: reply.previewImage,
+        scene: reply.scene, previewImage: reply.previewImage, background: reply.background,
         previewObjects: reply.previewObjects, previewArt: reply.previewArt, roomObjects: reply.roomObjects, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: true,
       });
       sourceHash.current = reply.sourceHash;

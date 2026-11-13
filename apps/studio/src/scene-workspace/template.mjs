@@ -21,6 +21,7 @@ export const sceneTemplate = String.raw`
         <div class="scene-stage-name"><button type="button" id="scene-toggle-tree" aria-label="Sahne ağacını göster veya gizle">☰</button><span class="scene-eyebrow">ÇALIŞMA TUVALİ</span></div>
         <div class="scene-toolbar">
           <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
+          <button type="button" id="open-background" title="Oda arka planı ve cihaz kadrajı">Kadraj</button>
           <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects">Nesneler</button>
           <button type="button" id="show-object-areas" aria-pressed="false" aria-label="Nesne yerleşim alanları">Sınırlar</button>
           <button type="button" id="show-hit-areas" aria-pressed="true" aria-label="Tıklama alanları">Tıklama</button>
@@ -38,11 +39,13 @@ export const sceneTemplate = String.raw`
         </div>
       </div>
       <div class="scene-stage-well">
+       <div id="scene-screen-preview" class="scene-screen-preview" data-simulated="false">
        <div id="scene-viewport" class="scene-viewport hide-object-areas" aria-label="Normalleştirilmiş sahne görünümü">
         <img id="scene-photo" class="scene-photo" alt="BirDeSenGör güncel çalışma odası" draggable="false" hidden>
         <div id="scene-room-objects" class="scene-room-objects" aria-label="Fiziksel oda nesneleri önizlemesi"></div>
         <div id="scene-objects" class="scene-objects"></div>
         <div id="scene-markers" class="scene-markers"></div>
+       </div>
        </div>
       </div>
       <p class="scene-help scene-stage-help" id="coordinate-help" hidden></p>
@@ -54,10 +57,15 @@ export const sceneTemplate = String.raw`
     <div class="scene-panel-heading"><span class="scene-eyebrow">ÖZELLİKLER</span></div>
     <h2 id="selected-object-name">Bir nesne seçin</h2>
     <nav class="scene-inspector-tabs" aria-label="Özellik türü" role="tablist">
+      <button type="button" data-inspector-tab="background" role="tab" aria-selected="false">Arka plan</button>
       <button type="button" data-inspector-tab="visual" role="tab" aria-selected="false">Nesne</button>
       <button type="button" data-inspector-tab="effect" role="tab" aria-selected="true">Efekt</button>
       <button type="button" data-inspector-tab="focus" role="tab" aria-selected="false">Görünüm</button>
     </nav>
+    <div class="scene-inspector-page" data-inspector-page="background" hidden>
+      <section id="scene-background-inspector"></section>
+      <input type="file" id="scene-background-file" hidden accept="image/png,image/jpeg,image/webp" aria-label="Ana oda fotoğrafını değiştir">
+    </div>
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>
       <details id="visual-source-settings" class="scene-advanced" open hidden><summary>Kaynak görsel</summary><section id="visual-source-inspector"></section><input type="file" id="visual-source-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Yeni nesne resmi seç"></details>

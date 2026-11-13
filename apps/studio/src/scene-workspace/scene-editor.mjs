@@ -9,6 +9,7 @@ import {anchorScenePoint,effectScenePoint} from '../../../../packages/effect-eng
 import {bindObjectScene} from '../../../../packages/effect-engine/src/runtime/object-overlay.mjs';
 import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
 import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
+import {roomFrameGeometry} from '../../../../packages/effect-engine/src/model/room-frame.mjs';
 import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export function mountSceneEditor(root,options={}){
@@ -22,6 +23,20 @@ let previewHandle=null,previewFrame=null;
 let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
 let zoom=1,visualMode=false,linkVisual=true,previewRobeVeiled=false;
+let backgroundMeta=null,backgroundOriginal='',screenPreset='room',
+  screenWidth=390,screenHeight=844;
+const screenPresets={'1920x1080':[1920,1080],'1366x768':[1366,768],
+  '768x1024':[768,1024],'390x844':[390,844]};
+function syncBackgroundPhoto(){
+  if(!backgroundMeta)return;
+  const photo=$('#scene-photo'),src=replacementSource(backgroundMeta.asset,backgroundOriginal);
+  if(src&&photo.getAttribute('src')!==src)photo.src=src;
+}
+function screenPreviewGeometry(){
+  if(!backgroundMeta)return null;
+  if(screenPreset==='room')return roomFrameGeometry(backgroundMeta.aspect*1000,1000,backgroundMeta.aspect);
+  return roomFrameGeometry(screenWidth,screenHeight,backgroundMeta.aspect);
+}
 const editableVisual=item=>canCropVisual(item)&&(!siteSource||previewObjects.has(item?.id));
 const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
 const replacementSource=(asset,original)=>assetReplacements.get(asset)?.dataUrl??original;
@@ -179,6 +194,10 @@ function setInspectorTab(tab){
     if(button.dataset.inspectorTab==='focus')button.hidden=!focusTargets.has(objectId);
   }
   for(const page of root.querySelectorAll('[data-inspector-page]'))page.hidden=page.dataset.inspectorPage!==tab;
+  const name=$('#selected-object-name');
+  if(name)name.textContent=tab==='background'?'Oda arka planı':object()?.name??'Bir nesne seçin';
+  if($('#open-background'))$('#open-background').setAttribute('aria-pressed',String(tab==='background'));
+  if(tab==='background')renderBackgroundInspector();
 }
 function groupFor(item){
   return item.group?.trim()||'Nesneler';
@@ -583,6 +602,84 @@ function renderLayerInspector(){
     }
     host.append(entry);
   }
+}
+function renderBackgroundInspector(){
+  const host=$('#scene-background-inspector');
+  if(!host||inspectorTab!=='background')return;
+  host.replaceChildren();
+  if(!backgroundMeta){
+    host.append(el('p',{class:'scene-empty',text:'Bu sahnede arka plan kaynağı bağlı değil.'}));
+    return;
+  }
+  const {asset,aspect}=backgroundMeta;
+  const photo=$('#scene-photo'),original=backgroundMeta;
+  const source=replacementSource(asset,backgroundOriginal);
+  const modified=assetReplacements.has(asset);
+  const originalText=original.width+' × '+original.height;
+  const currentText=photo.naturalWidth&&photo.naturalHeight
+    ?photo.naturalWidth+' × '+photo.naturalHeight:originalText;
+  host.append(el('div',{class:'scene-background-stats'},
+    el('div',{class:'scene-background-stat'},'Orijinal kaynak',
+      el('strong',{id:'background-original-dimensions',text:originalText+' px'})),
+    el('div',{class:'scene-background-stat'},'Etkin görsel',
+      el('strong',{id:'background-active-dimensions',text:currentText+' px'})),
+    el('div',{class:'scene-background-stat'},'Oda kadrajı',
+      el('strong',{id:'background-ratio',text:aspect+':1'})),
+    el('div',{class:'scene-background-stat'},'Normal odada görünen',
+      el('strong',{id:'background-visible-fraction',text:'%100'}))));
+  host.append(el('div',{class:'scene-source-preview scene-background-source-preview'},
+    el('img',{src:source,alt:'Odanın kırpılmamış kaynak görseli',draggable:false,decoding:'async'})));
+  host.append(el('p',{class:'scene-background-source',text:asset+' · kaynak '+Math.round(original.bytes/1024)+' KB'}));
+  host.append(el('div',{class:'scene-background-controls'},
+    button('Görsel seç',()=>$('#scene-background-file').click(),{
+      id:'background-import',title:'Yeni resim 2:1 oranında olmalı.'}),
+    button('Etkin görseli indir',()=>exportSelectedAsset({path:asset},source,modified?'-taslak':''),{
+      id:'background-export',title:'Önizlemede kullanılan kırpılmamış WebP dosyası'})));
+  host.append(el('div',{class:'scene-background-controls'},
+    button('Orijinali indir',()=>exportSelectedAsset({path:asset},backgroundOriginal,'-orijinal'),
+      {id:'background-original-export'}),
+    button('Taslağı kaldır',()=>{
+      if(!assetReplacements.has(asset))return;
+      recordHistory(scene,'asset:'+asset+':restore');
+      assetReplacements.delete(asset);
+      syncBackgroundPhoto();draw();pruneArtworkHistory();changed();
+      status('Oda arka planı orijinal kaynağa döndü.');
+    },{id:'background-restore',disabled:!modified})));
+  host.append(el('h3',{text:'Ekran önizlemesi'}));
+  const options=[['room','2:1 · Yalnız oda'],
+    ['1920x1080','1920 × 1080 · Masaüstü'],['1366x768','1366 × 768 · Laptop'],
+    ['768x1024','768 × 1024 · Tablet'],['390x844','390 × 844 · Telefon'],['custom','Özel çözünürlük']];
+  host.append(field('Cihaz / çözünürlük',el('select',{id:'background-screen-preset',
+    onchange:event=>{
+      screenPreset=event.target.value;
+      if(screenPresets[screenPreset])[screenWidth,screenHeight]=screenPresets[screenPreset];
+      fitStage();renderBackgroundInspector();
+    }},...options.map(([key,name])=>el('option',{value:key,text:name,selected:screenPreset===key})))));
+  if(screenPreset==='custom')host.append(el('div',{class:'scene-background-dimensions'},
+    numberInput('Ekran genişliği',screenWidth,value=>{
+      if(value<240||value>4096||!Number.isFinite(value))return;
+      screenWidth=Math.round(value);fitStage();renderBackgroundInspector();
+    },{id:'background-screen-width',min:240,max:4096,step:1}),
+    numberInput('Ekran yüksekliği',screenHeight,value=>{
+      if(value<240||value>4096||!Number.isFinite(value))return;
+      screenHeight=Math.round(value);fitStage();renderBackgroundInspector();
+    },{id:'background-screen-height',min:240,max:4096,step:1})));
+  const geometry=screenPreviewGeometry();
+  if(geometry){
+    const fmt=value=>Number.isInteger(value)?String(value):value.toFixed(1);
+    const g=geometry;
+    host.append(el('div',{class:'scene-background-stats'},
+      el('div',{class:'scene-background-stat'},'Ekranda oda',
+        el('strong',{id:'background-room-geometry',text:fmt(g.room.width)+' × '+fmt(g.room.height)+' px'})),
+      el('div',{class:'scene-background-stat'},'Görüntü dışındaki alan',
+        el('strong',{id:'background-letterbox',text:g.empty.top>0
+          ?'Üst/alt '+fmt(g.empty.top)+' px':g.empty.left>0
+          ?'Sol/sağ '+fmt(g.empty.left)+' px':'Yok'})),
+      el('div',{class:'scene-background-stat'},'Ekrana uyarlama ölçeği',
+        el('strong',{id:'background-image-scale',text:screenPreset==='room'?'—'
+          :Math.round(g.room.width/(photo.naturalWidth||original.width)*100)+'%'}))));
+  }
+  host.append(el('p',{class:'scene-help',text:'Normal oda görünümünde resmin tamamı gösterilir. Koyu alan ekranın kullanılmayan kısmıdır. Kitap ve cihaz yakınlaşmaları ayrı geçişlerle çalışır.'}));
 }
 function renderCropInspector(){
   const item=object(),parent=$('#visual-crop-settings'),host=$('#visual-crop-inspector');
@@ -1059,6 +1156,8 @@ function draw(){
   renderSourceInspector();
   renderCropInspector();
   renderLayerInspector();
+  syncBackgroundPhoto();
+  renderBackgroundInspector();
   renderVeilInspector();
   renderEffectInspector();
   renderStage();
@@ -1197,6 +1296,12 @@ function install(next,message,{resetHistory=false}={}){
 }
 function installPreview(packet){
   const preview=packet.previewImage;
+  backgroundMeta=packet.background??null;
+  backgroundOriginal=preview??'';
+  screenPreset='room';
+  if(backgroundMeta&&(!/^\/scene-assets\/approved\/[a-z0-9-]+\.webp$/.test(backgroundMeta.asset)
+    ||backgroundMeta.aspect!==2||backgroundMeta.width!==2*backgroundMeta.height))
+    throw Error('Arka plan fotoğrafının kaynak bilgileri geçersiz.');
   previewObjects=new Map();
   for(const artwork of packet.previewObjects??[]){
     const owner=packet.scene.objects.find(o=>o.id===artwork.objectId);
@@ -1283,9 +1388,13 @@ function installPreview(packet){
   $('#show-room-objects').disabled=!siteSource||!roomObjects.size;
   $('#advanced-settings').open=false;
   const photo=$('#scene-photo');
-  photo.onload=()=>{$('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);fitStage();};
+  photo.onload=()=>{
+    $('#scene-viewport').style.aspectRatio=String(photo.naturalWidth/photo.naturalHeight);
+    fitStage();renderBackgroundInspector();
+  };
   if(!preview)$('#scene-viewport').style.aspectRatio='';
-  if(preview)photo.src=preview;else photo.removeAttribute('src');
+  if(preview)photo.src=backgroundMeta?replacementSource(backgroundMeta.asset,preview):preview;
+  else photo.removeAttribute('src');
   photo.hidden=!preview||!showPhoto;
   $('#scene-viewport').classList.toggle('has-photo',Boolean(preview)&&showPhoto);
   $('#visual-edit-mode').disabled=!siteSource;
@@ -1413,6 +1522,26 @@ if($('#visual-layer-file'))$('#visual-layer-file').onchange=async event=>{
     status('Görsel alt katmanı eklendi. Hareket efektleri artık seçilebilir.');
   }catch(e){error(e);}
 };
+if($('#scene-background-file'))$('#scene-background-file').onchange=async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  try{
+    if(!siteSource||!backgroundMeta)throw Error('Arka plan kaynağı bağlı değil.');
+    const bitmap=await createImageBitmap(file);
+    try{
+      if(bitmap.width!==bitmap.height*2||bitmap.width<1024)
+        throw Error('Oda fotoğrafı 2:1 oranında ve en az 1024 piksel genişliğinde olmalı. Nesne koordinatları böyle korunur.');
+    }finally{bitmap.close();}
+    const dataUrl=await localImageToWebp(file,null);
+    const img=new Image();img.src=dataUrl;await img.decode();
+    if(img.naturalWidth!==img.naturalHeight*2||img.naturalWidth<1024)
+      throw Error('WebP dönüşümü sonrası fotoğrafın 2:1 oranı korunmalı.');
+    recordHistory(scene,'asset:'+backgroundMeta.asset+':import');
+    setAssetReplacement(backgroundMeta.asset,dataUrl);
+    syncBackgroundPhoto();draw();pruneArtworkHistory();changed();
+    status('Oda fotoğrafı taslağa alındı. Kaydet → Siteye hazırla ile yerel web dosyası güncellenir.');
+  }catch(e){error(e);}
+};
 $('#visual-source-file').onchange=async event=>{
   const file=event.target.files?.[0],selected=selectedVisualAsset(object());
   event.target.value='';
@@ -1507,6 +1636,13 @@ $('#play').onclick=()=>{
   $('#play').setAttribute('aria-pressed',String(playing));
   status(playing?'Önizleme oynatılıyor.':'Önizleme duraklatıldı; sahne değişiklikleri yine doğrulanır.');
 };
+if($('#open-background'))$('#open-background').onclick=()=>{
+  setInspectorTab('background');
+  if(root.classList.contains('scene-inspector-collapsed')){
+    root.classList.remove('scene-inspector-collapsed');
+    fitStage();
+  }
+};
 $('#show-photo').onclick=()=>{
   showPhoto=!showPhoto;
   $('#scene-photo').hidden=!showPhoto;
@@ -1555,10 +1691,22 @@ root.querySelector('.scene-stage-well').addEventListener('wheel',event=>{
 },{passive:false});
 function fitStage(){
   const well=root.querySelector('.scene-stage-well');
-  const photo=$('#scene-photo');
-  const ratio=!photo.hidden&&photo.naturalWidth?photo.naturalWidth/photo.naturalHeight:(scene?.viewport.width??1600)/(scene?.viewport.height??900);
-  const width=Math.min(well.clientWidth,well.clientHeight*ratio)*zoom;
-  Object.assign($('#scene-viewport').style,{width:`${width}px`,height:`${width/ratio}px`});
+  const photo=$('#scene-photo'),frame=$('#scene-screen-preview');
+  const ratio=backgroundMeta?.aspect??(!photo.hidden&&photo.naturalWidth
+    ?photo.naturalWidth/photo.naturalHeight:(scene?.viewport.width??1600)/(scene?.viewport.height??900));
+  const simulation=Boolean(backgroundMeta&&screenPreset!=='room');
+  const geometry=simulation?roomFrameGeometry(screenWidth,screenHeight,ratio)
+    :roomFrameGeometry(ratio*1000,1000,ratio);
+  const widthAvailable=Math.max(1,well.clientWidth-12),heightAvailable=Math.max(1,well.clientHeight-12);
+  const scale=Math.min(widthAvailable/geometry.screen.width,
+    heightAvailable/geometry.screen.height)*zoom;
+  const screenW=geometry.screen.width*scale,screenH=geometry.screen.height*scale;
+  const width=geometry.room.width*scale,height=geometry.room.height*scale;
+  if(frame){
+    Object.assign(frame.style,{width:screenW+'px',height:screenH+'px'});
+    frame.dataset.simulated=String(simulation);
+  }
+  Object.assign($('#scene-viewport').style,{width:width+'px',height:height+'px'});
 }
 const stageResizeObserver=new ResizeObserver(fitStage);stageResizeObserver.observe(root.querySelector('.scene-stage-well'));
 disposers.push(()=>stageResizeObserver.disconnect());

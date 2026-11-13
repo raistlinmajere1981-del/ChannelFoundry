@@ -63,6 +63,17 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-stage-column{min-width:0;display:flex;flex-direction:column;gap:8px}
 .scene-stage-well{display:grid;place-items:center;min-height:0;aspect-ratio:16/9;max-height:760px;background:#101416;border-radius:10px;overflow:hidden}
 .scene-stage-well .scene-viewport{min-height:0;max-height:none;margin:auto;flex:none}
+.scene-screen-preview{position:relative;flex:none;display:grid;place-items:center;background:#080604;overflow:hidden;isolation:isolate;border:0}
+.scene-screen-preview[data-simulated="true"]{border:1px solid #6d7c80;box-shadow:0 0 0 2px #0009}
+.scene-screen-preview .scene-viewport{max-width:none;min-height:0;max-height:none;border:0;border-radius:0}
+.scene-background-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:6px 0 12px}
+.scene-background-stat{border:1px solid var(--line);border-radius:6px;padding:7px 6px;font-size:11px}
+.scene-background-stat strong{display:block;font-size:13px;font-variant-numeric:tabular-nums;color:#ebd7b2;margin-top:4px}
+.scene-background-controls{display:flex;gap:6px;margin:8px 0}
+.scene-background-controls button{flex:1;min-width:0;font-size:11px}
+.scene-background-source{font-size:10px;overflow-wrap:anywhere;color:var(--muted);margin:5px 0}
+.scene-background-dimensions{display:flex;gap:8px}
+.scene-background-dimensions .field{min-width:0;flex:1}
 .scene-stage-well{display:flex;align-items:safe center;justify-content:safe center;overflow:auto;scrollbar-gutter:stable;overscroll-behavior:contain}
 .scene-zoom-controls{display:flex;gap:2px;align-items:center;padding:2px;border:1px solid var(--line);border-radius:7px}
 .scene-zoom-controls button{min-width:29px;min-height:27px;padding:3px 6px}

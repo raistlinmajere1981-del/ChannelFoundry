@@ -36,11 +36,13 @@ export function webpDimensions(bytes){
   return {width,height};
 }
 
+// The room photograph is site-level artwork, never an object crop.
+export const ROOM_BACKGROUND_ASSET='/scene-assets/approved/room-effects-v4-2to1.webp';
 export const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 export const MAX_TOTAL_ASSET_BYTES = 24 * 1024 * 1024;
 
 export function editableAssets(manifest,scene=null) {
-  const paths = new Set();
+  const paths = new Set([ROOM_BACKGROUND_ASSET]);
   for(const item of manifest.objects ?? []) {
     for(const slot of PHYSICAL_ART_SLOTS[item.id]??[])paths.add(slot.path);
     if(!canCropVisual(item))continue;
@@ -70,6 +72,10 @@ export function validateAssetOverrides(assets,manifest,referenceEntries=null,sce
     if(!bytes.length||bytes.length>MAX_ASSET_BYTES)
       throw Error('Kaynak resim 8 MB sınırını aşamaz.');
     const geometry=webpDimensions(bytes);
+    if(entry.path===ROOM_BACKGROUND_ASSET){
+      if(geometry.width!==geometry.height*2||geometry.width<1024)
+        throw Error('Ana oda fotoğrafı 2:1 oranında ve en az 1024 piksel genişliğinde WebP olmalı. Sahne nesneleri aynı koordinatları kullanıyor.');
+    }
     if(isPhysicalArtAsset(entry.path)){
       const isClosed=/^\/scene-assets\/books\/scene-closed\/(?:evren|topluluk)-master-closed(?:-en)?\.webp$/.test(entry.path);
       if(isClosed&&(geometry.width!==1536||geometry.height!==1024))

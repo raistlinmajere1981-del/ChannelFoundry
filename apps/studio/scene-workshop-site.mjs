@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {importProject,validateProject,exportProject} from '../../packages/effect-engine/src/model/project.mjs';
 import {compileObjectScene} from '../../packages/effect-engine/src/runtime/object-compile.mjs';
-import {validateAssetOverrides} from './scene-asset-overrides.mjs';
+import {validateAssetOverrides,webpDimensions,ROOM_BACKGROUND_ASSET} from './scene-asset-overrides.mjs';
 import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from './scene-physical-art.mjs';
 import {CLOSED_BOOKS} from '../../channels/birdesengor/web/src/book/closedBookLayout.js';
 import {validateScenePresentation} from '../../packages/effect-engine/src/model/scene-presentation.mjs';
@@ -15,7 +15,7 @@ export const SITE_SCENE='src/effects/birdesengor-effects.v2.json';
 const MANIFEST='src/scene/data/study.scene.json';
 const PRESENTATION='src/scene/data/scene-presentation.v1.json';
 const ADAPTER='src/effects/effectsAdapter.js';
-const PREVIEW='public/scene-assets/approved/room-effects-v4-2to1.webp';
+const PREVIEW='public'+ROOM_BACKGROUND_ASSET;
 const ROOT='src/scene/SceneRoot.jsx';
 const STAGE_CSS='src/scene/study-foundation.css';
 // The book/camera/workshop presentation contract depends on these authored
@@ -275,6 +275,15 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   if(bytes.length>16*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Site oda önizlemesi geçerli bir WebP olmalı.');
   return 'data:image/webp;base64,'+bytes.toString('base64');
  }
+ function backgroundInfo(state){
+  const bytes=state.entries.get(PREVIEW);
+  const {width,height}=webpDimensions(bytes);
+  if(width!==2*height||!/\.study-frame\s*\{[^}]*aspect-ratio:\s*2\s*;/s.test(state.entries.get(STAGE_CSS).toString('utf8'))
+    ||!state.entries.get(ROOT).toString('utf8').includes("const ROOM_PLATE = '"+ROOM_BACKGROUND_ASSET+"';"))
+    throw Error('Oda görselinin 2:1 kadrajı veya gerçek web kaynak yolu eşleşmiyor.');
+  return {asset:ROOM_BACKGROUND_ASSET,width,height,bytes:bytes.length,aspect:2,
+    layout:'contain',note:'Oda normal görünümünde kenarlar kesilmez; sahne 2:1 olarak ekrana sığdırılır.'};
+ }
  async function stage(scene,expectedSourceHash,assets=[],presentation=null){
   const state=await snapshot();
   if(!expectedSourceHash||expectedSourceHash!==state.sourceHash)
@@ -349,5 +358,5 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     changedFiles:[...changedFiles.map(([file])=>file),...removedFiles],
     sourceHash:after.sourceHash,readiness:report};
  }
- return {snapshot,validate,validateAssets,readiness,preview,previewObjects,previewArt,roomObjects,focusTargets,stage};
+ return {snapshot,validate,validateAssets,readiness,preview,backgroundInfo,previewObjects,previewArt,roomObjects,focusTargets,stage};
 }

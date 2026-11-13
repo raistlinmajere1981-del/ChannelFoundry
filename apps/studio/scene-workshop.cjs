@@ -97,6 +97,7 @@ class SceneWorkshop {
       scene, presentation, assets, origin, sourceHash: source.sourceHash, note,
       readiness: this.site.readiness(scene, source), siteSource: true,
       previewImage: await this.site.preview(source),
+      background: this.site.backgroundInfo?.(source) ?? null,
       previewObjects: [
         ...this.site.previewObjects(source),
         ...scene.objects.filter(o=>o.kind==='artwork'&&!source.scene.objects.some(entry=>entry.id===o.id))
