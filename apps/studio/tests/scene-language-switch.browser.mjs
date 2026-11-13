@@ -39,14 +39,14 @@ try{
  assert.equal(await page.locator('#scene-language-switch').count(),1);
  await page.locator('#scene-control-select-languageSwitch').click();
  assert.equal(await page.locator('[data-inspector-page="control"]').isVisible(),true);
- assert.equal(await page.locator('#language-x').inputValue(),'22');
- assert.equal(await page.locator('#language-y').inputValue(),'90.5');
+ assert.equal(Number(await page.locator('#language-x').inputValue()),source.presentation.controls.languageSwitch.desktop.x);
+ assert.equal(Number(await page.locator('#language-y').inputValue()),source.presentation.controls.languageSwitch.desktop.y);
  assert.equal(await page.locator('#scene-language-switch').getAttribute('data-selected'),'true');
  await page.locator('#language-x').fill('25.5');
  await page.locator('#language-x').press('Tab');
  assert.equal(await page.evaluate(()=>window.__sceneEditor.snapshot().presentation.controls.languageSwitch.desktop.x),25.5);
  await page.locator('#undo').click();
- assert.equal(await page.evaluate(()=>window.__sceneEditor.snapshot().presentation.controls.languageSwitch.desktop.x),22);
+ assert.equal(await page.evaluate(()=>window.__sceneEditor.snapshot().presentation.controls.languageSwitch.desktop.x),source.presentation.controls.languageSwitch.desktop.x);
  await page.locator('#redo').click();
  assert.equal(await page.evaluate(()=>window.__sceneEditor.snapshot().presentation.controls.languageSwitch.desktop.x),25.5);
  await page.locator('#language-plateScale').fill('112');

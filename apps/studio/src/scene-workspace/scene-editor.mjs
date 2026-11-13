@@ -11,7 +11,7 @@ import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/ru
 import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
 import {roomFrameGeometry} from '../../../../packages/effect-engine/src/model/room-frame.mjs';
 import {defaultLanguageSwitchLayout} from '../../../../packages/effect-engine/src/model/language-switch-layout.mjs';
-import {defaultScenePresentation,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
+import {defaultScenePresentation,defaultClosedBookPlacement,validateScenePresentation,FOCUS_OBJECT_IDS,BOOK_OBJECT_IDS,PHYSICAL_DEVICE_IDS} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export function mountSceneEditor(root,options={}){
 const $=selector=>root.querySelector(selector);
@@ -21,7 +21,21 @@ let scene=null,objectId=null,effectId=null,anchorId=null,playing=true;
 let presentation=defaultScenePresentation(),presentationDevice='desktop';
 let activeControl=null,controlDevice='desktop',controlLanguage='tr',controlDrag=null;
 const switchLayout=()=>siteSource?presentation?.controls?.languageSwitch:null;
-let focusTargets=new Map(),focusPreview=false,roomObjects=new Map(),showRoomObjects=true;
+let focusTargets=new Map(),focusPreview=false,focusStage='room',roomObjects=new Map(),showRoomObjects=true;
+let captureRunning=false,captureSequence=0,liveSessionId=null;
+const previewHiddenObjects=new Set(),previewShownObjects=new Set(); // Editor-local only.
+function hiddenInRoom(id){
+  const item=scene?.objects.find(entry=>entry.id===id);
+  const published=!(siteSource&&FOCUS_OBJECT_IDS.includes(id)&&presentation?.objects?.[id]?.roomVisible===false)
+    && item?.visible!==false;
+  return previewHiddenObjects.has(id)||(!previewShownObjects.has(id)&&!published);
+}
+function togglePreviewObject(id){
+  if(hiddenInRoom(id)){previewHiddenObjects.delete(id);previewShownObjects.add(id);}
+  else {previewShownObjects.delete(id);previewHiddenObjects.add(id);}
+  draw();
+  status(hiddenInRoom(id)?'Nesne yalnız çalışma tuvalinde gizlendi; site taslağı değişmedi.':'Nesne çalışma tuvalinde gösteriliyor; site taslağı değişmedi.');
+}
 let previewHandle=null,previewFrame=null;
 let previewObjects=new Map(),assetReplacements=new Map(),assetChoices=new Map(),artworkSlots=new Map();
 let siteSource=false,sourceScene=null,showPhoto=true,showEffects=true,objectFilter='all';
@@ -230,10 +244,15 @@ function renderTreeLists(){
     group.addEventListener('toggle',()=>{if(group.isConnected&&!term)treeExpanded.set(name,group.open);});
     group.append(el('summary',{},el('span',{text:name}),el('span',{class:'scene-count',text:String(entries.length)})));
     for(const {item,effects} of entries){
-      const groupNode=el('div',{class:'scene-tree-object'+(item.id===objectId?' is-current':'')});
+      const groupNode=el('div',{class:'scene-tree-object'+(item.id===objectId?' is-current':'')+(hiddenInRoom(item.id)?' is-preview-hidden':'')});
       const active=effects.filter(e=>e.enabled).length;
       const row=el('div',{class:'scene-tree-object-head','data-tree-object':item.id},
         el('button',{type:'button',id:'object-select-'+item.id,class:'scene-tree-select',text:item.name,'aria-current':String(item.id===objectId),onclick:()=>{selectObject(item.id);setInspectorTab(focusTargets.has(item.id)?'focus':'visual');}}),
+        el('button',{type:'button',class:'scene-tree-eye',id:'preview-eye-'+item.id,
+          'aria-label':item.name+(hiddenInRoom(item.id)?' · yalnız önizlemede göster':' · yalnız önizlemede gizle'),
+          'aria-pressed':String(!hiddenInRoom(item.id)),
+          text:hiddenInRoom(item.id)?'◌':'◉',
+          onclick:event=>{event.stopPropagation();togglePreviewObject(item.id);}}),
         el('span',{class:'scene-tree-meta',text:effects.length?active+'/'+effects.length:'—'}));
       groupNode.append(row);
       if(effects.length){
@@ -440,6 +459,11 @@ function renderPresentationInspector(){
     if(device)data.objects[id][device][key]=value;
     else data.objects[id][key]=value;
   },'presentation:'+id+':'+(device??'time')+':'+key);
+  host.append(checkField('Sitede oda görünümünde göster',profile.roomVisible!==false,
+    checked=>{previewHiddenObjects.delete(id);previewShownObjects.delete(id);
+      mutatePresentation(next=>{next.objects[id].roomVisible=checked;},
+        'presentation:'+id+':roomVisible');},
+    {id:'presentation-roomVisible'}));
   host.append(field('Cihaz görünümü',el('select',{
     id:'presentation-device','aria-label':'Sunum cihaz görünümü',
     onchange:event=>{presentationDevice=event.target.value;renderPresentationInspector();}
@@ -486,6 +510,19 @@ function renderPresentationInspector(){
         }));
     }
     host.append(physical);
+    const placement=details('book-desk','Kapalı kitabın masa yerleşimi');
+    placement.append(el('p',{class:'scene-visual-tip',text:'Oda görünümünde konum, açı ve yatıklık. Taşı modu ile kapalı kitabı doğrudan sürükleyebilirsiniz.'}));
+    const current=profile.closedBook??defaultClosedBookPlacement(id);
+    for(const [key,label,min,max,step,percent] of [
+      ['x','Masa X (%)',8,92,.1,true],['y','Masa Y (%)',18,95,.1,true],
+      ['width','Genişlik (%)',10,50,.1,true],['angle','Dönüş açısı (°)',-30,30,.5,false],
+      ['surfaceScaleY','Yüzey yatıklığı (%)',70,125,1,true],
+    ])placement.append(numberInput(label,percent?round((current?.[key]??0)*100):current?.[key],
+      value=>mutatePresentation(next=>{
+        next.objects[id].closedBook??=defaultClosedBookPlacement(id);
+        next.objects[id].closedBook[key]=percent?round(value/100):value;
+      },'book:'+id+':desk:'+key),{id:'book-desk-'+key,min,max,step}));
+    host.append(placement);
     const reading=details('book-reading','Okuma alanı · '+(device==='desktop'?'Masaüstü':'Mobil'));
     for(const [axis,label,min,max] of [
       ['X','Yatay iç boşluk (%)',5,13],
@@ -546,6 +583,7 @@ function renderPresentationInspector(){
       group('Arşiv ve oynatıcı',[
         ['archiveWidth','Arşiv paneli genişliği (px)',250,420,5,false],
         ['videoMinHeight','Video asgari yüksekliği (px)',180,275,5,false],
+        ['hingeAngle','Açık LCD menteşe açısı (°)',-12,12,.5,false],
       ]);
     }else{
       group('Parşömen ve mürekkep',[
@@ -561,6 +599,11 @@ function renderPresentationInspector(){
         ['rulerX','Zaman cetveli X (px)',-22,22,1,false],
         ['rulerY','Zaman cetveli Y (px)',-18,18,1,false],
       ]);
+      group('Divit dinlenme konumu',[
+        ['quillDockX','Divit ucu X (px)',-24,24,1,false],
+        ['quillDockY','Divit ucu Y (px)',-24,24,1,false],
+        ['quillRestAngle','Dinlenme açısı (°)',0,30,.5,false],
+      ]);
       group('Katalog kapağı',[
         ['catalogX','Katalog X (px)',-24,24,1,false],
         ['catalogY','Katalog Y (px)',-24,24,1,false],
@@ -569,7 +612,7 @@ function renderPresentationInspector(){
   }
   host.append(el('div',{class:'scene-visual-actions'},
     button(focusPreview?'2B önizlemeyi kapat':'2B oda yaklaşmasını göster',()=>{
-      focusPreview=!focusPreview;draw();
+      focusStage=focusPreview?'room':'approach';focusPreview=focusStage!=='room';draw();
     },{id:'presentation-preview',disabled:!focusTargets.has(id),'aria-pressed':String(focusPreview)})));
   host.append(el('div',{class:'scene-visual-actions'},
     button('Bu nesneyi sıfırla',()=>mutatePresentation(s=>{
@@ -873,7 +916,14 @@ function renderObjectInspector(){
     placeholder:'Nesneler',title:'Boş bırakılırsa Nesneler grubunda görünür.',
     onchange:event=>mutate(s=>{const target=s.objects.find(o=>o.id===item.id),value=event.target.value.trim();
       if(value)target.group=value;else delete target.group;},'group:'+item.id)})));
-  if(siteSource&&item.kind!=='artwork')return;
+  host.append(checkField('Yalnız önizlemede göster',!hiddenInRoom(item.id),
+    shown=>{if(shown===hiddenInRoom(item.id))togglePreviewObject(item.id);},
+    {id:'preview-object-visible'}));
+  if(siteSource&&item.kind!=='artwork'){
+    if(!FOCUS_OBJECT_IDS.includes(item.id))host.append(el('p',{class:'scene-visual-tip',
+      text:'Bu nesne oda fotoğrafında yer alıyor. Önizleme gizlemesi yalnız ek görselleri, efektleri ve düzenleme işaretlerini saklar; fotoğrafın piksellerini silmez.'}));
+    return;
+  }
   host.append(
     field('Nesne adı',el('input',{value:item.name,maxlength:160,onchange:event=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).name=event.target.value;},`object:${item.id}:name`)})),
     checkField('Görünür',item.visible,value=>mutate(s=>{s.objects.find(entry=>entry.id===item.id).visible=value;},`object:${item.id}:visible`))
@@ -1034,7 +1084,7 @@ function renderMarkers(){
   if(!scene)return;
   scene.effects.forEach((item,index)=>{
     const owner=scene.objects.find(entry=>entry.id===item.target.objectId);
-    if(!owner)return;
+    if(!owner||hiddenInRoom(owner.id))return;
     const point=effectScenePoint(owner,item);
     const marker=el('button',{type:'button',id:`marker-${item.id}`,class:`scene-marker ${item.id===effectId?'is-selected':''} ${item.enabled&&owner.visible?'':'is-off'}`,text:String(index+1),
       title:`${objectEffectRegistry[item.type].label} · ${owner.name} → ${item.target.anchorId}`,'aria-label':`${objectEffectRegistry[item.type].label} hedefini sürükle`});
@@ -1060,7 +1110,9 @@ function bindPreview(pulseId=null){
   previewHandle?.destroy();previewHandle=null;
   if(!scene)return;
   try{
-    const selected={...scene,effects:scene.effects.filter(item=>objectEffectRegistry[item.type].trigger!=='pulse'||item.id===pulseId)};
+    const selected={...scene,effects:scene.effects.filter(item=>
+      !hiddenInRoom(item.target.objectId)&&
+      (objectEffectRegistry[item.type].trigger!=='pulse'||item.id===pulseId))};
     previewHandle=bindObjectScene(selected,id=>objectElements.get(id),{expectedSceneId:scene.sceneId,interactive:true});
     const bladeMask=previewObjects.get('ceremonial-dagger')?.bladeMask;
     if(bladeMask){
@@ -1116,7 +1168,10 @@ function renderRoomObjects(){
     const source=artworkSlots.get(id)?.find(entry=>entry.path===path);
     return source?replacementSource(path,source.image):null;
   };
-  for(const [id,record] of roomObjects){
+  for(const [id,authored] of roomObjects){
+    if(hiddenInRoom(id))continue;
+    const record=authored.kind==='book'
+      ?{...authored,...(presentation?.objects?.[id]?.closedBook??{})}:authored;
     const owner=scene.objects.find(entry=>entry.id===id);
     if(!owner)continue;
     const visualKind=record.kind==='device'?(id==='camera'?'camera':'vefk'):record.kind;
@@ -1144,19 +1199,61 @@ function renderRoomObjects(){
     if(record.kind==='book')append(record.src,'scene-room-cover');
     else if(id==='camera')append('/scene-assets/camera/research/camera-body.webp','scene-room-camera');
     else if(id==='vefk-stand'){
-      const paper=presentation.objects[id].physical.desktop;
+      const paper=presentation.objects[id].physical[presentationDevice];
       append('/scene-assets/vefk/vellum.webp','scene-room-paper',{
         left:(115+paper.paperX)/1024*100+'%',top:(170+paper.paperY)/1536*100+'%',
         transform:'scale('+paper.paperScale+')',
       });
       append('/scene-assets/vefk/chassis-no-nameplate.webp','scene-room-chassis');
-      append('/scene-assets/vefk/quill.webp','scene-room-quill');
+      append('/scene-assets/vefk/quill.webp','scene-room-quill',{
+        left:(62.2+paper.quillDockX/1024*100)+'%',
+        top:(48.46+paper.quillDockY/1536*100)+'%',
+        transform:'rotate('+(paper.quillRestAngle-14)+'deg)',
+      });
       append('/scene-assets/vefk/inkwell.webp','scene-room-inkwell',{
         left:(80+paper.inkwellX)/1024*100+'%',top:(951+paper.inkwellY)/1536*100+'%',
       });
     }
-    if(node.childElementCount)host.append(node);
+    if(node.childElementCount){
+      if(record.kind==='book')node.addEventListener('pointerdown',event=>{
+        if(!visualMode||event.button!==0)return;
+        event.preventDefault();event.stopPropagation();objectId=id;
+        beginBookDeskDrag(event,node,id,record);
+      });
+      host.append(node);
+    }
   }
+}
+let bookDeskDrag=null;
+function beginBookDeskDrag(event,node,id,record){
+  const viewport=$('#scene-viewport').getBoundingClientRect();
+  bookDeskDrag={pointerId:event.pointerId,node,id,
+    x:event.clientX,y:event.clientY,source:record,width:viewport.width,height:viewport.height,
+    latest:{x:record.x,y:record.y},moved:false};
+  node.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove',moveBookDeskDrag);
+  window.addEventListener('pointerup',endBookDeskDrag);
+  window.addEventListener('pointercancel',endBookDeskDrag);
+}
+function moveBookDeskDrag(event){
+  const d=bookDeskDrag;if(!d||event.pointerId!==d.pointerId)return;
+  d.latest={
+    x:round(clamp(d.source.x+(event.clientX-d.x)/d.width,.08,.92)),
+    y:round(clamp(d.source.y+(event.clientY-d.y)/d.height,.18,.95)),
+  };
+  d.moved=d.latest.x!==d.source.x||d.latest.y!==d.source.y;
+  d.node.style.left=d.latest.x*100+'%';d.node.style.top=d.latest.y*100+'%';
+}
+function endBookDeskDrag(event){
+  const d=bookDeskDrag;if(!d||event.pointerId!==d.pointerId)return;
+  bookDeskDrag=null;
+  window.removeEventListener('pointermove',moveBookDeskDrag);
+  window.removeEventListener('pointerup',endBookDeskDrag);
+  window.removeEventListener('pointercancel',endBookDeskDrag);
+  if(d.moved)mutatePresentation(next=>{
+    Object.assign(next.objects[d.id].closedBook,d.latest);
+  },'book:'+d.id+':desk:drag');
+  else draw();
 }
 function renderControlStage(){
   const host=$('#scene-controls');
@@ -1235,8 +1332,12 @@ function renderStage(){
   const host=$('#scene-objects');host.replaceChildren();objectElements.clear();
   if(!scene)return;
   for(const item of scene.objects){
-    const node=buildObject(item);objectElements.set(item.id,node);host.append(node);
-    if(item.hitArea){
+    const node=buildObject(item);
+    if(hiddenInRoom(item.id)){
+      node.hidden=true;node.setAttribute('aria-hidden','true');node.tabIndex=-1;
+    }
+    objectElements.set(item.id,node);host.append(node);
+    if(item.hitArea&&!hiddenInRoom(item.id)){
       const area=el('span',{class:'scene-hit-area'+(item.id===objectId?' selected':''),
         'data-hit-object':item.id,'aria-hidden':'true'});
       Object.assign(area.style,{left:item.hitArea.x*100+'%',top:item.hitArea.y*100+'%',
@@ -1250,16 +1351,143 @@ function renderStage(){
   renderControlStage();
   refreshRobePreview();
 }
+function renderFocusToolbar(){
+  const host=$('#scene-focus-toolbar');if(!host)return;
+  const enabled=Boolean(siteSource&&!activeControl&&focusTargets.has(objectId)&&presentation);
+  host.hidden=!enabled;
+  if(!enabled)return;
+  for(const button of host.querySelectorAll('[data-focus-state]'))
+    button.setAttribute('aria-pressed',String(button.dataset.focusState===focusStage));
+  const device=$('#focus-preview-device');
+  if(device)device.value=presentationDevice;
+  const real=$('#focus-real-capture');
+  if(real){real.disabled=!options.onCapture||captureRunning;real.hidden=!options.onCapture;}
+  const info=$('#focus-overflow');
+  if(info){
+    info.dataset.overflow='false';
+    info.textContent=focusStage==='room'?'2B oda · yerleşim ve tıklama':
+      focusStage==='open'?'Temsili açık görünüm · gerçek sayfa/oynatıcı değil':
+      '2B kamera hareketi · gerçek fiziksel animasyon değil';
+  }
+}
+function renderFocusSurface(){
+  const host=$('#scene-focus-overlay');if(!host)return;
+  const active=siteSource&&!activeControl&&focusTargets.has(objectId)&&focusStage==='open';
+  host.hidden=!active;host.replaceChildren();
+  if(!active)return;
+  host.dataset.kind=objectId;host.dataset.device=presentationDevice;
+  const profile=presentation.objects[objectId];
+  const art=(path,extra='')=>{
+    const asset=artworkSlots.get(objectId)?.find(entry=>entry.path===path);
+    if(!asset)return null;
+    return el('img',{src:replacementSource(path,asset.image),alt:'',class:extra,draggable:false,decoding:'async'});
+  };
+  const heading=el('span',{class:'scene-focus-watermark',text:'2B TEMSİLİ ÖNİZLEME'});
+  const frame=el('div',{class:'scene-focus-object'});
+  frame.style.setProperty('--near-scale',String(profile[presentationDevice].nearZoom));
+  frame.style.setProperty('--near-x',profile[presentationDevice].nearShiftX+'%');
+  frame.style.setProperty('--near-y',profile[presentationDevice].nearShiftY+'%');
+  if(BOOK_OBJECT_IDS.includes(objectId)){
+    frame.classList.add('scene-focus-book');
+    const mobile=presentationDevice==='mobile',book=profile.book;
+    const paperPath=objectId==='research-journal'
+      ?'/scene-assets/books/research-rag-paper.webp'
+      :'/scene-assets/books/community-rag-paper.webp';
+    const left=el('div',{class:'scene-focus-leaf scene-focus-leaf--left'});
+    const right=el('div',{class:'scene-focus-leaf scene-focus-leaf--right'});
+    const ratio=mobile?book.mobilePageRatio:book.pageRatio;
+    frame.style.setProperty('--leaf-ratio',String(ratio));
+    frame.style.setProperty('--book-pad-x',book[mobile?'readingPadXMobile':'readingPadXDesktop']+'%');
+    frame.style.setProperty('--book-pad-y',book[mobile?'readingPadYMobile':'readingPadYDesktop']+'%');
+    frame.style.setProperty('--book-edge',book[mobile?'depthMobile':'depthDesktop']*.24+'px');
+    if(objectId==='research-journal'){
+      frame.style.setProperty('--ribbon-width',book.ribbon[mobile?'widthMobile':'widthDesktop']*.12+'px');
+      frame.style.setProperty('--ribbon-offset',book.ribbon[mobile?'offsetMobile':'offsetDesktop']*.15+'px');
+    }else{
+      frame.style.setProperty('--index-top',book.indexes[mobile?'topMobile':'topDesktop']+'%');
+      frame.style.setProperty('--index-gap',book.indexes[mobile?'gapMobile':'gapDesktop']+'px');
+    }
+    for(const leaf of [left,right]){
+      const image=art(paperPath);
+      if(image)leaf.append(image);
+      leaf.append(el('div',{class:'scene-focus-leaf-inner'},
+        el('span',{text:'SAYFA ALANI',class:'scene-focus-leaf-caption'})));
+    }
+    frame.append(left,right,el('i',{class:'scene-focus-spine'}));
+    if(objectId==='research-journal'){
+      frame.append(el('i',{class:'scene-focus-ribbon'}));
+    }else{
+      frame.append(el('i',{class:'scene-focus-index'}));
+    }
+  }else if(objectId==='camera'){
+    frame.classList.add('scene-focus-camera');
+    const settings=profile.physical[presentationDevice];
+    const body=art('/scene-assets/camera/research/camera-body.webp','scene-focus-camera-body');
+    if(body)frame.append(body);
+    const screen=el('div',{class:'scene-focus-lcd'});
+    Object.assign(screen.style,{
+      left:(50+settings.offsetX/12)+'%',top:(50+settings.offsetY/8)+'%',
+      width:Math.min(89,76*settings.widthScale)+'%',
+      height:Math.min(93,87*settings.heightScale)+'%',
+      transform:'translate(-50%, -50%) rotateY('+settings.hingeAngle+'deg)',
+      padding:(settings.bezelPaddingY/6)+'px '+(settings.bezelPaddingX/6)+'px',
+      '--archive-pct':Math.min(45,settings.archiveWidth/(presentationDevice==='mobile'?390:1280)*100)+'%',
+      '--player-min-height':Math.min(70,settings.videoMinHeight/820*100)+'%',
+    });
+    screen.append(el('span',{text:'LCD · ARŞİV',class:'scene-focus-lcd-label'}),
+      el('div',{class:'scene-focus-lcd-layout'},
+        el('div',{class:'scene-focus-lcd-list'},'Kayıt listesi'),
+        el('div',{class:'scene-focus-lcd-player'},'Oynatıcı alanı')));
+    frame.append(screen);
+  }else{
+    frame.classList.add('scene-focus-vefk');
+    const data=profile.physical[presentationDevice];
+    const layer=(path,cls,left,top,width,height)=>{
+      const image=art(path,cls);
+      if(!image)return;
+      Object.assign(image.style,{left,top,width,height});
+      frame.append(image);
+      return image;
+    };
+    const vellum=layer('/scene-assets/vefk/vellum.webp','scene-focus-paper',
+      (11.23+data.paperX/1024*100)+'%',(11.07+data.paperY/1536*100)+'%',
+      (77.15*data.paperScale)+'%',(47.26*data.paperScale)+'%');
+    layer('/scene-assets/vefk/chassis-no-nameplate.webp','scene-focus-chassis','0','0','100%','100%');
+    const quill=layer('/scene-assets/vefk/quill.webp','scene-focus-quill',
+      (6.07+(data.quillDockX+data.inkwellX)/1024*100)+'%',
+      (48.46+(data.quillDockY+data.inkwellY)/1536*100)+'%','15.87%','15.87%');
+    if(quill)quill.style.transform='rotate('+(data.quillRestAngle-14)+'deg)';
+    layer('/scene-assets/vefk/inkwell.webp','scene-focus-inkwell',
+      (7.81+data.inkwellX/1024*100)+'%',
+      (61.91+data.inkwellY/1536*100)+'%','10.94%','7.29%');
+    if(vellum)vellum.dataset.material='paper';
+  }
+  host.append(frame,heading);
+  // Layout measurement is purely diagnostic. No mutation to a saved scene.
+  requestAnimationFrame(()=>{
+    if(!host.isConnected||host.hidden||!frame.isConnected)return;
+    const panel=$('#scene-screen-preview').getBoundingClientRect();
+    const child=frame.getBoundingClientRect();
+    const left=Math.max(0,panel.left-child.left),top=Math.max(0,panel.top-child.top);
+    const right=Math.max(0,child.right-panel.right),bottom=Math.max(0,child.bottom-panel.bottom);
+    const info=$('#focus-overflow'),spill=Math.max(left,top,right,bottom);
+    if(info)info.textContent=spill>.5
+      ?'Kadraj taşması · '+Math.round(spill)+' px (en fazla)'
+      :'Kadraj içinde · temsili açık görünüm';
+    if(info)info.dataset.overflow=String(spill>.5);
+  });
+}
 function applyFocusPreview(){
   const target=focusTargets.get(objectId);
-  const show=Boolean(focusPreview&&siteSource&&target&&presentation);
+  const show=Boolean(focusPreview&&siteSource&&!activeControl&&target&&presentation);
   let transform='';
   if(show){
     const view=presentation.objects[objectId][presentationDevice];
     const weight=2/14;
-    const scale=1.025+(.06+weight*.003)*view.roomZoom;
-    const x=(.5-target.x)*(5.4+weight*.3)+view.roomShiftX;
-    const y=(.5-target.y)*(3+weight*.2)+view.roomShiftY;
+    const progress=focusStage==='return'?.3:focusStage==='open'?1.4:1;
+    const scale=1+((.025+(.06+weight*.003)*view.roomZoom)*progress);
+    const x=((.5-target.x)*(5.4+weight*.3)+view.roomShiftX)*progress;
+    const y=((.5-target.y)*(3+weight*.2)+view.roomShiftY)*progress;
     transform=`translate(${x}%, ${y}%) scale(${scale})`;
   }
   const root=$('#scene-viewport');
@@ -1306,7 +1534,9 @@ function draw(){
   renderVeilInspector();
   renderEffectInspector();
   renderStage();
+  renderFocusToolbar();
   applyFocusPreview();
+  renderFocusSurface();
   updateHistoryButtons();
   if(focusId)root.querySelector('#'+CSS.escape(focusId))?.focus({preventScroll:true});
   for(const [node,top] of scrolls)node.scrollTop=top;
@@ -1496,10 +1726,11 @@ function installPreview(packet){
   }
   siteSource=packet.siteSource===true;
   sourceScene=siteSource?structuredClone(packet.scene):null;
+  previewHiddenObjects.clear();previewShownObjects.clear();
   presentation=validateScenePresentation(structuredClone(packet.presentation??defaultScenePresentation()));
   previewRobeVeiled=false;
   activeControl=null;controlDevice='desktop';controlLanguage='tr';
-  focusPreview=false;
+  focusPreview=false;focusStage='room';
   focusTargets=new Map();
   for(const target of packet.focusTargets??[]){
     if(!FOCUS_OBJECT_IDS.includes(target.id)||focusTargets.has(target.id)||
@@ -1729,6 +1960,12 @@ if($('#object-search')){
       addMenuAction('Efekti dene',()=>{selectEffect(selected.id);if(effectTrigger(selected)==='pulse')bindPreview(selected.id);else previewHandle?.triggerEffect(selected.id);});
     }else if(owner){
       addMenuAction(owner.name+' · Özellikler',()=>{selectObject(owner.id);setInspectorTab('visual');});
+      addMenuAction(hiddenInRoom(owner.id)?'Önizlemede göster':'Yalnız önizlemede gizle',()=>togglePreviewObject(owner.id));
+      if(siteSource&&FOCUS_OBJECT_IDS.includes(owner.id))
+        addMenuAction(presentation.objects[owner.id].roomVisible===false?'Sitede göster':'Sitede gizle',
+          ()=>{previewHiddenObjects.delete(owner.id);previewShownObjects.delete(owner.id);
+            mutatePresentation(next=>{next.objects[owner.id].roomVisible=next.objects[owner.id].roomVisible===false;},
+              'presentation:'+owner.id+':roomVisible');});
       if(editableVisual(owner)){
         addMenuAction('Görseli taşı',()=>{selectObject(owner.id);setInspectorTab('visual');if(!visualMode)$('#visual-edit-mode').click();});
         if(owner.hitArea)addMenuAction('Tıklama alanını düzenle',()=>{selectObject(owner.id);setInspectorTab('visual');$('#hit-area-settings').open=true;});
@@ -1830,6 +2067,120 @@ function setZoom(value){
   $('#zoom-in').disabled=zoom>=3;
   fitStage();
 }
+for(const button of root.querySelectorAll('#scene-focus-toolbar [data-focus-state]')){
+  button.onclick=()=>{
+    focusStage=button.dataset.focusState;focusPreview=focusStage!=='room';draw();
+  };
+}
+if($('#focus-preview-device'))$('#focus-preview-device').onchange=event=>{
+  presentationDevice=event.target.value;
+  screenPreset=presentationDevice==='mobile'?'390x844':'1366x768';
+  [screenWidth,screenHeight]=screenPresets[screenPreset];
+  fitStage();draw();
+};
+async function captureRealWeb(){
+  if(!options.onCapture||captureRunning||!siteSource||
+      !FOCUS_OBJECT_IDS.includes(objectId))return;
+  const dialog=$('#scene-real-preview-dialog'),photo=$('#scene-real-preview-image');
+  const message=$('#scene-real-preview-message'),meta=$('#scene-real-preview-meta');
+  if(!dialog||!photo)return;
+  const request={...sceneSnapshot(),objectId,stage:focusStage,device:presentationDevice};
+  const sequence=++captureSequence;
+  closeRealSession();
+  captureRunning=true;
+  photo.hidden=true;photo.removeAttribute('src');
+  message.hidden=false;
+  message.textContent='Gerçek web bileşenleri yerel tarayıcıda açılıyor…';
+  meta.textContent='Yalnız anlık taslak yerleşimi · sentetik metin/video test verisi · ağ aktarımı yok';
+  if(!dialog.open)dialog.showModal();
+  renderFocusToolbar();
+  try{
+    const output=await options.onCapture(request);
+    if(sequence!==captureSequence||!dialog.isConnected||!dialog.open){
+      if(output?.sessionId)void options.onCaptureClose?.({sessionId:output.sessionId});
+      return;
+    }
+    liveSessionId=typeof output.sessionId==='string'?output.sessionId:null;
+    $('#scene-real-preview-navigation').hidden=!(liveSessionId&&options.onCaptureInteract);
+    $('#scene-real-preview-refresh').hidden=!(liveSessionId&&options.onCaptureInteract);
+    if(!/^data:image\/jpeg;base64,/.test(output.image))
+      throw Error('Beklenmeyen gerçek web görüntüsü formatı.');
+    photo.src=output.image;
+    photo.width=output.width;photo.height=output.height;
+    photo.hidden=false;message.hidden=true;
+    const spill=output.overflow
+      ?Math.round(Math.max(...Object.values(output.overflow)))
+      :0;
+    meta.textContent=output.width+'×'+output.height+' · '+output.object+
+      ' · '+output.phase+(output.stage?' / '+output.stage:'')+
+      (spill>0?' · '+spill+' px kadraj taşması':' · Kadraj içinde')+
+      (output.temporarilyRevealed?' · Gizli nesne yalnız görüntü için gösterildi':'')+
+      (output.timingSlowed?' · Geçiş yalnız yakalamada yavaşlatıldı':'')+
+      (output.draftAssetsApplied?' · '+output.draftAssetLoads?.length+'/'+output.draftAssetsApplied+' taslak görsel kullanıldı':'')+
+      ' · SENTETİK İÇERİK · '+output.note;
+  }catch(reason){
+    if(sequence===captureSequence&&dialog.isConnected){
+      message.hidden=false;
+      message.textContent='Gerçek web görüntüsü alınamadı: '+(reason?.message??String(reason));
+    }
+  }finally{
+    captureRunning=false;renderFocusToolbar();
+  }
+}
+function closeRealSession(){
+  const id=liveSessionId;liveSessionId=null;
+  if(id)void Promise.resolve(options.onCaptureClose?.({sessionId:id})).catch(()=>{});
+  $('#scene-real-preview-navigation').hidden=true;
+  $('#scene-real-preview-refresh').hidden=true;
+}
+async function interactRealWeb(action){
+  if(!liveSessionId||captureRunning||!options.onCaptureInteract)return;
+  const token=liveSessionId,dialog=$('#scene-real-preview-dialog');
+  const message=$('#scene-real-preview-message'),photo=$('#scene-real-preview-image');
+  captureRunning=true;message.hidden=false;
+  message.textContent='Gerçek web etkileşimi işleniyor…';
+  renderFocusToolbar();
+  try{
+    const next=await options.onCaptureInteract({sessionId:token,...action});
+    if(liveSessionId!==token||!dialog.open)return;
+    if(!/^data:image\/jpeg;base64,/.test(next.image))
+      throw Error('Gerçek web oturumundan geçersiz kare alındı.');
+    photo.src=next.image;
+    photo.width=next.width;photo.height=next.height;
+    message.hidden=true;
+    const text=$('#scene-real-preview-meta').textContent;
+    const info=' · Web durumu: '+next.phase+(next.stage?' / '+next.stage:'');
+    const start=text.indexOf(' · Web durumu:');
+    $('#scene-real-preview-meta').textContent=(start>=0?text.slice(0,start):text)+info;
+  }catch(reason){
+    if(liveSessionId===token){
+      message.hidden=false;
+      message.textContent='Oturum yenilenemedi: '+(reason?.message??String(reason));
+      closeRealSession();
+    }
+  }finally{captureRunning=false;renderFocusToolbar();}
+}
+$('#focus-real-capture')?.addEventListener('click',()=>void captureRealWeb());
+const realDialog=$('#scene-real-preview-dialog');
+$('#scene-real-preview-close')?.addEventListener('click',()=>realDialog?.close());
+$('#scene-real-preview-refresh')?.addEventListener('click',()=>void interactRealWeb({action:'refresh'}));
+$('#scene-real-preview-image')?.addEventListener('click',event=>{
+  if(!liveSessionId)return;
+  const photo=event.currentTarget,rect=photo.getBoundingClientRect();
+  if(!(rect.width>0&&rect.height>0))return;
+  const x=Math.floor((event.clientX-rect.left)/rect.width*photo.width);
+  const y=Math.floor((event.clientY-rect.top)/rect.height*photo.height);
+  void interactRealWeb({action:'click',x,y});
+});
+realDialog?.addEventListener('keydown',event=>{
+  if(!liveSessionId||!['Escape','ArrowLeft','ArrowRight','PageUp','PageDown'].includes(event.key))return;
+  event.preventDefault();event.stopPropagation();
+  void interactRealWeb({action:'key',key:event.key});
+});
+realDialog?.addEventListener('close',()=>{
+  captureSequence++;
+  closeRealSession();
+});
 $('#zoom-out').onclick=()=>setZoom(round(zoom-.25));
 $('#zoom-in').onclick=()=>setZoom(round(zoom+.25));
 $('#zoom-fit').onclick=()=>setZoom(1);
@@ -1927,6 +2278,9 @@ return {
     return {scene:structuredClone(scene),assets,presentation:structuredClone(presentation)};
   },
   destroy(){
+    captureSequence++;
+    closeRealSession();
+    $('#scene-real-preview-dialog')?.close();
     previewHandle?.destroy();previewHandle=null;
     if(previewFrame)cancelAnimationFrame(previewFrame);
     window.removeEventListener('pointermove',moveDrag);window.removeEventListener('pointerup',endDrag);window.removeEventListener('pointercancel',endDrag);

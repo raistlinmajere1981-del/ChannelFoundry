@@ -321,3 +321,105 @@ body.embedded .scene-workspace{padding:8px;gap:8px}
 .scene-switch-track[data-language="en"] i{left:49%}
 .scene-control-quick-actions{display:flex;gap:6px;margin:8px 0}
 .scene-control-quick-actions button{flex:1;min-width:0}
+
+/* Local visibility controls: distinct from the publishable room-visibility field. */
+.scene-editor-root .scene-tree-eye {flex:none;min-width:23px;min-height:23px;padding:1px 3px;font-size:14px;line-height:1;border:1px solid #435654;border-radius:5px;background:#233531;color:#d1ebdc;}
+.scene-editor-root .scene-tree-eye[aria-pressed="false"] {background:#25272a;color:#839291;border-color:#42494d;}
+.scene-editor-root .scene-tree-object.is-preview-hidden .scene-tree-select {opacity:.55;text-decoration:line-through;text-decoration-thickness:1px;}
+.scene-editor-root .scene-tree-eye:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+.scene-editor-root .scene-room-figure--book {touch-action:none;}
+.scene-editor-root .visual-edit-mode .scene-room-figure--book {cursor:grab;}
+.scene-editor-root .visual-edit-mode .scene-room-figure--book:active {cursor:grabbing;}
+
+/* Physical art is alpha composited. Generic button hover/pressed styles must not
+   paint a rectangle behind its transparent source, even when hovered/focused. */
+.scene-editor-root .scene-room-figure:hover:not(:disabled),
+.scene-editor-root .scene-room-figure:active:not(:disabled),
+.scene-editor-root .scene-room-figure:focus:not(:disabled) {
+  background:transparent; border-color:transparent; box-shadow:none;
+}
+
+/* Geometric focus-state preview, deliberately independent of the actual React
+   book/camera/drawing runtimes: no content, playback or second animation clock. */
+.scene-editor-root .scene-focus-toolbar {flex:none;display:flex;align-items:center;min-height:30px;gap:6px;padding:2px 4px;border:1px solid #384441;border-radius:5px;background:#1c2426;overflow:hidden;}
+.scene-editor-root .scene-focus-toolbar[hidden] {display:none;}
+.scene-editor-root .scene-focus-phases {display:flex;align-items:center;gap:3px;flex:none;}
+.scene-editor-root .scene-focus-phases button {min-height:25px;padding:3px 7px;font-size:10px;font-weight:600;}
+.scene-editor-root .scene-focus-phases button[aria-pressed="true"] {color:#e0f6ea;border-color:#638f7d;background:#2d473c;}
+.scene-editor-root #focus-preview-device {min-height:25px;max-width:118px;width:auto;padding:2px 5px;font-size:10px;flex:none;}
+.scene-editor-root #focus-overflow {font-size:10px;color:#a3b5ad;margin-left:auto;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.scene-editor-root #focus-overflow[data-overflow="true"] {color:#e6ae76;}
+.scene-editor-root .scene-focus-overlay {position:absolute;inset:0;z-index:32;display:grid;place-items:center;background:linear-gradient(155deg,#090c0de8,#1e1511e8);pointer-events:none;isolation:isolate;overflow:hidden;}
+.scene-editor-root .scene-focus-overlay[hidden] {display:none;}
+.scene-editor-root .scene-focus-watermark {position:absolute;bottom:4px;right:9px;z-index:5;font-size:9px;letter-spacing:.14em;color:#d4b98cae;}
+.scene-editor-root .scene-focus-object {position:relative;transform:translate(var(--near-x,0),var(--near-y,0)) scale(var(--near-scale,1));transform-origin:center;filter:drop-shadow(0 8px 13px #0009);}
+.scene-editor-root .scene-focus-book {display:flex;align-items:center;justify-content:center;width:auto;height:79%;aspect-ratio:calc(var(--leaf-ratio,.82) * 2);max-width:90%;max-height:95%;perspective:900px;filter:drop-shadow(1px 5px 12px #000b);}
+.scene-editor-root .scene-focus-leaf {flex:1;min-width:0;position:relative;height:100%;overflow:hidden;border:2px solid #6c462a;background:#bca078;box-shadow:inset 0 0 25px #76503566,0 var(--book-edge,5px) 0 #352216,0 4px 2px #1b1107;}
+.scene-editor-root .scene-focus-leaf--left {border-radius:14px 3px 3px 14px;transform:perspective(800px) rotateY(-6deg);transform-origin:right;}
+.scene-editor-root .scene-focus-leaf--right {border-radius:3px 14px 14px 3px;transform:perspective(800px) rotateY(6deg);transform-origin:left;}
+.scene-editor-root .scene-focus-leaf img {position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.86;filter:brightness(1.08) saturate(.74);}
+.scene-editor-root .scene-focus-leaf-inner {position:absolute;inset:var(--book-pad-y,7%) var(--book-pad-x,8%);border:1px dashed #6e4d3290;display:grid;place-items:center;}
+.scene-editor-root .scene-focus-leaf-caption {font:10px Georgia,serif;letter-spacing:.1em;color:#6c4c31;opacity:.8;}
+.scene-editor-root .scene-focus-spine {position:absolute;left:50%;top:1%;height:98%;width:5px;background:linear-gradient(90deg,#36210c,#a88455,#39220d);transform:translateX(-50%);z-index:2;}
+.scene-editor-root .scene-focus-ribbon {position:absolute;left:calc(49% + var(--ribbon-offset,0px));top:0;width:var(--ribbon-width,4px);height:34px;background:#57765b;box-shadow:0 0 5px #0005;z-index:3;}
+.scene-editor-root .scene-focus-index {position:absolute;right:-6px;top:var(--index-top,21%);width:12px;height:18%;border-radius:0 5px 5px 0;background:repeating-linear-gradient(#64432a 0 12px,#9f713d 12px 22px);}
+.scene-editor-root .scene-focus-overlay[data-kind="research-journal"][data-device="mobile"] .scene-focus-book,
+.scene-editor-root .scene-focus-overlay[data-kind="community-journal"][data-device="mobile"] .scene-focus-book {width:auto;height:82%;aspect-ratio:var(--leaf-ratio,.58);}
+.scene-editor-root .scene-focus-overlay[data-device="mobile"] .scene-focus-leaf--left {display:none;}
+.scene-editor-root .scene-focus-overlay[data-device="mobile"] .scene-focus-spine {left:0;}
+.scene-editor-root .scene-focus-overlay[data-device="mobile"] .scene-focus-leaf--right {border-radius:9px;transform:none;}
+.scene-editor-root .scene-focus-camera {height:77%;width:79%;max-width:360px;}
+.scene-editor-root .scene-focus-camera-body {position:absolute;left:0;top:12%;width:100%;height:90%;object-fit:contain;filter:brightness(.78);}
+.scene-editor-root .scene-focus-lcd {position:absolute;max-height:92%;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;background:linear-gradient(135deg,#29342b,#0c1110);border:5px ridge #58594a;border-radius:7px;box-shadow:0 6px 20px #000c;transform-origin:left center;}
+.scene-editor-root .scene-focus-lcd-label {font:9px Georgia,serif;color:#ac9d78;text-align:center;letter-spacing:.1em;}
+.scene-editor-root .scene-focus-lcd-layout {flex:1;min-height:0;display:flex;gap:3px;padding:3px;border:1px solid #506054;}
+.scene-editor-root .scene-focus-lcd-list {width:var(--archive-pct,30%);border-right:1px solid #526454;background:#141a16;display:grid;place-items:center;text-align:center;color:#a8b0a1;font-size:9px;}
+.scene-editor-root .scene-focus-lcd-player {flex:1;min-height:var(--player-min-height,20%);display:grid;place-items:center;text-align:center;background:#050a08;color:#adb4aa;font-size:10px;}
+.scene-editor-root .scene-focus-vefk {height:90%;aspect-ratio:2/3;max-width:85%;}
+.scene-editor-root .scene-focus-vefk img {position:absolute;display:block;pointer-events:none;object-fit:fill;}
+.scene-editor-root .scene-focus-paper {z-index:0;filter:brightness(.89);}
+.scene-editor-root .scene-focus-chassis {z-index:1;filter:drop-shadow(2px 4px 4px #000b);}
+.scene-editor-root .scene-focus-quill {z-index:2;transform-origin:45% 96%;filter:drop-shadow(2px 2px 2px #000a);}
+.scene-editor-root .scene-focus-inkwell {z-index:3;filter:drop-shadow(2px 2px 2px #000a);}
+@media(max-width:850px) {
+  .scene-editor-root .scene-focus-toolbar {flex-wrap:wrap;}
+  .scene-editor-root .scene-focus-phases button {padding:3px 4px;}
+  .scene-editor-root #focus-overflow {display:none;}
+}
+
+/* One-shot actual web capture (browser is started only on explicit request).
+   Dialog is the only actual-site screenshot surface; normal canvas stays fast. */
+.scene-editor-root #focus-real-capture {flex:none;min-height:25px;padding:3px 8px;font-size:10px;background:#2a3f39;border-color:#678f7e;color:#e0f1e7;}
+.scene-editor-root #focus-real-capture:disabled {opacity:.4;}
+.scene-editor-root .scene-real-preview-dialog {
+  position:fixed;inset:0;margin:auto;box-sizing:border-box;
+  width:min(95vw,1150px);max-width:1150px;max-height:94vh;
+  padding:0;border:1px solid #7a755f;border-radius:12px;
+  box-shadow:0 20px 70px #000b;background:#171c1e;color:#ded8c9;
+  font-family:inherit;z-index:999;
+}
+.scene-editor-root .scene-real-preview-dialog::backdrop {background:#020405c9;backdrop-filter:blur(4px);}
+.scene-editor-root .scene-real-preview-header {display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;background:#26312c;border-bottom:1px solid #4b6054;font-size:13px;}
+.scene-editor-root .scene-real-preview-header button {min-height:28px;font-size:11px;padding:4px 9px;}
+.scene-editor-root .scene-real-preview-content {display:grid;place-items:center;min-height:190px;max-height:calc(94vh - 112px);overflow:auto;background:#080a0b;}
+.scene-editor-root .scene-real-preview-content img {display:block;max-width:100%;max-height:calc(94vh - 128px);width:auto;height:auto;object-fit:contain;}
+.scene-editor-root .scene-real-preview-content img[hidden] {display:none;}
+.scene-editor-root .scene-real-preview-content p {font-size:12px;color:#d1c1a2;padding:14px;text-align:center;line-height:1.6;}
+.scene-editor-root .scene-real-preview-meta {box-sizing:border-box;margin:0;padding:9px 12px;font-size:11px;line-height:1.35;color:#d0bd9b;overflow-wrap:anywhere;border-top:1px solid #404b48;}
+@media(max-width:850px){
+  .scene-editor-root .scene-real-preview-dialog {width:98vw;max-height:98vh;}
+  .scene-editor-root .scene-real-preview-content {max-height:calc(98vh - 105px);}
+  .scene-editor-root .scene-real-preview-content img {max-height:calc(98vh - 125px);}
+}
+
+/* Disposable Chromium session supports click/keyboard; no embedded browser. */
+.scene-editor-root #scene-real-preview-navigation {font-size:10px;color:#d8c7a4;margin-left:auto;white-space:nowrap;}
+.scene-editor-root #scene-real-preview-refresh {min-height:27px;padding:3px 8px;font-size:10px;}
+.scene-editor-root .scene-real-preview-content img {cursor:crosshair;}
+.scene-editor-root .scene-real-preview-content p:not([hidden]) {
+  position:absolute;bottom:43px;max-width:85%;background:#101919e8;
+  padding:7px 12px;border:1px solid #4e6559;border-radius:6px;z-index:1;
+}
+@media(max-width:850px){
+  .scene-editor-root #scene-real-preview-navigation {white-space:normal;line-height:1.2;}
+}

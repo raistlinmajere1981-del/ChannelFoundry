@@ -2,14 +2,18 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {defaultScenePresentation,validateScenePresentation,focusProfile,FOCUS_OBJECT_IDS} from '../src/model/scene-presentation.mjs';
-test('four-object presentation mirrors reviewed web defaults',()=>{
+test('four-object presentation remains valid after live Studio calibration',()=>{
  const current=JSON.parse(readFileSync(new URL('../../../channels/birdesengor/web/src/scene/data/scene-presentation.v1.json',import.meta.url),'utf8'));
- const expected=defaultScenePresentation();
- assert.deepEqual(current,expected);
+ const defaults=defaultScenePresentation();
  assert.equal(validateScenePresentation(current),current);
- assert.equal(FOCUS_OBJECT_IDS.length,4);
- assert.equal(focusProfile(current,'camera',true).nearZoom,1);
- assert.equal(focusProfile(current,'research-journal',false).roomShiftX,0);
+ assert.equal(validateScenePresentation(defaults),defaults);
+ assert.deepEqual(Object.keys(current.objects).sort(),[...FOCUS_OBJECT_IDS].sort());
+ for(const id of FOCUS_OBJECT_IDS)assert.equal(typeof current.objects[id].roomVisible,'boolean');
+ for(const id of ['research-journal','community-journal']){
+   assert.deepEqual(Object.keys(current.objects[id].closedBook).sort(),['x','y','width','angle','surfaceScaleY'].sort());
+ }
+ assert.equal(typeof focusProfile(current,'camera',true).nearZoom,'number');
+ assert.equal(typeof focusProfile(current,'research-journal',false).roomShiftX,'number');
 });
 test('presentation rejects unknown ids, malformed devices, unknown controls and unsafe durations',()=>{
  const source=defaultScenePresentation();
@@ -42,6 +46,16 @@ test('presentation rejects unknown ids, malformed devices, unknown controls and 
   value=>{value.objects.camera.physical.desktop.videoMinHeight=NaN;},
   value=>{value.objects.camera.physical.mobile.inject=true;},
   value=>{value.objects['vefk-stand'].physical.desktop.catalogY=-200;},
+  value=>{value.objects.camera.physical.desktop.hingeAngle=45;},
+  value=>{value.objects['vefk-stand'].physical.mobile.quillDockX=99;},
+  value=>{value.objects['vefk-stand'].physical.desktop.quillRestAngle=-8;},
+  value=>{value.objects['research-journal'].roomVisible='false';},
+  value=>{value.objects.camera.roomVisible=0;},
+  value=>{value.objects['research-journal'].closedBook.x=-1;},
+  value=>{value.objects['research-journal'].closedBook.width=.9;},
+  value=>{value.objects['community-journal'].closedBook.angle=90;},
+  value=>{value.objects['community-journal'].closedBook.injected=true;},
+  value=>{value.objects.camera.closedBook={};},
  ];
  for(const change of changes){
   const invalid=structuredClone(source);change(invalid);

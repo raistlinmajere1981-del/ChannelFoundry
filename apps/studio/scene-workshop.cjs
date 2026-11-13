@@ -222,6 +222,30 @@ async function registerSceneWorkshopIpc(ipcMain, app) {
   ipcMain.handle("studio:scene-load",(_event,input)=>getService(input).load());
   ipcMain.handle("studio:scene-save",(_event,input)=>getService(input).save(input??{}));
   ipcMain.handle("studio:scene-prepare",(_event,input)=>getService(input).prepare());
+  // A disposable loopback browser renders real site components. This operation
+  // is read-only and serialized with save/stage/deploy on the same scene.
+  ipcMain.handle("studio:scene-runtime-preview",async(_event,input)=>{
+    if(input?.projectId!=='birdesengor')
+      throw Error('Gerçek web önizlemesi yalnız BirDeSenGör sitesi için kullanılabilir.');
+    const instance=getService(input);
+    return instance.locked(async()=>{
+      const {captureSceneRuntime}=await import('./scene-runtime-preview.mjs');
+      return captureSceneRuntime(input,{site:instance.site});
+    });
+  });
+  ipcMain.handle("studio:scene-runtime-interact",async(_event,input)=>{
+    if(input?.projectId!=='birdesengor')throw Error('Geçersiz sahne projesi.');
+    const instance=getService(input);
+    return instance.locked(async()=>{
+      const {interactSceneRuntime}=await import('./scene-runtime-preview.mjs');
+      return interactSceneRuntime(input);
+    });
+  });
+  ipcMain.handle("studio:scene-runtime-close",async(_event,input)=>{
+    if(input?.projectId!=='birdesengor')throw Error('Geçersiz sahne projesi.');
+    const {closeSceneRuntimeSession}=await import('./scene-runtime-preview.mjs');
+    return closeSceneRuntimeSession(input);
+  });
   function progressTo(sender,operation) {
     return message=>{if(!sender.isDestroyed())sender.send('studio:scene-progress',{operation,message});};
   }

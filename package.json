@@ -57,6 +57,7 @@
     "verify:effect-engine": "node --test packages/effect-engine/tests/*.test.mjs",
     "verify:scene-workshop": "node --test apps/studio/scene-workshop.test.cjs apps/studio/tests/scene-editor-ux.test.mjs apps/studio/tests/scene-background.test.mjs apps/studio/tests/scene-language-switch.test.mjs apps/studio/tests/scene-local-project.test.mjs apps/studio/tests/scene-project-routing.test.mjs",
     "verify:scene-workshop-ui": "node apps/studio/tests/scene-v3-integrated.browser.mjs && node apps/studio/tests/scene-background.browser.mjs && node apps/studio/tests/scene-background-web.browser.mjs && node apps/studio/tests/scene-language-switch.browser.mjs && node apps/studio/tests/scene-local-project.browser.mjs",
+    "verify:scene-runtime-preview": "node --test --test-concurrency=1 apps/studio/tests/scene-runtime-preview.test.mjs apps/studio/tests/scene-runtime-draft.test.mjs apps/studio/tests/scene-runtime-interaction.test.mjs && node apps/studio/tests/scene-real-preview.browser.mjs",
     "verify:records-workspace": "node apps/studio/tests/records-v3.browser.mjs",
     "verify:settings-workspace": "node --test apps/studio/seo-batch.test.cjs && node apps/studio/verify-site-seo.cjs && node apps/studio/tests/settings-v3.browser.mjs",
     "verify:visual-image-pipeline": "node --test apps/studio/visual-image-optimizer.test.cjs && node apps/studio/verify-visual-profiles.cjs && npm run verify:publication-v2",

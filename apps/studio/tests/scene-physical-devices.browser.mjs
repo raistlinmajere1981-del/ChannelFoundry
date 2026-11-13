@@ -41,12 +41,14 @@ try{
  await change('#physical-bezelPaddingX',29);
  await page.locator('.scene-book-controls > summary').filter({hasText:'Arşiv ve oynatıcı'}).click();
  await change('#physical-archiveWidth',355);
+ await change('#physical-hingeAngle',7);
  let draft=await get();
  let camera=draft.presentation.objects.camera.physical;
  assert.equal(camera.desktop.offsetX,8);
  assert.equal(camera.desktop.widthScale,1.03);
  assert.equal(camera.desktop.bezelPaddingX,29);
  assert.equal(camera.desktop.archiveWidth,355);
+ assert.equal(camera.desktop.hingeAngle,7);
  await page.locator('#presentation-device').selectOption('mobile');
  assert.equal(await page.locator('#physical-widthScale').inputValue(),'100');
  await change('#physical-offsetY',-10);
@@ -70,6 +72,10 @@ try{
  await change('#physical-paperScale',104);
  await page.locator('.scene-book-controls > summary').filter({hasText:'Donanım yerleşimi'}).click();
  await change('#physical-inkwellX',-6);
+ await page.locator('.scene-book-controls > summary').filter({hasText:'Divit dinlenme konumu'}).click();
+ await change('#physical-quillDockX',9);
+ await change('#physical-quillDockY',-5);
+ await change('#physical-quillRestAngle',19);
  await change('#physical-topRailY',9);
  await change('#physical-rulerX',11);
  await page.locator('.scene-book-controls > summary').filter({hasText:'Katalog kapağı'}).click();
@@ -78,6 +84,9 @@ try{
  assert.equal(vefk.mobile.paperX,12);
  assert.equal(vefk.mobile.paperScale,1.04);
  assert.equal(vefk.mobile.inkwellX,-6);
+ assert.equal(vefk.mobile.quillDockX,9);
+ assert.equal(vefk.mobile.quillDockY,-5);
+ assert.equal(vefk.mobile.quillRestAngle,19);
  assert.equal(vefk.mobile.topRailY,9);
  assert.equal(vefk.mobile.rulerX,11);
  assert.equal(vefk.mobile.catalogX,14);

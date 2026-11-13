@@ -38,6 +38,19 @@ export const sceneTemplate = String.raw`
           <button type="button" id="play" aria-pressed="true">Ⅱ Duraklat</button><button type="button" id="scene-toggle-inspector" aria-label="Özellik panelini göster veya gizle">⚙</button>
         </div>
       </div>
+      <div id="scene-focus-toolbar" class="scene-focus-toolbar" hidden aria-label="Odak nesnesi geometrik önizleme">
+        <div class="scene-focus-phases" role="group" aria-label="Nesne durumu">
+          <button type="button" data-focus-state="room" aria-pressed="true">Oda</button>
+          <button type="button" data-focus-state="approach" aria-pressed="false">Yaklaşma</button>
+          <button type="button" data-focus-state="open" aria-pressed="false">Açık</button>
+          <button type="button" data-focus-state="return" aria-pressed="false">Dönüş</button>
+        </div>
+        <select id="focus-preview-device" aria-label="Nesne önizleme cihazı">
+          <option value="desktop">Masaüstü</option><option value="mobile">Mobil</option>
+        </select>
+        <button type="button" id="focus-real-capture" title="Gerçek web bileşeniyle yalıtılmış, salt okunur görüntü al">Gerçek web</button>
+        <span id="focus-overflow" role="status">2B geometrik önizleme</span>
+      </div>
       <div class="scene-stage-well">
        <div id="scene-screen-preview" class="scene-screen-preview" data-simulated="false">
        <div id="scene-viewport" class="scene-viewport hide-object-areas" aria-label="Normalleştirilmiş sahne görünümü">
@@ -46,6 +59,7 @@ export const sceneTemplate = String.raw`
         <div id="scene-controls" class="scene-controls" aria-label="Sahne arayüz kontrolleri"></div>
         <div id="scene-objects" class="scene-objects"></div>
         <div id="scene-markers" class="scene-markers"></div>
+        <div id="scene-focus-overlay" class="scene-focus-overlay" hidden aria-label="Seçili ana nesnenin temsili yakın görünümü"></div>
        </div>
        </div>
       </div>
@@ -99,5 +113,18 @@ export const sceneTemplate = String.raw`
     </div>
   </aside>
   <div id="scene-context-menu" class="scene-context-menu" role="menu" hidden></div>
+  <dialog id="scene-real-preview-dialog" class="scene-real-preview-dialog" aria-label="Gerçek web görünümü">
+    <div class="scene-real-preview-header">
+      <strong>Gerçek web · Salt okunur inceleme</strong>
+      <span id="scene-real-preview-navigation" hidden>Görsele tıkla · ← → sayfa · Esc odada</span>
+      <button type="button" id="scene-real-preview-refresh" hidden>Kareyi yenile</button>
+      <button type="button" id="scene-real-preview-close" aria-label="Gerçek web görünümünü kapat">Kapat</button>
+    </div>
+    <div class="scene-real-preview-content">
+      <img id="scene-real-preview-image" alt="Gerçek web uygulamasından alınan seçili nesne görüntüsü" hidden>
+      <p id="scene-real-preview-message" role="status" aria-live="polite">Gerçek web görüntüsü hazırlanıyor…</p>
+    </div>
+    <p id="scene-real-preview-meta" class="scene-real-preview-meta">İzole tarayıcı; sentetik içerik. Canlı siteye gönderilmez.</p>
+  </dialog>
   </main>
 `;

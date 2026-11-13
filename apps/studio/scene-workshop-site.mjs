@@ -7,7 +7,7 @@ import {importProject,validateProject,exportProject} from '../../packages/effect
 import {compileObjectScene} from '../../packages/effect-engine/src/runtime/object-compile.mjs';
 import {validateAssetOverrides,webpDimensions,ROOM_BACKGROUND_ASSET} from './scene-asset-overrides.mjs';
 import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from './scene-physical-art.mjs';
-import {CLOSED_BOOKS} from '../../channels/birdesengor/web/src/book/closedBookLayout.js';
+import {closedBooksFor} from '../../channels/birdesengor/web/src/book/closedBookLayout.js';
 import {validateScenePresentation} from '../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export const BIRDESENGOR_SITE=resolve(dirname(fileURLToPath(import.meta.url)),'../../channels/birdesengor/web');
@@ -219,7 +219,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   * for the two physical devices. Never copy these positions into the editor.
   */
  function roomObjects(state){
-  const books=CLOSED_BOOKS.map(book=>{
+  const books=closedBooksFor(state.presentation).map(book=>{
     if(!state.manifest.objects.some(o=>o.id===book.id))
       throw Error('Önizleme kitabı manifestte eksik: '+book.id);
     if(!PHYSICAL_ART_SLOTS[book.id]?.some(slot=>slot.path===book.src))

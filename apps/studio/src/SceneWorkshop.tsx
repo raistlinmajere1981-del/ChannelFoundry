@@ -85,13 +85,30 @@ export default function SceneWorkshop() {
     let cancelled = false;
     void import("./scene-workspace/scene-editor.mjs").then(({ mountSceneEditor }) => {
       if (cancelled || !host.isConnected) return;
-      editor.current = mountSceneEditor(host, { onDirty: () => {
-        revision.current++;
-        sessionStorage.setItem(unsavedKey, "1");
-        setDirty(true);
-        setPrepared(false);
-        setApproval(null);
-      } });
+      editor.current = mountSceneEditor(host, {
+        onCapture: async (request) => {
+          if (!bridge?.sceneWorkshopCapture || currentProject.current !== "birdesengor")
+            throw new Error("Gerçek web görüntüsü yalnız BirDeSenGör'de kullanılabilir.");
+          return bridge.sceneWorkshopCapture({
+            ...request, keepOpen:true, projectId:currentProject.current,
+            expectedSourceHash:sourceHash.current,
+          });
+        },
+        onCaptureInteract: input => {
+          if(!bridge?.sceneWorkshopInteract)throw Error("Etkileşimli web önizleme bağlantısı bulunamadı.");
+          return bridge.sceneWorkshopInteract({...input,projectId:currentProject.current});
+        },
+        onCaptureClose: input =>
+          bridge?.sceneWorkshopCaptureClose?.({...input,projectId:currentProject.current})
+          ?? Promise.resolve({ok:true}),
+        onDirty: () => {
+          revision.current++;
+          sessionStorage.setItem(unsavedKey, "1");
+          setDirty(true);
+          setPrepared(false);
+          setApproval(null);
+        },
+      });
       void load();
     }).catch(reason => { if (!cancelled) setError(textError(reason)); });
     return () => {

@@ -417,6 +417,22 @@ interface Window {
     sceneWorkshopLoad(input?:{projectId:string}): Promise<StudioSceneWorkshopLoad>;
     sceneWorkshopSave(input: { projectId?:string; scene: StudioSceneDocument; assets?: {path:string;dataUrl:string}[]; presentation?:Record<string,unknown>; expectedSourceHash: string }): Promise<StudioSceneWorkshopSave>;
     sceneWorkshopPrepare(input?:{projectId:string}): Promise<StudioSceneWorkshopPrepare>;
+    sceneWorkshopCapture(input: {projectId:string; expectedSourceHash:string;
+      scene: StudioSceneDocument; presentation:Record<string,unknown>;
+      assets:{path:string;dataUrl:string}[];objectId:string;
+      keepOpen?:boolean;
+      stage:"room"|"approach"|"open"|"return";device:"desktop"|"mobile"}):
+      Promise<{sessionId:string|null;image:string;width:number;height:number;phase:string;stage:string|null;
+        object:string;overflow:{left:number;right:number;top:number;bottom:number}|null;
+        visible:boolean;syntheticContent:boolean;temporarilyRevealed:boolean;timingSlowed:boolean;
+        draftEffectsApplied:boolean;draftAssetsApplied:number;draftAssetLoads:string[];
+        candleButtonCount:number;customArtworkCount:number;
+        targetBounds:{x:number;y:number;width:number;height:number}|null;
+        sourceHash:string;note:string}>;
+    sceneWorkshopInteract(input:{projectId:string;sessionId:string;action:"click"|"key"|"refresh";
+      x?:number;y?:number;key?:string}):Promise<{image:string;width:number;height:number;
+      sessionId:string;phase:string;stage:string|null;activeObject:string}>;
+    sceneWorkshopCaptureClose(input:{projectId:string;sessionId:string}):Promise<{ok:boolean}>;
     sceneWorkshopPreflight(input?:{projectId:string}): Promise<StudioSceneWorkshopPreflight>;
     sceneWorkshopDeploy(input: { projectId?:string;token: string }): Promise<{ ok: true; message: string }>;
     sceneWorkshopInvalidate(input?:{projectId:string}): Promise<{ ok: true }>;

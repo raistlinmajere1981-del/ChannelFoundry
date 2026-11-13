@@ -10,6 +10,15 @@ export const FOCUS_OBJECT_IDS=Object.freeze([
 ]);
 export const BOOK_OBJECT_IDS=Object.freeze(['research-journal','community-journal']);
 export const PHYSICAL_DEVICE_IDS=Object.freeze(['camera','vefk-stand']);
+const BOOK_PLACEMENT_LIMITS=Object.freeze({
+  x:[.08,.92],y:[.18,.95],width:[.1,.5],angle:[-30,30],
+  surfaceScaleY:[.7,1.25],
+});
+export function defaultClosedBookPlacement(id){
+  if(id==='research-journal')return {x:.572,y:.795,width:.272,angle:2,surfaceScaleY:.975};
+  if(id==='community-journal')return {x:.329,y:.815,width:.218,angle:-4,surfaceScaleY:.975};
+  throw Error('Kapalı kitap yerleşimi bulunamadı.');
+}
 const DEVICE_FIELDS=Object.freeze(['roomZoom','roomShiftX','roomShiftY','nearZoom','nearShiftX','nearShiftY']);
 const VALUE_LIMITS=Object.freeze({
   roomZoom:[.75,1.6],nearZoom:[.7,1.4],
@@ -36,7 +45,7 @@ const CAMERA_LIMITS=Object.freeze({
   widthScale:[.94,1.06],heightScale:[.94,1.06],
   bezelPaddingX:[8,40],bezelPaddingY:[12,40],
   contentPadding:[7,22],archiveWidth:[250,420],
-  videoMinHeight:[180,275],
+  videoMinHeight:[180,275],hingeAngle:[-12,12],
 });
 const WORKSHOP_LIMITS=Object.freeze({
   paperX:[-28,28],paperY:[-28,28],paperScale:[.92,1.08],
@@ -44,17 +53,18 @@ const WORKSHOP_LIMITS=Object.freeze({
   catalogX:[-24,24],catalogY:[-24,24],
   topRailX:[-22,22],topRailY:[-18,18],
   rulerX:[-22,22],rulerY:[-18,18],
+  quillDockX:[-24,24],quillDockY:[-24,24],quillRestAngle:[0,30],
 });
 export function defaultPhysicalPresentation(id){
   if(id==='camera')return {
     desktop:{offsetX:0,offsetY:0,widthScale:1,heightScale:1,
-      bezelPaddingX:24,bezelPaddingY:30,contentPadding:14,archiveWidth:330,videoMinHeight:200},
+      bezelPaddingX:24,bezelPaddingY:30,contentPadding:14,archiveWidth:330,videoMinHeight:200,hingeAngle:0},
     mobile:{offsetX:0,offsetY:0,widthScale:1,heightScale:1,
-      bezelPaddingX:12,bezelPaddingY:22,contentPadding:11,archiveWidth:330,videoMinHeight:226},
+      bezelPaddingX:12,bezelPaddingY:22,contentPadding:11,archiveWidth:330,videoMinHeight:226,hingeAngle:0},
   };
   if(id==='vefk-stand')return {
-    desktop:Object.fromEntries(Object.keys(WORKSHOP_LIMITS).map(key=>[key,key==='paperScale'?1:0])),
-    mobile:Object.fromEntries(Object.keys(WORKSHOP_LIMITS).map(key=>[key,key==='paperScale'?1:0])),
+    desktop:Object.fromEntries(Object.keys(WORKSHOP_LIMITS).map(key=>[key,key==='paperScale'?1:key==='quillRestAngle'?14:0])),
+    mobile:Object.fromEntries(Object.keys(WORKSHOP_LIMITS).map(key=>[key,key==='paperScale'?1:key==='quillRestAngle'?14:0])),
   };
   throw Error('Bu nesnede bağımsız donanım ayarı yok.');
 }
@@ -77,6 +87,8 @@ export function defaultScenePresentation(){
     version:1,sceneId:PRESENTATION_SCENE_ID,
     controls:{languageSwitch:defaultLanguageSwitchLayout()},
     objects:Object.fromEntries(FOCUS_OBJECT_IDS.map(id=>[id,{
+      roomVisible:true,
+      ...(BOOK_OBJECT_IDS.includes(id)?{closedBook:defaultClosedBookPlacement(id)}:{}),
       focusMs:620,returnMs:520,detailMs:
         id==='camera'?520:id==='vefk-stand'?650:880,
       desktop:neutralDevice(),mobile:neutralDevice(),
@@ -103,7 +115,18 @@ export function validateScenePresentation(input){
   exactKeys(input.objects,FOCUS_OBJECT_IDS,'Odak nesneleri');
   for(const id of FOCUS_OBJECT_IDS){
     const entry=input.objects[id],isBook=BOOK_OBJECT_IDS.includes(id),isPhysical=PHYSICAL_DEVICE_IDS.includes(id);
-    exactKeys(entry,['focusMs','returnMs','detailMs','desktop','mobile',...(isBook?['book']:[]),...(isPhysical?['physical']:[])],id);
+    // The two new presentation keys are optional for older authored V1 snapshots.
+    exactKeys(entry,['focusMs','returnMs','detailMs','desktop','mobile',
+      ...(entry.roomVisible!==undefined?['roomVisible']:[]),
+      ...(isBook?['book']:[]),...(isBook&&entry.closedBook!==undefined?['closedBook']:[]),
+      ...(isPhysical?['physical']:[])],id);
+    if(entry.roomVisible!==undefined&&typeof entry.roomVisible!=='boolean')
+      throw Error(id+'.roomVisible boolean olmalı.');
+    if(isBook&&entry.closedBook!==undefined){
+      exactKeys(entry.closedBook,Object.keys(BOOK_PLACEMENT_LIMITS),id+'.closedBook');
+      for(const [key,range] of Object.entries(BOOK_PLACEMENT_LIMITS))
+        within(entry.closedBook[key],range,id+'.closedBook.'+key);
+    }
     for(const key of ['focusMs','returnMs','detailMs']){
       within(entry[key],key==='detailMs'?[100,2000]:[300,1800],id+'.'+key,true);
     }
