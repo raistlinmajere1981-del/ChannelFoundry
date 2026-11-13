@@ -1,5 +1,7 @@
 import TranslationStatus from "./TranslationStatus";
 import SitePulse from "./SitePulse";
+import {useState} from "react";
+import WebsiteAnalytics from "./WebsiteAnalytics";
 import { readCommunitySummary } from "./community-summary-cache";
 
 type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Topluluk" | "Yayınlama" | "Ayarlar";
@@ -61,6 +63,7 @@ function buildRecent(workspaceNodes: StudioUniverseWorkspaceNode[]): RecentWork[
 }
 
 export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceNodes, workspaceStatus, publicationInfo, activeProjectId, onNavigate }: Props) {
+  const [showAnalytics,setShowAnalytics]=useState(false);
   const community = readCommunitySummary(activeProjectId);
   const editorialStats = aiStats as EditorialStats;
   const incremental = mergeStatus as MergeStatus | null;
@@ -127,9 +130,9 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
     <TranslationStatus onNavigate={onNavigate}/>
     <div className="ops-lower-grid">
       <section className="panel ops-tasks-panel"><div className="ops-section-head"><div><h3>Bekleyen işler</h3></div><span>{actions.length} durum</span></div><div className="ops-task-list">{actions.slice(0, 5).map((action, index) => <button key={`${action.label}:${index}`} className={action.tone} onClick={() => onNavigate(action.target)}><span className="ops-task-index">{String(index + 1).padStart(2, "0")}</span><div><strong>{action.label}</strong><small>{action.note}</small></div><b>{action.value ? formatNumber(action.value) : "✓"}</b><em>→</em></button>)}</div></section>
-      <SitePulse onNavigate={onNavigate}/>
+      <SitePulse onNavigate={onNavigate} onAnalytics={()=>setShowAnalytics(value=>!value)}/>
     </div>
-
+    {showAnalytics&&<section className="dashboard-analytics-report"><div className="ops-section-head"><h3>Ziyaretçi analitiği</h3><button onClick={()=>setShowAnalytics(false)}>Kapat</button></div><WebsiteAnalytics/></section>}
   </div>;
 }
 

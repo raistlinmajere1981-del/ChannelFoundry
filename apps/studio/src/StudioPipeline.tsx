@@ -4,9 +4,9 @@ import AiProviderSettings from "./AiProviderSettings";
 import CommunityAdminSettings from "./CommunityAdminSettings";
 import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
 import ChannelProjectsSettings from "./ChannelProjectsSettings";
-import WebsiteAnalytics from "./WebsiteAnalytics";
 import SeoSettings from "./SeoSettings";
 import "./site-insights.css";
+import {SettingsController,useSettingsManager,SETTINGS_BUSY_KEY,SETTINGS_DIRTY_KEY} from "./SettingsController";
 import StudioTopbar from "./StudioTopbar";
 import StudioIcon, { type StudioIconName } from "./StudioIcon";
 import { initialSidebarMode, saveSidebarMode, type StudioSidebarMode } from "./studio-shell";
@@ -152,6 +152,10 @@ export default function StudioPipeline() {
 
   const studioItems = useMemo<StudioItem[]>(() => items.map((item) => ({ ...item, relatedCount: connectedKeys(item.key, relations).size })), [items, relations]);
   const activateSection = (section: NavigableSection) => {
+    if(active === "Ayarlar" && section!==active){
+      if(sessionStorage.getItem(SETTINGS_BUSY_KEY)==='1'){window.alert('Ayarlar kaydedilirken sayfadan çıkılamaz.');return;}
+      if(sessionStorage.getItem(SETTINGS_DIRTY_KEY)==='1'&&!window.confirm('Ayarlar bölümünde kaydedilmemiş değişiklikler var. Çıkılsın mı?'))return;
+    }
     if (active === "Kayıt Dosyaları" && section !== active) {
       if (sessionStorage.getItem("channel-foundry:records-busy") === "1") { window.alert("Devam eden kayıt veya görsel işlemi tamamlanmadan çalışma alanından çıkılamaz."); return; }
       if (sessionStorage.getItem("channel-foundry:records-unsaved") === "1" && !window.confirm("Kayıt Dosyaları'nda kaydedilmemiş değişiklikler var. Çıkılsın mı?")) return;
@@ -174,6 +178,10 @@ export default function StudioPipeline() {
   };
   const selectProject = async (id: string) => {
     if (!bridge || projectBusy || !id || id === activeProjectId) return;
+    if(active === "Ayarlar"){
+      if(sessionStorage.getItem(SETTINGS_BUSY_KEY)==='1'){window.alert('Ayarlar kaydedilirken proje değiştirilemez.');return;}
+      if(sessionStorage.getItem(SETTINGS_DIRTY_KEY)==='1'&&!window.confirm('Kaydedilmemiş ayarlar var. Proje değiştirilsin mi?'))return;
+    }
     if (active === "Kayıt Dosyaları") {
       if (sessionStorage.getItem("channel-foundry:records-busy") === "1") { window.alert("Devam eden kayıt veya görsel işlemi tamamlanmadan proje değiştirilemez."); return; }
       if (sessionStorage.getItem("channel-foundry:records-unsaved") === "1" && !window.confirm("Kaydedilmemiş kayıt düzenlemeleri var. Proje değiştirilsin mi?")) return;
@@ -291,33 +299,45 @@ function SectionLoading({ section }: { section: Section }) {
   return <div className="pipeline-loading"><span>{section}</span><strong>Çalışma alanı hazırlanıyor…</strong></div>;
 }
 
-type SettingsTab = "project" | "ai" | "community" | "data" | "analytics" | "seo";
+type SettingsTab = "project" | "ai" | "community" | "data" | "seo";
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: "project", label: "Kanal ve yayın" },
   { id: "ai", label: "AI servisleri" },
   { id: "community", label: "Topluluk" },
   { id: "data", label: "Yerel veri" },
-  { id: "analytics", label: "Ziyaretçiler" },
   { id: "seo", label: "SEO" },
 ];
-function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
+export function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
+ return <SettingsController><SettingsWorkspace databaseInfo={databaseInfo} catalog={catalog} workspaceStatus={workspaceStatus}/></SettingsController>;
+}
+function SettingsWorkspace({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: StudioDatabaseInfo | null; catalog: StudioYoutubeCatalogStats; workspaceStatus: StudioUniverseWorkspaceStatus | null }) {
+  const controller=useSettingsManager();
   const [tab, setTab] = useState<SettingsTab>(() => {
     const next = sessionStorage.getItem("studio:settings-tab");
     sessionStorage.removeItem("studio:settings-tab");
-    return next === "analytics" || next === "seo" ? next : "project";
+    return next === "seo" ? next : "project";
   });
   const manualItemCount = Math.max(0, (databaseInfo?.itemCount ?? 0) - catalog.imported);
-  return <div className="settings-page settings-compact">
+  const [visited,setVisited]=useState<SettingsTab[]>(['project']);
+  useEffect(()=>{setVisited(prev=>prev.includes(tab)?prev:[...prev,tab]);},[tab]);
+  useEffect(()=>{
+    const hotkey=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();void controller?.saveAll();}};
+    window.addEventListener('keydown',hotkey);return()=>window.removeEventListener('keydown',hotkey);
+  },[controller]);
+  const status=controller?.state;
+  return <div className="settings-page settings-compact settings-v3">
+    <header className="settings-v3-bar"><div><strong>Yapılandırma</strong><small>{status?.dirty.length?`${status.dirty.length} bölümde kaydedilmemiş değişiklik`:'Bütün ayarlar kaydedildi'}</small></div>
+      <div className="settings-v3-actions"><span className={status?.error?"is-error":""} role="status">{status?.error||status?.notice||''}</span><button disabled={!status?.dirty.length||Boolean(status?.busy.length)||status?.saving} onClick={()=>controller?.revertAll()}>Vazgeç</button><button className="primary-button" disabled={!status?.dirty.length||Boolean(status?.busy.length)||status?.saving} onClick={()=>void controller?.saveAll()}>{status?.saving?'Kaydediliyor…':'Tümünü kaydet'}</button></div>
+    </header>
     <nav className="studio-settings-tabs" aria-label="Ayarlar bölümleri">
       {settingsTabs.map((item) => <button key={item.id} type="button" className={tab === item.id ? "active" : ""} aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
     </nav>
-    <div className="studio-settings-surface">
-      {tab === "project" && <ChannelProjectsSettings/>}
-      {tab === "analytics" && <WebsiteAnalytics/>}
-      {tab === "seo" && <SeoSettings/>}
-      {tab === "ai" && <AiProviderSettings/>}
-      {tab === "community" && <CommunityAdminSettings/>}
-      {tab === "data" && <div className="studio-settings-data">
+    <div className="studio-settings-surface settings-v3-surface">
+      <div hidden={tab!=="project"}>{visited.includes('project')&&<ChannelProjectsSettings/>}</div>
+      <div hidden={tab!=="seo"}>{visited.includes('seo')&&<SeoSettings active={tab==='seo'}/>}</div>
+      <div hidden={tab!=="ai"}>{visited.includes('ai')&&<AiProviderSettings/>}</div>
+      <div hidden={tab!=="community"}>{visited.includes('community')&&<CommunityAdminSettings/>}</div>
+      <div hidden={tab!=="data"}>{visited.includes('data')&&<div className="studio-settings-data">
         <section className="panel settings-card settings-data-card">
           <h2>Yerel veri</h2>
           <dl>
@@ -329,7 +349,7 @@ function Settings({ databaseInfo, catalog, workspaceStatus }: { databaseInfo: St
           </dl>
         </section>
         <UniverseMaintenanceSettings/>
-      </div>}
+      </div>}</div>
     </div>
   </div>;
 }

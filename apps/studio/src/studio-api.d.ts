@@ -359,6 +359,7 @@ type StudioWebsiteInsights = {
 type StudioSeoRow = {
   kind: "section" | "video" | "vefk"; language:PublicationLanguage; id: string; title: string; description: string;
   source: string; sourceHash:string; path: string; override: boolean; needsReview: boolean;
+  candidate?:{sourceHash:string;title:string;description:string;createdAt:string}|null;
 };
 type StudioSeoOverview = {
   site: { title: string; description: string; image: string };
@@ -552,6 +553,11 @@ interface Window {
     seoOverview(): Promise<StudioSeoOverview>;
     seoSave(input: { kind: string; language:PublicationLanguage; approved?:boolean; sourceHash?:string; id?: string; title: string; description: string; image?: string }): Promise<StudioSeoOverview>;
     seoSuggest(input: { kind: string; language:PublicationLanguage; id: string }): Promise<{ title: string; description: string }>;
+    seoBatchStatus():Promise<StudioSeoBatchStatus>;
+    seoBatchEnqueue(input:{items:{kind:StudioSeoRow['kind'];id:string;language:PublicationLanguage}[]}):Promise<StudioSeoBatchStatus & {queued:number;skipped:number}>;
+    seoBatchPause():Promise<StudioSeoBatchStatus>;
+    seoBatchResume():Promise<StudioSeoBatchStatus>;
+    seoBatchRetry():Promise<StudioSeoBatchStatus>;
     getPublicationInfo(): Promise<StudioPublicationInfo | null>;
     showPublicExport(): Promise<boolean>;
     getDatabaseInfo(): Promise<StudioDatabaseInfo>;
@@ -575,3 +581,5 @@ type PublicationLanguagePack = {kind:PublicationLanguageKind;id:string;sourceHas
 type PublicationLanguageOverview = {rows:PublicationLanguagePack[];counts:Record<"ready"|"missing"|"pending"|"stale"|"errors",number>};
 
 type PublicationTranslationBatchStatus={rows:{kind:PublicationLanguageKind;id:string;language:"en";sourceHash:string;state:"queued"|"running"|"done"|"failed"|"skipped";attempts:number;error:string;updatedAt:string}[];counts:Record<"queued"|"running"|"done"|"failed"|"skipped",number>;running:boolean;paused:boolean};
+
+type StudioSeoBatchStatus={rows:{kind:StudioSeoRow["kind"];id:string;language:PublicationLanguage;sourceHash:string;state:"queued"|"running"|"done"|"failed"|"skipped";attempts:number;error:string;updatedAt:string}[];counts:Record<"queued"|"running"|"done"|"failed"|"skipped",number>;running:boolean;paused:boolean};

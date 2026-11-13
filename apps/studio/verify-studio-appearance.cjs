@@ -59,9 +59,10 @@ assert.match(pipeline, /studio-settings-nav/, "Ayarlar bağlantısı ayrı alt m
 assert.match(topbarStyles, /studio-settings-nav/, "Ayarlar sidebar altında sabitlenmeli");
 
 assert.match(pipeline, /studio-settings-tabs/, "Ayarlar bir seferde tek bölüm göstermeli");
-assert.match(pipeline, /tab === "project"/, "Kanal ve yayın varsayılan ayar alanı olmalı");
-assert.match(pipeline, /tab === "ai"/, "AI ayarları ayrı bölümde olmalı");
-assert.match(pipeline, /tab === "community"/, "Topluluk ayarları ayrı bölümde olmalı");
+assert.match(pipeline, /SettingsController/, "Ayarlar merkezi kayıt yöneticisine sahip olmalı");
+assert.match(pipeline, /tab!=="project"/, "Kanal ve yayın varsayılan olarak açık, sonraki sekmelerde gizli tutulmalı");
+assert.match(pipeline, /tab!=="ai"/, "AI ayarları ayrı bölümde ve taslak kaybetmeden kalmalı");
+assert.match(pipeline, /tab!=="community"/, "Topluluk bağlantısı ayrı bölümde kalmalı");
 assert.match(videoArchive, /youtubeChannelMediaOptionsSave/, "Kanal medya tercihleri Video Arşivi üzerinden kaydedilmeli");
 assert.match(videoArchive, /Kanal başlık ve metadata dili/, "Video Arşivi kanal bazlı metadata dili sunmalı");
 assert.match(videoArchive, /Kanal thumbnail boyutu/, "Video Arşivi kanal bazlı thumbnail boyutu sunmalı");

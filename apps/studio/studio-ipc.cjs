@@ -310,6 +310,13 @@ function registerPublishingHandlers() {
   ipcMain.handle("studio:seo-overview", () => seoWorkspace.overview(app.getPath("userData"), seoSnapshot()));
   ipcMain.handle("studio:seo-save", (_event, input) => seoWorkspace.update(app.getPath("userData"), input, seoSnapshot()));
   ipcMain.handle("studio:seo-suggest", (_event, input) => seoWorkspace.suggest(app.getPath("userData"), input, seoSnapshot()));
+  const seoQueue=require('./seo-batch.cjs').controller({root:()=>app.getPath('userData'),snapshot:seoSnapshot});
+  seoQueue.recover();app.on('before-quit',()=>seoQueue.pause());
+  ipcMain.handle('studio:seo-batch-status',()=>seoQueue.current());
+  ipcMain.handle('studio:seo-batch-enqueue',(_event,input)=>seoQueue.enqueue(input));
+  ipcMain.handle('studio:seo-batch-pause',()=>seoQueue.pause());
+  ipcMain.handle('studio:seo-batch-resume',()=>seoQueue.start());
+  ipcMain.handle('studio:seo-batch-retry',()=>seoQueue.retry());
   ipcMain.handle("studio:publication-info", () => getPublicationInfo(runtime.database(), require("electron").app.getPath("userData")));
   ipcMain.handle("studio:show-public-export", () => runtime.showPublicExport());
   ipcMain.handle("studio:database-info", () => getDatabaseInfo(runtime.database(), app.getPath("userData")));

@@ -17,16 +17,26 @@ function defaults(snapshot){const rows=[];
  return rows;
 }
 const key=r=>r.language+':'+r.kind+':'+r.id;
-function overview(root,snapshot){const stored=load(root);const rows=defaults(snapshot).map(record=>{const saved=stored.items[key(record)]||{};return {...record,title:saved.title||record.title,description:saved.description||record.description,override:Boolean(saved.title||saved.description),needsReview:saved.approvedHash!==record.sourceHash||!saved.title||!saved.description};});
+function overview(root,snapshot){const stored=load(root);const rows=defaults(snapshot).map(record=>{const saved=stored.items[key(record)]||{};return {...record,title:saved.title||record.title,description:saved.description||record.description,override:Boolean(saved.title||saved.description),needsReview:saved.approvedHash!==record.sourceHash||!saved.title||!saved.description,candidate:saved.candidate?.sourceHash===record.sourceHash?saved.candidate:null};});
  const sites=Object.fromEntries(LANGUAGES.map(lang=>[lang,{title:stored.site[lang]?.title||'BirDeSenGör',description:stored.site[lang]?.description||(lang==='tr'?'BirDeSenGör evreni, videolar, topluluk ve vefk arşivi.':'The BirDeSenGör universe, videos, community and vefk archive.'),image:stored.site[lang]?.image||''}]));
  return {site:sites.tr,sites,rows,draftCount:rows.filter(r=>r.needsReview).length};}
 function update(root,input,snapshot){const lang=language(input.language),stored=load(root);
  if(input.kind==='site')stored.site[lang]={title:limit(input.title,120),description:limit(input.description,180),image:limit(input.image,250)};
  else {const record=defaults(snapshot).find(r=>r.kind===input.kind&&r.id===input.id&&r.language===lang);if(!record)throw new Error('SEO kaydı bu dilde onaylı yayına ait değil.');if(input.approved===true&&input.sourceHash!==record.sourceHash)throw new Error('SEO kaynağı değişti. Güncel içeriği inceleyip yeniden onayla.');const title=limit(input.title,120),description=limit(input.description,180);if(input.approved&&(!title||!description))throw new Error('SEO başlığı ve açıklaması gerekli.');stored.items[key(record)]={title,description,approvedHash:input.approved===true?record.sourceHash:null};}
  write(root,stored);return overview(root,snapshot);}
-async function suggest(root,input,snapshot){const lang=language(input.language),record=defaults(snapshot).find(r=>r.kind===input.kind&&r.id===input.id&&r.language===lang);if(!record)throw new Error('SEO önerisi yalnız bu dilde onaylı içerikten üretilebilir.');
+async function suggest(root,input,snapshot){const lang=language(input.language);
+ const record=input.kind==='site'?{
+   title:overview(root,snapshot).sites[lang].title,
+   source:defaults(snapshot).filter(row=>row.language===lang).slice(0,24).map(row=>row.title+' '+row.source.slice(0,260)).join(' | ').slice(0,9000),
+ }:defaults(snapshot).find(r=>r.kind===input.kind&&r.id===input.id&&r.language===lang);
+ if(!record||!record.source)throw new Error('SEO önerisi yalnız bu dilde onaylı içerikten üretilebilir.');
  const response=await aiClient.chat(root,[{role:'system',content:`${lang==='en'?'İngilizce':'Türkçe'} SEO başlığı ve açıklaması öner. Yalnız onaylı kaynağı kullan; yeni iddia ekleme. Özel adları, Arapça harfleri ve sembolleri koru. Yalnız JSON: {"title":"...","description":"..."}. Başlık 65, açıklama 160 karakteri aşmasın. Yayın kararı insandadır.`},{role:'user',content:JSON.stringify({title:record.title,source:record.source})}],{json:true,maxTokens:400,temperature:0.15});const data=aiClient.parseAssistantJson(typeof response==='string'?response:response.content);return {title:limit(data.title,120),description:limit(data.description,180)};}
+function saveCandidate(root,record,proposal){
+ const stored=load(root),k=key(record),current=stored.items[k]||{};
+ stored.items[k]={...current,candidate:{sourceHash:record.sourceHash,title:limit(proposal.title,120),description:limit(proposal.description,180),createdAt:new Date().toISOString()}};
+ write(root,stored);return stored.items[k].candidate;
+}
 function manifest(root,snapshot,webUrl){const data=overview(root,snapshot);let baseUrl='';try{const url=new URL(webUrl);if(url.protocol==='https:')baseUrl=url.origin;}catch{}
  const pages=data.rows.filter(r=>!r.needsReview).map(({kind,id,language,path:route,title,description,source,sourceHash})=>({kind,id,language,path:route,title,description,body:source,sourceHash,approved:true,contentHash:hash({title,description,source,language})}));
  return {schemaVersion:2,publicationId:snapshot.publication.id,contentFingerprint:snapshot.publication.contentFingerprint,generatedAt:snapshot.publication.generatedAt,baseUrl,site:data.sites,pages};}
-module.exports={overview,update,suggest,manifest,defaults,load};
+module.exports={overview,update,suggest,manifest,defaults,load,saveCandidate};

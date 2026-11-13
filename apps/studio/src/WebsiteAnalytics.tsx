@@ -14,6 +14,7 @@ export default function WebsiteAnalytics() {
   const [resetPrompt,setResetPrompt] = useState(false);
   const [resetBusy,setResetBusy] = useState(false);
   const [success,setSuccess] = useState("");
+  const [names,setNames]=useState<Record<string,string>>({});
   const reset = async () => {
     if (!window.channelFoundryStudio || resetBusy) return;
     setResetBusy(true);setError("");setSuccess("");
@@ -36,6 +37,18 @@ export default function WebsiteAnalytics() {
     finally { setBusy(false); }
   };
   useEffect(() => { void refresh(); }, [days]);
+  useEffect(()=>{
+    let live=true;
+    void window.channelFoundryStudio?.universeWorkspaceList().then(nodes=>{
+      if(live)setNames(Object.fromEntries(nodes.flatMap(node=>[
+        [node.key,node.name],
+        ...(node.key.startsWith('universe-')?[[node.key.replace(/^universe-/,''),node.name]]:[]),
+      ])));
+    }).catch(()=>undefined);
+    return()=>{live=false;};
+  },[]);
+  const contentName=(key:string)=>names[key]??Object.entries(names).find(([id])=>id===key||id.endsWith(key))?.[1]
+    ??(key.startsWith('universe-character-')?'Muhatap kaydı':key.startsWith('narrative-section-')?'Anlatı bölümü':key.startsWith('universe-')?'Evren kaydı':key.length===11?'Kamera videosu':'İçerik kaydı');
   const rows = data?.areas ?? [];
   const max = Math.max(1,...rows.map(row => row.seconds));
   return <section className="insight-settings analytics-settings">
@@ -62,7 +75,7 @@ export default function WebsiteAnalytics() {
       <section className="panel insight-card">
         <h3>En çok incelenen içerikler</h3>
         {data?.contents?.length ? <div className="insight-contents">{data.contents.map(row=>
-          <div key={row.area+":"+row.contentKey}><span>{labels[row.area]??row.area}<small>{row.contentKey}</small></span><strong>{format(row.views)}</strong></div>
+          <div key={row.area+":"+row.contentKey}><span>{labels[row.area]??row.area}<small>{contentName(row.contentKey)}</small></span><strong>{format(row.views)}</strong></div>
         )}</div> : <p className="insight-empty">Henüz içerik etkileşimi yok.</p>}
       </section>
     </div>

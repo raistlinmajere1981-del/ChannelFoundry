@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import {useSettingsSection} from "./SettingsController";
 
 type ProjectInput = {
   id: string; displayName: string; youtubeChannelUrl: string; youtubePlaylistUrl: string;
@@ -24,6 +25,7 @@ export default function ChannelProjectsSettings() {
   const [activeId, setActiveId] = useState("");
   const [editing, setEditing] = useState("");
   const [form, setForm] = useState<ProjectInput>(empty);
+  const [baseline,setBaseline]=useState<ProjectInput>(empty);
   const [scope, setScope] = useState<"channel" | "playlist">("channel");
   const [newProject, setNewProject] = useState(false);
   const [catalog, setCatalog] = useState<StudioYoutubeChannel | null>(null);
@@ -43,13 +45,14 @@ export default function ChannelProjectsSettings() {
     if (!project) return;
     setEditing(id); setNewProject(false);
     setScope(project.youtubePlaylistUrl ? "playlist" : "channel");
-    setForm({
+    const nextForm:ProjectInput={
       id: project.id, displayName: project.displayName, youtubeChannelUrl: project.youtubeChannelUrl,
       youtubePlaylistUrl: project.youtubePlaylistUrl || "", webRepository: project.webRepository,
       webUrl: project.webUrl, hostingProvider: project.hostingProvider,
       deploymentEnabled: Boolean(project.deploymentEnabled),
       narrator: { ...project.narrator, sourceEntityKeys: [...(project.narrator.sourceEntityKeys ?? [])] },
-    });
+    };
+    setForm(nextForm);setBaseline(nextForm);
     setWebValidatedUrl(""); setError(""); setNotice("");
   };
   useEffect(() => {
@@ -83,12 +86,11 @@ export default function ChannelProjectsSettings() {
     setForm(previous => ({ ...previous, narrator: { ...previous.narrator, ...patch } }));
     setNotice(""); setError("");
   };
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!bridge || busy) return;
-    if (scope === "playlist" && !form.youtubePlaylistUrl.trim()) { setError("Playlist bağlantısı gerekli."); return; }
+  const saveProject = async () => {
+    if (!bridge || busy) throw new Error("Kanal ayarları şu anda kaydedilemiyor.");
+    if (scope === "playlist" && !form.youtubePlaylistUrl.trim()) { setError("Playlist bağlantısı gerekli."); throw new Error("Kanal ve yayın: playlist bağlantısı gerekli."); }
     if (form.deploymentEnabled && webValidatedUrl !== form.webUrl.trim() && !projects.find((project) => project.id === form.id)?.deploymentEnabled) {
-      setError("Canlı yayını açmadan önce kurulu web sitesinin bağlantısını Test ile doğrula."); return;
+      setError("Canlı yayını açmadan önce kurulu web sitesinin bağlantısını Test ile doğrula."); throw new Error("Kanal ve yayın: web bağlantısı doğrulanmalı.");
     }
     setBusy("save"); setError(""); setNotice("");
     try {
@@ -96,10 +98,14 @@ export default function ChannelProjectsSettings() {
       const result = await load();
       choose(next.id, result?.projects);
       setNotice("Kaydedildi");
-    } catch (reason) { setError(message(reason)); }
+    } catch (reason) { setError(message(reason));throw reason; }
     finally { setBusy(""); }
   };
+  const discard=()=>{setForm({...baseline,narrator:{...baseline.narrator,sourceEntityKeys:[...(baseline.narrator.sourceEntityKeys??[])]}});setNewProject(false);setEditing(activeId);setScope(baseline.youtubePlaylistUrl?"playlist":"channel");setError("");setNotice("");};
+  const dirty=newProject?Boolean(form.displayName||form.id):JSON.stringify(form)!==JSON.stringify(baseline);
+  const coordinated=useSettingsSection("Kanal ve yayın",dirty,Boolean(busy),saveProject,discard);
   const activate = async (id: string) => {
+    if(dirty&&!window.confirm("Kaydedilmemiş kanal ayarları var. Proje değiştirilsin mi?"))return;
     if (!bridge || busy || id === activeId) return;
     setBusy("switch"); setError("");
     try { await bridge.channelProjectSelect({ id }); setNotice("Proje açılıyor…"); }
@@ -140,18 +146,18 @@ export default function ChannelProjectsSettings() {
   return <section className="panel channel-projects-panel">
     <header className="project-compact-header">
       <h2>Kanal ve yayın</h2>
-      <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => { setEditing(""); setNewProject(true); setForm(empty()); setScope("channel"); setError(""); setNotice(""); }}>+ Yeni proje</button>
+      <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => { if(dirty&&!window.confirm("Kaydedilmemiş kanal ayarları var. Yeni projeye geçilsin mi?"))return; setEditing(""); setNewProject(true); setForm(empty()); setScope("channel"); setError(""); setNotice(""); }}>+ Yeni proje</button>
     </header>
     <div className="channel-projects-grid">
       <div className="channel-projects-list">
         {projects.map((project) => <div key={project.id} className={`channel-project-entry ${editing === project.id ? "selected" : ""}`}>
-          <button type="button" disabled={Boolean(busy)} onClick={() => choose(project.id)}>
+          <button type="button" disabled={Boolean(busy)} onClick={() => {if(dirty&&!window.confirm("Kaydedilmemiş değişiklikler bırakılsın mı?"))return;choose(project.id);}}>
             <strong>{project.displayName}</strong><small>{project.id}{activeId === project.id ? " · Etkin" : ""}</small>
           </button>
           {activeId !== project.id && <button className="channel-project-activate" type="button" disabled={Boolean(busy)} onClick={() => void activate(project.id)}>Aç</button>}
         </div>)}
       </div>
-      {(newProject || editing) && <form className="channel-projects-editor" onSubmit={(event) => void save(event)}>
+      {(newProject || editing) && <form className="channel-projects-editor" onSubmit={(event) => {event.preventDefault();if(!coordinated)void saveProject().catch(()=>undefined);}}>
         <div className="project-fields-compact">
           <label><span>Proje adı</span><input required disabled={Boolean(busy)} value={form.displayName} onChange={(event) => update("displayName", event.target.value)}/></label>
           <label><span>Kod</span><input required disabled={!newProject || Boolean(busy)} value={form.id} onChange={(event) => update("id", event.target.value.toLowerCase())}/></label>
@@ -211,7 +217,7 @@ export default function ChannelProjectsSettings() {
         </div>
         <div className="channel-projects-actions">
           <span>{error ? <b className="project-inline-error" role="alert">{error}</b> : notice}</span>
-          <button type="submit" className="primary-button" disabled={Boolean(busy) || Boolean(current?.narratorMigrationError) || !form.id.trim() || !form.displayName.trim()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
+          {!coordinated&&<button type="submit" className="primary-button" disabled={Boolean(busy) || Boolean(current?.narratorMigrationError) || !form.id.trim() || !form.displayName.trim()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>}
         </div>
       </form>}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./ai-minimal.css";
+import {useSettingsSection} from "./SettingsController";
 
 type Provider = { id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean };
 type Role = "text" | "image";
@@ -39,6 +40,7 @@ export default function AiProviderSettings() {
   const [error, setError] = useState("");
   const [textVerified, setTextVerified] = useState(false);
   const [imageVerified, setImageVerified] = useState(false);
+  const [initializing,setInitializing]=useState(true);
 
   useEffect(() => {
     if (!bridge) return;
@@ -52,7 +54,7 @@ export default function AiProviderSettings() {
       setFallbackModel(config.fallbackModel);
       setReasoning(config.reasoningEffort);
       setImageReasoning(config.image.reasoningEffort ?? "");
-    }).catch((reason) => setError(errorText(reason)));
+    }).catch((reason) => setError(errorText(reason))).finally(()=>setInitializing(false));
   }, []);
 
   const provider = (id: string) => providers.find((entry) => entry.id === id);
@@ -65,6 +67,7 @@ export default function AiProviderSettings() {
   const endpoint = role === "text" ? textEndpoint : imageEndpoint;
   const model = role === "text" ? textModel : imageModel;
   const models = role === "text" ? textModels : imageModels;
+  const displayModels= model && !models.some(entry=>entry.id===model) ? [{id:model,label:model+" · Kayıtlı model"},...models] : models;
   const canDiscover = Boolean(current && (current.transport === "cli" || endpoint.trim()) && (!current.secret || key.trim() || savedKey));
   const setFeedback = () => { setResult(""); setError(""); };
   const chooseProvider = (id: string) => {
@@ -142,7 +145,7 @@ export default function AiProviderSettings() {
         if (loadModels) {
           setTextModels(entries);
           const chosen = entries.find((entry) => entry.id === textModel);
-          if (!chosen) { setTextModel(""); setTextVerified(false); }
+          if (!chosen && !stored?.model) { setTextModel(""); setTextVerified(false); }
           if (!chosen?.supportedReasoningEfforts?.some((option)=>option.reasoningEffort === reasoning)) setReasoning("");
         }
         setResult(loadModels ? entries.length + " metin modeli" : "Bağlantı hazır");
@@ -160,7 +163,7 @@ export default function AiProviderSettings() {
         if (loadModels) {
           setImageModels(entries);
           const chosen = entries.find((entry) => entry.id === imageModel);
-          if (!chosen) { setImageModel(""); setImageVerified(false); }
+          if (!chosen && !stored?.image.model) { setImageModel(""); setImageVerified(false); }
           if (!chosen?.supportedReasoningEfforts?.some((option)=>option.reasoningEffort === imageReasoning)) setImageReasoning("");
         }
         setResult(loadModels ? entries.length + " görsel modeli" : "Bağlantı hazır");
@@ -183,9 +186,9 @@ export default function AiProviderSettings() {
     finally { setBusy(""); }
   };
   const save = async () => {
-    if (!bridge || busy) return;
-    if (!textModel) { setRole("text"); setError("Metin modeli seçilmeli."); return; }
-    if (imageProvider !== "disabled" && !imageModel) { setRole("image"); setError("Görsel modeli seçilmeli."); return; }
+    if (!bridge || busy) throw new Error("AI ayarları şu anda kaydedilemiyor.");
+    if (!textModel) { setRole("text"); setError("Metin modeli seçilmeli."); throw new Error("AI servisleri: metin modeli seçilmeli."); }
+    if (imageProvider !== "disabled" && !imageModel) { setRole("image"); setError("Görsel modeli seçilmeli."); throw new Error("AI servisleri: görsel modeli seçilmeli."); }
     setBusy("save"); setFeedback();
     try {
       const candidate = { ...textCandidate(), ...imageFields(),
@@ -194,19 +197,41 @@ export default function AiProviderSettings() {
       };
       const response = await bridge.aiSaveConfig(candidate);
       setStored(response); setTextKey(""); setImageKey(""); setResult("Kaydedildi");
-    } catch (reason) { setError(errorText(reason)); }
+    } catch (reason) { setError(errorText(reason));throw reason; }
     finally { setBusy(""); }
   };
+  const textConfigured=Boolean(stored&&
+    inferText(stored)===textProvider&&stored.model===textModel&&
+    stored.endpoint===(provider(textProvider)?.transport==='cli'?'':textEndpoint.trim())&&
+    stored.fallbackModel===fallbackModel&&stored.reasoningEffort===reasoning);
+  const imageConfigured=Boolean(stored&&
+    inferImage(stored)===imageProvider&&
+    (imageProvider==='disabled'||stored.image.model===imageModel)&&
+    stored.image.endpoint===(imageProvider==='codex-cli'||imageProvider==='disabled'?'':imageEndpoint.trim())&&
+    (imageProvider==='disabled'||(stored.image.reasoningEffort||'')===imageReasoning));
+  const dirty=Boolean(!initializing&&stored&&(!textConfigured||!imageConfigured||textKey||imageKey));
+  const reset=()=>{if(!stored)return;
+    setTextProvider(inferText(stored));setImageProvider(inferImage(stored));
+    setTextEndpoint(stored.endpoint);setImageEndpoint(stored.image.endpoint);
+    setTextModel(stored.model);setImageModel(stored.image.model);
+    setFallbackModel(stored.fallbackModel);setReasoning(stored.reasoningEffort);setImageReasoning(stored.image.reasoningEffort??'');
+    setTextKey('');setImageKey('');setError('');setResult('');
+  };
+  const coordinated=useSettingsSection('AI servisleri',dirty,Boolean(busy),save,reset);
   if (!bridge) return null;
   const reasoningOptions = role === "text" ? textReasoningOptions : imageReasoningOptions;
   const selectedReasoning = role === "text" ? reasoning : imageReasoning;
   return <section className="ai-provider-panel ai-minimal">
     <header className="ai-minimal-header"><h2>AI modelleri</h2>
-      <button className="primary-button" disabled={Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>
+      {!coordinated&&<button className="primary-button" disabled={Boolean(busy)} onClick={() => void save().catch(()=>undefined)}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>}
     </header>
-    <div className="ai-minimal-tabs">
-      <button className={role === "text" ? "active" : ""} onClick={() => { setRole("text"); setFeedback(); }}>Metin</button>
-      <button className={role === "image" ? "active" : ""} onClick={() => { setRole("image"); setFeedback(); }}>Görsel</button>
+    <div className="ai-minimal-tabs ai-role-cards">
+      <button className={role === "text" ? "active" : ""} onClick={() => { setRole("text"); setFeedback(); }}>
+        <strong>✦ Metin servisi</strong><span>{provider(textProvider)?.label??textProvider}</span><small>{textModel||'Model seçilmedi'}</small>
+      </button>
+      <button className={role === "image" ? "active" : ""} onClick={() => { setRole("image"); setFeedback(); }}>
+        <strong>▣ Görsel servisi</strong><span>{provider(imageProvider)?.label??imageProvider}</span><small>{imageProvider==='disabled'?'Devre dışı':imageModel||'Model seçilmedi'}</small>
+      </button>
     </div>
     <div className="ai-minimal-form">
       <label><span>Sağlayıcı</span><select value={currentProvider} onChange={(event) => chooseProvider(event.target.value)}>
@@ -231,11 +256,12 @@ export default function AiProviderSettings() {
             <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover} onClick={() => void discover(true)}>{busy === "models" ? "Getiriliyor…" : "Modelleri getir"}</button>
           </div>
         </div>
-        <select aria-label="Model" value={models.some((entry) => entry.id === model) ? model : ""} onChange={(event) => chooseModel(event.target.value)}>
+        {stored&&model&&!models.length&&<p className="ai-minimal-saved-model">Kayıtlı model gösteriliyor. Model listesini yeniden almak zorunda değilsin.</p>}
+        <select aria-label="Model" value={model} onChange={(event) => chooseModel(event.target.value)}>
           <option value="">Model seç</option>
-          {models.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}
+          {displayModels.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}
         </select>
-        {role === "text" && current?.transport !== "cli" && <label><span>Yedek model</span><select value={models.some((entry) => entry.id === fallbackModel) ? fallbackModel : ""} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
+        {role === "text" && current?.transport !== "cli" && <label><span>Yedek model</span><select value={fallbackModel} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
         {reasoningOptions.length > 0 && <label><span>Reasoning · modelin bildirdiği seçenekler</span>
           <select aria-label="Reasoning" value={selectedReasoning}
             onChange={(event) => { if (role === "text") setReasoning(event.target.value); else setImageReasoning(event.target.value); setFeedback(); }}>
