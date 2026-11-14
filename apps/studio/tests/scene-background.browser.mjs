@@ -104,6 +104,7 @@ try{
 
   const planButton=page.locator('#scene-plan-toggle');
   assert.equal(await planButton.isDisabled(),false);
+  await page.locator('.scene-tools-menu > summary').click();
   await planButton.click();
   assert.equal(await page.locator('#scene-composition-guide').getAttribute('data-mode'),'fixed');
   assert.equal(await page.locator('[data-plan-zone]').count(),5);
@@ -116,6 +117,7 @@ try{
   assert.equal(await page.locator('[data-plan-zone]').count(),7);
   await planButton.click();
   assert.equal(await page.locator('#scene-composition-guide').isVisible(),false);
+  await page.locator('.scene-tools-menu > summary').click();
   // Read-only part inventory must not mutate canonical effects or presentation.
   await page.locator('#object-select-candle').click();
   await page.locator('[data-inspector-tab="visual"]').click();
@@ -165,6 +167,20 @@ try{
   await page.locator('#background-screen-height').press('Tab');
   assert.match(await page.locator('#background-room-geometry').textContent(),/1440 × 720/);
   assert.match(await page.locator('#background-letterbox').textContent(),/Sol\/sağ 560/);
+  assert.equal(await page.locator('#scene-global-screen-preset').inputValue(),'custom');
+  assert.match(await page.locator('.scene-screen-details').textContent(),/Kaynak görünürlüğü%100 · kırpma yok/);
+  assert.ok(await page.locator('#scene-screen-figure img').isVisible(),'screen diagram includes entire source photo');
+  await page.locator('#scene-global-screen-preset').selectOption('2560x1080');
+  assert.equal(await page.locator('#background-screen-preset').inputValue(),'2560x1080');
+  assert.match(await page.locator('#background-letterbox').textContent(),/Sol\/sağ 200/);
+  assert.match(await page.locator('#scene-screen-padding').textContent(),/Yanlar 200 px/);
+  await page.locator('#scene-global-screen-preset').selectOption('390x844');
+  assert.equal(await page.locator('#focus-preview-device').inputValue(),'mobile');
+  await page.locator('#scene-control-quick').click();
+  assert.equal(await page.locator('[data-inspector-page="control"]').isVisible(),true);
+  assert.equal(await page.locator('#language-device').inputValue(),'mobile');
+  await page.locator('#open-background').click();
+  await page.locator('#scene-background-assets > summary').click();
   const image=readFileSync(new URL('../../../channels/birdesengor/web/public/scene-assets/approved/room-effects-v4-2to1.webp',import.meta.url));
   const dl=page.waitForEvent('download');
   await page.locator('#background-original-export').click();

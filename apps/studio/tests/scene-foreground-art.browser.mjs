@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {chromium} from '../../../channels/birdesengor/web/node_modules/playwright-core/index.mjs';
 import {siteSceneSource,BIRDESENGOR_SITE} from '../scene-workshop-site.mjs';
 import {webpDimensions} from '../scene-asset-overrides.mjs';
+import {roomDevicePlacement} from '../../../packages/effect-engine/src/model/scene-presentation.mjs';
 import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from '../scene-physical-art.mjs';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('..',import.meta.url)),origin='http://127.0.0.1:5301';
@@ -64,9 +65,12 @@ try{
        rectWidth:box.width,viewWidth:view.width,imgCount:element.querySelectorAll('img').length,
        transform:cs.transform};
    });
-   const basis=record.kind==='book'?record:record.foundation;
-   assert.ok(Math.abs(result.left-basis.x)<.0001&&Math.abs(result.top-basis.y)<.0001,record.id+' placement is from web coordinates');
-   assert.ok(Math.abs(result.width-basis.width)<.0001,record.id+' size is from web coordinates');
+   const basis=record.kind==='book'
+     ?{...record,...(source.presentation?.objects?.[record.id]?.closedBook??{})}
+     :{...roomDevicePlacement(source.presentation,record.id),
+        width:record.foundation.width*roomDevicePlacement(source.presentation,record.id).scale};
+   assert.ok(Math.abs(result.left-basis.x)<.0001&&Math.abs(result.top-basis.y)<.0001,record.id+' placement follows published presentation');
+   assert.ok(Math.abs(result.width-basis.width)<.0001,record.id+' size follows published presentation');
    assert.ok(result.rectWidth>5,record.id+' image has physical visible width');
    if(record.id==='camera'){
      const cameraSize=await page.locator('[data-room-object="camera"]').evaluate(node=>{
@@ -93,10 +97,12 @@ try{
        'parchment is a contained panel, not an older room-sized fullscreen overlay');
    }
  }
+ await page.locator('.scene-tools-menu > summary').click();
  await page.locator('#show-room-objects').click();
  assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),0,'room object toggle only affects preview');
  await page.locator('#show-room-objects').click();
  assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),4);
+ await page.locator('.scene-tools-menu > summary').click();
  await page.locator('[data-room-object="camera"]').click();
  assert.match(await page.locator('#selected-object-name').textContent(),/Kamera/);
  await page.locator('#object-select-research-journal').click();

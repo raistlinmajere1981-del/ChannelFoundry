@@ -221,8 +221,8 @@ export default function SceneWorkshop() {
   return <div className="scene-workshop-page" data-testid="scene-workspace-v3">
     <div className="scene-workshop-controls">
       <div className="scene-workshop-heading">
-        <strong>Sahne Atölyesi</strong>
-        <label className="scene-project-select-label" title="Sahne kaynağı">
+        <strong>Sahne</strong>
+        <label className="scene-project-select-label" title="Atölyede düzenlenen sahneyi seç">
           <select aria-label="Sahne projesi" value={selectedProject}
             onChange={event=>void selectProject(event.target.value)}
             disabled={Boolean(busy)||dirty||!loaded}>

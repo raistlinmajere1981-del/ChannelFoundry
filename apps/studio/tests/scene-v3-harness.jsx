@@ -1,5 +1,6 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
+import '../src/studio-theme-tokens.css';
 import SceneWorkshop from '../src/SceneWorkshop';
 let root;
 window.__mountStudioSceneV3=()=>{

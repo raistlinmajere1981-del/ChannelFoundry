@@ -90,6 +90,22 @@ try{
   await page.waitForFunction(()=>window.__closedSessions.length===1);
   assert.deepEqual(await page.evaluate(()=>window.__closedSessions),['test-session']);
   assert.equal(await page.locator('#scene-real-preview-dialog').isVisible(),false);
+  // The central screen controls must use the same selected object/state as the
+  // original focus toolbar; they never write to the published scene.
+  await page.locator('#scene-global-screen-preset').selectOption('1366x768');
+  assert.equal(await page.locator('#focus-preview-device').inputValue(),'desktop');
+  assert.equal(await page.locator('#scene-real-quick').isEnabled(),true);
+  await page.locator('#scene-real-quick').click();
+  await page.waitForFunction(()=>document.querySelector('#scene-real-preview-image')?.hidden===false);
+  assert.equal((await page.evaluate(()=>window.__captureRequest)).device,'desktop');
+  await page.locator('#scene-real-preview-close').click();
+  await page.waitForFunction(()=>window.__closedSessions.length===2);
+  await page.locator('#open-background').click();
+  assert.equal(await page.locator('#scene-screen-real').isEnabled(),true);
+  await page.locator('#scene-screen-real').click();
+  await page.waitForFunction(()=>document.querySelector('#scene-real-preview-image')?.hidden===false);
+  await page.locator('#scene-real-preview-close').click();
+  await page.waitForFunction(()=>window.__closedSessions.length===3);
   await page.evaluate(()=>window.__captureFail=true);
   await page.locator('#focus-real-capture').click();
   await page.waitForFunction(()=>document.querySelector('#scene-real-preview-message')?.textContent.includes('Yerel görüntü denetim hatası'));

@@ -29,10 +29,39 @@ try{
  assert.equal(await page.locator('iframe').count(),0,'no iframe in Studio scene module');
  assert.equal(await page.locator('.scene-tree-effect').count(),22,'effect rows nested under object tree');
  assert.equal(await page.locator('#scene-photo').evaluate(n=>n.hidden),false);
+ const scenePhotoBefore=await page.locator('#scene-photo').getAttribute('src');
+ await page.evaluate(()=>document.documentElement.setAttribute('data-studio-theme','light'));
+ assert.equal(await page.locator('#library-panel').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(251, 247, 239)','scene chrome follows Studio light tokens');
+ assert.equal(await page.locator('.scene-workspace').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(242, 237, 228)','work canvas chrome follows light tokens');
+ assert.equal(await page.locator('.scene-stage-heading').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(251, 247, 239)','scene toolbar follows light tokens');
+ await page.evaluate(()=>document.documentElement.setAttribute('data-studio-theme','dark'));
+ assert.equal(await page.locator('.scene-workspace').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(9, 11, 15)','work canvas chrome follows dark tokens');
+ assert.equal(await page.locator('.scene-stage-heading').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(14, 17, 22)','scene toolbar follows dark tokens');
+ assert.equal(await page.locator('#scene-photo').getAttribute('src'),scenePhotoBefore,'changing theme must not change room artwork');
+ for(const width of [1366,1920]){
+   await page.setViewportSize({width,height:900});
+   const bounds=await page.locator('.scene-editor-root').evaluate(el=>({
+     root:el.clientWidth,content:el.scrollWidth,
+     toolbar:el.querySelector('.scene-stage-heading').clientWidth,
+     toolbarContent:el.querySelector('.scene-stage-heading').scrollWidth,
+   }));
+   assert.ok(bounds.content<=bounds.root+2,'Studio scene must not horizontally overflow at '+width+' px: '+JSON.stringify(bounds));
+   assert.ok(bounds.toolbarContent<=bounds.toolbar+2,'Studio controls must fit at '+width+' px: '+JSON.stringify(bounds));
+ }
+ await page.setViewportSize({width:1580,height:900});
+ assert.equal(await page.locator('#scene-plan-toggle').isVisible(),false,'overlay controls live in compact menu');
+ await page.locator('.scene-tools-menu > summary').click();
+ assert.equal(await page.locator('#scene-plan-toggle').isVisible(),true);
+ await page.locator('#scene-clean-preview').click();
+ assert.equal(await page.locator('#show-hit-areas').getAttribute('aria-pressed'),'false');
+ await page.locator('#scene-clean-preview').click();
+ assert.equal(await page.locator('#show-hit-areas').getAttribute('aria-pressed'),'true');
+ await page.locator('.scene-tools-menu > summary').click();
  assert.equal(await page.locator('#scene-room-objects [data-room-object]').count()>0,true,'book/camera/vefk room objects render');
  const selection=page.locator('#object-select-camera');await selection.click();
  assert.equal(await page.locator('[data-inspector-tab="focus"]').getAttribute('aria-selected'),'true');
  assert.equal(await page.locator('#focus-presentation-settings').isVisible(),true);
+ assert.equal(await page.locator('#presentation-focusMs').locator('xpath=..').locator('input[type=range]').count(),1,'bounded numeric control has mouse slider');
  await page.locator('#presentation-focusMs').fill('910');await page.locator('#presentation-focusMs').press('Tab');
  await page.getByRole('button',{name:/^Kaydet/}).click();
  await page.waitForFunction(()=>window.__studioSceneSave?.presentation?.objects?.camera?.focusMs===910,{timeout:15000});

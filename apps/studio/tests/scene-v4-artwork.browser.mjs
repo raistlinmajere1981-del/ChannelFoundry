@@ -38,6 +38,15 @@ try{
   await page.locator('#new-artwork-file').setInputFiles({name:'v4-artwork.webp',mimeType:'image/webp',buffer:webp});
   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.objects.length===15,{timeout:12000});
   assert.equal(await page.locator('#visual-source-settings').isVisible(),true);
+  assert.equal(await page.locator('#scene-image-optimization-mode').inputValue(),'balanced');
+  assert.equal(await page.locator('#scene-image-optimization-maxedge').inputValue(),'0');
+  assert.match(await page.locator('#scene-image-last-report').textContent(),/dosya korundu/);
+  await page.locator('#scene-image-optimization-mode').selectOption('detail');
+  assert.equal(await page.locator('#scene-image-optimization-mode').inputValue(),'detail');
+  await page.locator('#scene-image-optimization-quality').selectOption('96');
+  assert.equal(await page.locator('#scene-image-optimization-quality').inputValue(),'96');
+  await page.locator('#scene-image-optimization-mode').selectOption('balanced');
+  await page.locator('#scene-image-optimization-quality').selectOption('0');
   assert.equal(await page.locator('#visual-crop-settings').isVisible(),true);
   assert.equal(await page.locator('#visual-source-export').isVisible(),true);
   const download=page.waitForEvent('download');

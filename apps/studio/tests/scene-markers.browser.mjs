@@ -13,13 +13,14 @@ try{
   assert.ok(online,'Studio Vite did not start: '+log);
   browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/home/raistlin/.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage({viewport:{width:1600,height:900}});
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('PAGE ERROR:',e.stack);});
   await page.goto(origin+'/tests/scene-v2-harness.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelectorAll('#scene-markers .scene-marker').length>0,{timeout:12000});
   const count=await page.locator('#scene-markers .scene-marker').count();
   assert.ok(count>0);
   const toggle=page.locator('#show-markers');
   assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+  if(await page.locator('.scene-tools-menu > summary').count())await page.locator('.scene-tools-menu > summary').click();
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-pressed'),'false');
   assert.equal(await page.locator('#scene-markers').evaluate(el=>getComputedStyle(el).display),'none');

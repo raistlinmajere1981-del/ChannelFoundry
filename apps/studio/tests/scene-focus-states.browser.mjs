@@ -44,7 +44,9 @@ try {
   const snap=()=>page.evaluate(()=>window.__sceneEditor.snapshot());
   const original=await snap();
   const book=page.locator('[data-room-object="research-journal"]');
+  await page.locator('.scene-tools-menu > summary').click();
   await page.locator('#show-markers').click();
+  await page.locator('.scene-tools-menu > summary').click();
   await book.hover();
   await page.waitForFunction(()=>document.querySelector(
     '[data-room-object="research-journal"] > canvas.object-effect-overlay'

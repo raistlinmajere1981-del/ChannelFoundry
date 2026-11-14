@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {chromium} from '../../../channels/birdesengor/web/node_modules/playwright-core/index.mjs';
 import {siteSceneSource} from '../scene-workshop-site.mjs';
-import {defaultRoomDevicePlacement,roomDevicePlacement} from '../../../packages/effect-engine/src/model/scene-presentation.mjs';
+import {defaultRoomDevicePlacement,roomDevicePlacement,placedDeviceHitArea} from '../../../packages/effect-engine/src/model/scene-presentation.mjs';
+import {effectScenePoint} from '../../../packages/effect-engine/src/runtime/object-scene.mjs';
+import {deviceStagePoint} from '../src/scene-workspace/scene-room-geometry.mjs';
 
 const site=siteSceneSource(),source=await site.snapshot();
 const data={scene:source.scene,presentation:source.presentation,siteSource:true,
@@ -137,6 +139,70 @@ try{
     assert.deepEqual(next.scene,source.scene,'device placement belongs only to presentation');
     assert.equal(site.readiness(next.scene,source,next.presentation).ready,true);
 
+    // The selected object-area frame is the EXACT bounds of the physical
+    // cutout. The visible hit region is the same projection as the live site.
+    const visualFrame=await page.locator('#stage-object-'+id).boundingBox();
+    const physicalFrame=await room.boundingBox();
+    for(const key of ['x','y','width','height'])
+      assert.ok(Math.abs(visualFrame[key]-physicalFrame[key])<3,
+        id+' visual area follows physical room '+key+' within 3 screen pixels');
+    const native=next.scene.objects.find(object=>object.id===id).hitArea;
+    const hit=placedDeviceHitArea(next.presentation,id,native);
+    const shownHit=await page.locator('#scene-hit-'+id).evaluate(node=>({
+      x:parseFloat(node.style.left)/100,y:parseFloat(node.style.top)/100,
+      width:parseFloat(node.style.width)/100,height:parseFloat(node.style.height)/100,
+    }));
+    for(const key of ['x','y','width','height'])
+      assert.ok(Math.abs(hit[key]-shownHit[key])<.000005,id+' site hit and Studio visible hit '+key);
+    // Effect target markers must shift and scale with the same device,
+    // without rewriting their anchor/offset metadata.
+    const siteObject=next.scene.objects.find(o=>o.id===id);
+    const target=next.scene.effects.find(e=>e.target.objectId===id);
+    if(target){
+      const nativePoint=effectScenePoint(siteObject,target);
+      const stagePoint=deviceStagePoint(next.presentation,id,nativePoint);
+      const shown=await page.locator('#marker-'+target.id).evaluate(node=>({
+        x:parseFloat(node.style.left)/100,y:parseFloat(node.style.top)/100,
+      }));
+      assert.ok(Math.abs(stagePoint.x-shown.x)<.000005&&Math.abs(stagePoint.y-shown.y)<.000005,
+        id+' visible effect target tracks physical object placement');
+      await page.locator('#effect-edit-mode').click();
+      const marker=page.locator('#marker-'+target.id),markerBox=await marker.boundingBox();
+      const mx=markerBox.x+markerBox.width/2,my=markerBox.y+markerBox.height/2;
+      await page.mouse.move(mx,my);await page.mouse.down();
+      await page.mouse.move(mx+11,my+7,{steps:5});await page.mouse.up();
+      const adjusted=await snapshot();
+      const adjustedTarget=adjusted.scene.effects.find(e=>e.id===target.id);
+      assert.notDeepEqual(adjustedTarget.target.offset,target.target.offset,
+        id+' target can be dragged in Effect mode at its projected position');
+      const adjustedPoint=deviceStagePoint(adjusted.presentation,id,
+        effectScenePoint(adjusted.scene.objects.find(o=>o.id===id),adjustedTarget));
+      const actualMarker=await marker.evaluate(node=>({
+        x:parseFloat(node.style.left)/100,y:parseFloat(node.style.top)/100,
+      }));
+      assert.ok(Math.abs(adjustedPoint.x-actualMarker.x)<.000005&&
+        Math.abs(adjustedPoint.y-actualMarker.y)<.000005,
+        id+' marker stays correctly projected after drag');
+      await page.locator('#undo').click();
+      assert.deepEqual((await snapshot()).scene,next.scene,
+        id+' effect drag Undo returns to unchanged authored offsets');
+    }
+    await page.locator('#hit-edit-mode').click();
+    assert.equal(await page.locator('#scene-hit-'+id).evaluate(node=>getComputedStyle(node).pointerEvents),'auto');
+    const hitBox=await page.locator('#scene-hit-'+id).boundingBox();
+    await page.mouse.move(hitBox.x+hitBox.width*.5,hitBox.y+hitBox.height*.5);
+    await page.mouse.down();
+    await page.mouse.move(hitBox.x+hitBox.width*.5+9,hitBox.y+hitBox.height*.5+7,{steps:5});
+    await page.mouse.up();
+    const afterHit=await snapshot();
+    assert.notDeepEqual(afterHit.scene.objects.find(o=>o.id===id).hitArea,native,
+      id+' hit area remains directly editable at the physical device location');
+    assert.deepEqual(afterHit.presentation,next.presentation,
+      'hit adjustment changes only the native hit geometry, not device placement');
+    await page.locator('#undo').click();
+    assert.deepEqual((await snapshot()).scene,next.scene,'Undo restores initial device hit geometry');
+    await page.locator('#visual-edit-mode').click();
+
     // Mode "Taşı" uses the same physical room image for pointer movement.
     const mode=page.locator('#visual-edit-mode');
     if((await mode.getAttribute('aria-pressed'))!=='true')await mode.click();
@@ -155,6 +221,23 @@ try{
     assert.equal(next.presentation.objects[id].roomPlacement,undefined);
     assert.ok(Math.abs(parseFloat(await room.evaluate(n=>n.style.left))-original.x*100)<.01);
   }
+  // Studio visibility tooling affects preview only. Both cutout art AND
+  // legacy effect/ghost art disappear; object guides stay independently usable.
+  const beforeLayers=await snapshot();
+  const menu=page.locator('.scene-tools-menu');
+  if(!(await menu.getAttribute('open')))await menu.locator('summary').click();
+  await page.locator('#show-room-objects').click();
+  assert.equal(await page.locator('#show-room-objects').getAttribute('aria-pressed'),'false');
+  assert.ok(await page.locator('#scene-viewport').evaluate(n=>n.classList.contains('hide-room-objects')));
+  assert.equal(await page.locator('#scene-room-objects').isHidden(),true);
+  assert.equal(await page.locator('#stage-object-ceremonial-robe img').first()
+    .evaluate(node=>getComputedStyle(node).visibility),'hidden',
+    'legacy translucent robe artwork must not remain after hiding Objects');
+  assert.deepEqual(await snapshot(),beforeLayers,'temporary layer hide cannot mutate publishable scene');
+  await page.locator('#show-room-objects').click();
+  assert.equal(await page.locator('#stage-object-ceremonial-robe img').first()
+    .evaluate(node=>getComputedStyle(node).visibility),'visible');
+  assert.deepEqual(await snapshot(),beforeLayers);
   assert.deepEqual(errors,[]);
-  console.log('PASS V4.10 language plate/socket scale and skew, nested inspector scroll, native camera+Vefk room drag, scale, reset and source validation');
+  console.log('PASS V6.5 physical camera/Vefk overlay boxes, site hit geometry, hit edit+undo, no ghosts on hide, saved scene isolation');
 }finally{await browser?.close();server.kill('SIGTERM');}

@@ -20,15 +20,24 @@ export const sceneTemplate = String.raw`
       <div class="scene-stage-heading">
         <div class="scene-stage-name"><button type="button" id="scene-toggle-tree" aria-label="Sahne ağacını göster veya gizle">☰</button><span class="scene-eyebrow">ÇALIŞMA TUVALİ</span></div>
         <div class="scene-toolbar">
-          <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
-          <button type="button" id="open-background" title="Sahne arka planı ve ekran kadrajı">Kadraj</button>
-          <button type="button" id="scene-plan-toggle" title="Sahne V4 yerleşim bölgeleri yalnız Studio önizlemesinde gösterilir" disabled>Plan: kapalı</button>
-          <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects">Nesneler</button>
-          <button type="button" id="show-object-areas" aria-pressed="false" aria-label="Nesne yerleşim alanları">Sınırlar</button>
-          <button type="button" id="show-hit-areas" aria-pressed="true" aria-label="Tıklama alanları">Tıklama</button>
-          <button type="button" id="show-effects" aria-pressed="true">Efektler</button>
-          <button type="button" id="show-markers" aria-pressed="true" aria-controls="scene-markers">Hedefler</button>
-          <button type="button" id="visual-edit-mode" aria-pressed="false">Taşı</button>
+          <button type="button" id="open-background" title="Arka plan, kadraj ve ekran önizlemesi">Sahne ayarları</button>
+          <button type="button" id="select-mode" aria-pressed="true" title="Nesneyi seç · düzenleme yapmaz (V)">Seç</button>
+          <button type="button" id="visual-edit-mode" aria-pressed="false" title="Görseli taşı, köşelerinden boyutlandır (G)">Görsel</button>
+          <button type="button" id="hit-edit-mode" aria-pressed="false" title="Tıklama alanını taşı ve köşelerinden boyutlandır (A)">Alan</button>
+          <button type="button" id="effect-edit-mode" aria-pressed="false" title="Efekt hedefini seç ve sürükle (H)">Hedef</button>
+          <details class="scene-tools-menu">
+            <summary title="Sahne üzerine çizilen kılavuzları ve görünür katmanları yönet">Katmanlar</summary>
+            <div class="scene-tools-popover" role="group" aria-label="Görünür sahne katmanları">
+              <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
+              <button type="button" id="scene-plan-toggle" title="Sadece Studio'da gösterilen yerleşim kılavuzları" disabled>Plan: kapalı</button>
+              <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects" title="Yalnız Studio görünümü · Nesne görsellerini ve hareketli önizleme katmanlarını birlikte gizle; site kaydını değiştirme">Nesneler</button>
+              <button type="button" id="show-object-areas" aria-pressed="false" title="Nesne sınırı · Kamera ve Çizim Atölyesi taşındığında kutu da onunla taşınır">Nesne alanı</button>
+              <button type="button" id="show-hit-areas" aria-pressed="true" title="Etkileşim alanı · Nesneyle birlikte taşınır, Alan aracında ayrıca düzenlenebilir">Tıklama alanı</button>
+              <button type="button" id="show-effects" aria-pressed="true">Efektler</button>
+              <button type="button" id="show-markers" aria-pressed="true" aria-controls="scene-markers">Efekt hedefleri</button>
+              <button type="button" id="scene-clean-preview" aria-pressed="false" title="Tüm düzenleme işaretlerini geçici olarak gizle veya geri getir">Temiz görünüm</button>
+            </div>
+          </details>
           <div class="scene-zoom-controls" role="group" aria-label="Sahne yakınlaştırma">
             <button type="button" id="zoom-out" aria-label="Uzaklaştır">−</button>
             <button type="button" id="zoom-fit" aria-label="Sahneye sığdır">100%</button>
@@ -38,6 +47,21 @@ export const sceneTemplate = String.raw`
           <button type="button" id="redo" aria-label="Yinele" >↷</button>
           <button type="button" id="play" aria-pressed="true">Ⅱ Duraklat</button><button type="button" id="scene-toggle-inspector" aria-label="Özellik panelini göster veya gizle">⚙</button>
         </div>
+      </div>
+      <div class="scene-viewport-toolbar" aria-label="Merkezi ekran ve sahne yönetimi">
+        <select id="scene-global-screen-preset" aria-label="Sahne ekran profili" title="Oda, masaüstü, tablet, telefon veya özel ekran profilini seç">
+          <option value="room">Oda · kaynak oranı</option>
+          <option value="1920x1080">1920 × 1080 · Masaüstü</option>
+          <option value="1366x768">1366 × 768 · Laptop</option>
+          <option value="2560x1080">2560 × 1080 · Ultra geniş</option>
+          <option value="768x1024">768 × 1024 · Tablet</option>
+          <option value="390x844">390 × 844 · Telefon</option>
+          <option value="custom">Özel çözünürlük</option>
+        </select>
+        <span id="scene-screen-brief" class="scene-preview-metric">Doğal oda</span>
+        <span id="scene-screen-padding" class="scene-preview-metric scene-preview-space" role="status">Görsel %100</span>
+        <button type="button" id="scene-control-quick" title="Dil anahtarının TR/EN ve mobil/masaüstü ayarlarını aç" hidden>Dil anahtarı</button>
+        <button type="button" id="scene-real-quick" title="Seçili ana nesne için gerçek web görünümü" hidden>Gerçek web</button>
       </div>
       <div id="scene-focus-toolbar" class="scene-focus-toolbar" hidden aria-label="Odak nesnesi geometrik önizleme">
         <div class="scene-focus-phases" role="group" aria-label="Nesne durumu">
@@ -74,12 +98,16 @@ export const sceneTemplate = String.raw`
     <aside id="inspector-panel" class="scene-panel scene-inspector" aria-label="Seçilen nesnenin özellikleri">
     <div class="scene-panel-heading"><span class="scene-eyebrow">ÖZELLİKLER</span></div>
     <h2 id="selected-object-name">Bir nesne seçin</h2>
-    <nav class="scene-inspector-tabs" aria-label="Özellik türü" role="tablist">
-      <button type="button" data-inspector-tab="background" role="tab" aria-selected="false">Arka plan</button>
-      <button type="button" data-inspector-tab="control" role="tab" aria-selected="false" hidden>Dil anahtarı</button>
-      <button type="button" data-inspector-tab="visual" role="tab" aria-selected="false">Nesne</button>
-      <button type="button" data-inspector-tab="effect" role="tab" aria-selected="true">Efekt</button>
-      <button type="button" data-inspector-tab="focus" role="tab" aria-selected="false">Görünüm</button>
+    <nav class="scene-inspector-tabs" aria-label="Merkezi sahne ve seçim ayarları" role="tablist">
+      <div class="scene-inspector-nav-group" aria-label="Sahne ayarları">
+        <button type="button" data-inspector-tab="background" role="tab" aria-selected="false" title="Arka plan, kadraj ve ekran görünümü">Arka plan</button>
+        <button type="button" data-inspector-tab="control" role="tab" aria-selected="false" title="TR/EN anahtarının masaüstü ve mobil yerleşimi" hidden>Dil</button>
+      </div>
+      <div class="scene-inspector-nav-group" aria-label="Seçili nesnenin ayarları">
+        <button type="button" data-inspector-tab="visual" role="tab" aria-selected="false" title="Nesne, görsel konumu ve tıklama alanı">Nesne</button>
+        <button type="button" data-inspector-tab="effect" role="tab" aria-selected="true" title="Nesneye bağlı efekt ve tetikleme">Efekt</button>
+        <button type="button" data-inspector-tab="focus" role="tab" aria-selected="false" title="Kitap ve cihazların yakın görünümü">Görünüm</button>
+      </div>
     </nav>
     <div class="scene-inspector-page" data-inspector-page="background" hidden>
       <section id="scene-background-inspector"></section>
