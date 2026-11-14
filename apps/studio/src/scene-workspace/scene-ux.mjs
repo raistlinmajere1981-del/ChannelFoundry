@@ -17,7 +17,7 @@ export function applySceneProfile(effect,key) {
   effect.params={...effect.params,...preset};
 }
 export function basicControls(type) {
-  const keys={'pendulum-sway':['amplitude','frequency','damping','duration','speed'],flame:['opacity','speed','sway'],glow:['opacity','speed','pulse','width'],smoke:['opacity','speed','spread'],'metal-glint':['opacity','speed','band','duration'],'water-ripple':['opacity','speed','spread','duration'],'stone-drop':['opacity','duration','dropSize','tremor','speed'],'stone-tremor':['amplitude','frequency','damping','duration','speed'],'dagger-shadow':['opacity','duration','figureScale','speed'],'chest-lid-open':['openAngle','lift','duration','speed','hold'],'chest-light-leak':['opacity','spread','duration','speed','hold']}[type];
+  const keys={'pendulum-sway':['amplitude','frequency','damping','duration','speed'],flame:['opacity','speed','sway'],glow:['opacity','speed','pulse','width'],smoke:['opacity','speed','spread'],'metal-glint':['opacity','speed','band','duration'],'water-ripple':['opacity','speed','spread','duration'],'stone-drop':['opacity','duration','dropSize','tremor','speed'],'stone-tremor':['amplitude','frequency','damping','duration','speed'],'dagger-shadow':['opacity','duration','figureScale','speed'],'seal-trace':['opacity','speed','stroke'],'chest-lid-open':['openAngle','duration','speed','hold'],'chest-light-leak':['opacity','spread','duration','speed','hold']}[type];
   return keys.map(key=>{
     const control=objectEffectRegistry[type].controls.find(item=>item.key===key);
     return {...control,label:key==='opacity'?'Şiddet':key==='width'?'Yayılım (genişlik)':control.label};
@@ -26,14 +26,20 @@ export function basicControls(type) {
 // Native site elements keep their integration contracts. Independent artwork
 // is data-driven and may be created, edited, grouped or removed.
 export function assertSiteStructure(next,source) {
-  const native=scene=>scene.objects.filter(item=>item.kind!=='artwork').map(({id,pose,visible,anchors,motionLayers,crop})=>({
-    id,...(canCropVisual({motionLayers})?{}:{pose,crop}),visible,anchors,motionLayers
+  const movable=new Set(['water-basin','guardian-sword-left','guardian-sword-right','candle','incense-holder']);
+  // Physical visibility is a publishable Studio field. Keep native identities,
+  // anchors, layering and immutable poses locked, but let the existing
+  // Boolean 'Görünür' control hide the entire object and its effects in web.
+  const native=scene=>scene.objects.filter(item=>item.kind!=='artwork').map(({id,pose,anchors,motionLayers,crop})=>({
+    id,...(canCropVisual({motionLayers})||movable.has(id)?{}:{pose,crop}),anchors,motionLayers
   }));
   const appearance=scene=>scene.objects.filter(o=>o.id!=='ceremonial-robe'&&o.kind!=='artwork').map(o=>[o.id,o.veil]);
   if(JSON.stringify(appearance(next))!==JSON.stringify(appearance(source)))throw new Error('Görünmezlik yalnız kaftanda düzenlenebilir.');
+  if(next.objects.some(item=>item.kind!=='artwork'&&typeof item.visible!=='boolean'))
+    throw new Error('Site nesnesinin görünürlüğü true/false olmalı.');
   if(next.sceneId!==source.sceneId||JSON.stringify(next.viewport)!==JSON.stringify(source.viewport)
     ||JSON.stringify(native(next))!==JSON.stringify(native(source)))
-    throw new Error('Nesne yerleşimi, görünürlüğü ve bağlantıları site kaynağına aittir.');
+    throw new Error('Nesne yerleşimi ve bağlantıları site kaynağına aittir.');
   const nativeSlots=scene=>scene.effects.filter(effect=>!scene.objects.some(o=>o.id===effect.target.objectId&&o.kind==='artwork'))
     .map(({id,type,target})=>({id,type,objectId:target.objectId,anchorId:target.anchorId,layerId:target.layerId}))
     .sort((a,b)=>a.id.localeCompare(b.id));

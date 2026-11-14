@@ -3,6 +3,7 @@ import {createOffshore} from '../runtime/effects/offshore.mjs';
 import {createShimmer} from '../runtime/effects/shimmer.mjs';
 import {createFlame} from '../runtime/effects/flame.mjs';
 import {createGlow} from '../runtime/effects/glow.mjs';
+import {createSealTrace} from '../runtime/effects/seal-trace.mjs';
 import {createMetalGlint} from '../runtime/effects/metal-glint.mjs';
 import {createWaterRipple} from '../runtime/effects/water-ripple.mjs';
 import {createPendulumSway} from '../runtime/effects/pendulum-sway.mjs';
@@ -69,19 +70,18 @@ const objectCommon = [
 ];
 export const objectEffectRegistry = Object.freeze({
   'chest-lid-open': {
-    label:'Sandık aralanması',description:'Kapak yavaşça aralanır, kısa süre açık durur ve yerine döner.',
+    label:'Sandık menteşe açılması',description:'Kapak sabit arka menteşede döner, kısa süre açık durur ve yerine döner.',
     create:createChestLid,targetKinds:['sceneObject'],placement:'center',trigger:'pulse',output:'motion',
-    controls:[number('openAngle','Kapak açısı (°)',12,2,25,.5),
-      number('lift','Kapak yükselmesi',.055,0,.18,.005),
+    controls:[number('openAngle','Arka menteşeden açılma açısı (°)',62,5,78,.5),
       number('duration','Süre (s)',2.2,.8,4,.05),
       number('speed','Hız',1,.5,2,.05),
       number('hold','Açık bekleme payı',.24,0,.45,.01)],
     presets:{
-      Sakin:{openAngle:7,lift:.03,duration:2.4,speed:.9,hold:.25},
-      Doğal:{openAngle:12,lift:.055,duration:2.2,speed:1,hold:.24},
-      Canlı:{openAngle:18,lift:.09,duration:2,speed:1.1,hold:.23},
+      Sakin:{openAngle:36,duration:2.4,speed:.9,hold:.25},
+      Doğal:{openAngle:62,duration:2.2,speed:1,hold:.24},
+      Canlı:{openAngle:73,duration:2,speed:1.1,hold:.23},
     },
-    compile(object,target,params){return {...params,openAngle:params.openAngle*target.scale,lift:params.lift*target.scale};},
+    compile(object,target,params){return {...params,openAngle:params.openAngle*target.scale};},
   },
   'chest-light-leak': {
     label:'İçeriden ışık',description:'Kapak aralanırken sandığın ağzından kısa, sıcak kehribar ışık sızar.',
@@ -193,6 +193,25 @@ export const objectEffectRegistry = Object.freeze({
     compile(object,target,params) {
       return {...params,width:params.width*target.scale,height:params.height*target.scale};
     },
+  },
+  'seal-trace':{
+    label:'Tılsım kilidi · desen ışığı',
+    description:'Evren kapağındaki mevcut pusula deseninin çizgilerinde yol alan kısa, arka planı aydınlatmayan ışık.',
+    create:createSealTrace,targetKinds:['sceneObject'],placement:'center',
+    allowedTriggers:['hover','click'],
+    controls:[
+      number('width','Kapak düzlemi genişliği',1,.85,1),
+      number('height','Kapak düzlemi yüksekliği',1,.85,1),
+      number('opacity','Işık şiddeti',.65,0,1,.01),
+      number('speed','Kilit çözülme hızı',1,.3,2.5,.05),
+      number('stroke','Işık ipliği kalınlığı',1,.4,2.4,.05),
+    ],
+    presets:{
+      Sakin:{width:1,height:1,opacity:.42,speed:.65,stroke:.7},
+      Doğal:{width:1,height:1,opacity:.65,speed:1,stroke:1},
+      Canlı:{width:1,height:1,opacity:.87,speed:1.4,stroke:1.5},
+    },
+    compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
   },
   smoke: {
     label:'Duman', description:'Yukarı süzülen, seyrek ve yumuşak duman parçacıkları.', create:createSmoke,

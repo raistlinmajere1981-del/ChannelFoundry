@@ -116,7 +116,7 @@ export function createObjectOverlay(objectElement, config, options={}) {
         const ctx=canvas.getContext('2d',{alpha:true});
         if(!ctx)throw new Error('Canvas 2D unavailable');
         const instance=effect.create({random:seededRandom(`${config.seed??1}:${effect.seed??index}`),params:effect.params});
-        const interaction=effect.type==='glow'&&['hover','click'].includes(effect.trigger)
+        const interaction=['glow','seal-trace'].includes(effect.type)&&['hover','click'].includes(effect.trigger)
           ?createInteractionProgress({trigger:effect.trigger,...effect.interaction}):null;
         if(interaction)instance.setProgress(0);
         layers.push({effect,canvas,ctx,instance,interaction,width:0,height:0,scale:1,pixelCount:0});

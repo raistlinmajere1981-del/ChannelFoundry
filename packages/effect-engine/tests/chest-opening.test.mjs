@@ -27,13 +27,15 @@ test('archive lid and amber light share a finite opening envelope',()=>{
   lid.update(.8);light.update(.8);
   const m=lid.motion();
   assert.ok(m.tilt<0&&m.tilt>=-lidParams.openAngle);
-  assert.ok(m.lift>0&&m.lift<=lidParams.lift);
+  assert.equal('lift' in m,false,'hinged lid does not stretch or fake vertical translation');
+  assert.ok(objectEffectRegistry[lidType].controls.find(c=>c.key==='openAngle').max>=75,'full hinge sweep supported');
+  assert.equal(objectEffectRegistry[lidType].controls.some(c=>c.key==='lift'),false,'no fake lid stretch control');
   assert.ok(Math.abs(lid.inspect().progress-light.inspect().progress)<1e-9);
   light.render(ctx,{width:200,height:130});
   assert.ok(ctx.calls.fills>0&&ctx.calls.strokes>0,'glow follows opening');
   lid.update(20);light.update(20);
   assert.equal(lid.motion().tilt,0);
-  assert.equal(lid.motion().lift,0);
+  assert.equal('lift' in lid.motion(),false);
   assert.ok(lid.isComplete()&&light.isComplete());
   const fills=ctx.calls.fills;
   light.render(ctx,{width:200,height:130});

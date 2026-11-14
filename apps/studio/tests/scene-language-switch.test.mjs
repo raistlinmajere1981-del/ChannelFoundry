@@ -41,7 +41,11 @@ test('Studio language switch stage updates only validated presentation in isolat
   const originalScene=readFileSync(join(root,'src/effects/birdesengor-effects.v2.json'));
   const presentation=structuredClone(before.presentation);
   presentation.controls.languageSwitch.desktop.x=24.5;
-  presentation.controls.languageSwitch.desktop.plateScale=1.12;
+  presentation.controls.languageSwitch.desktop.plateScale=1.67;
+  presentation.controls.languageSwitch.desktop.skew=-47;
+  presentation.controls.languageSwitch.mobile.plateScale=1.53;
+  presentation.objects.camera.roomPlacement={x:.783,y:.742,scale:1.18};
+  presentation.objects['vefk-stand'].roomPlacement={x:.742,y:.525,scale:.89};
   presentation.controls.languageSwitch.mobile.bottom=39;
   presentation.controls.languageSwitch.mobile.hitWidth=1.2;
   assert.equal(validateScenePresentation(presentation),presentation);
@@ -52,6 +56,11 @@ test('Studio language switch stage updates only validated presentation in isolat
   assert.deepEqual(readFileSync(join(root,'src/effects/birdesengor-effects.v2.json')),originalScene);
   const after=await isolated.snapshot();
   assert.equal(after.presentation.controls.languageSwitch.desktop.x,24.5);
+  assert.equal(after.presentation.controls.languageSwitch.desktop.plateScale,1.67);
+  assert.equal(after.presentation.controls.languageSwitch.desktop.skew,-47);
+  assert.equal(after.presentation.controls.languageSwitch.mobile.plateScale,1.53);
+  assert.deepEqual(after.presentation.objects.camera.roomPlacement,{x:.783,y:.742,scale:1.18});
+  assert.deepEqual(after.presentation.objects['vefk-stand'].roomPlacement,{x:.742,y:.525,scale:.89});
   assert.equal(after.presentation.controls.languageSwitch.mobile.bottom,39);
   assert.equal(after.presentation.controls.languageSwitch.mobile.hitWidth,1.2);
   await assert.rejects(()=>isolated.stage(before.scene,before.sourceHash,[],presentation),/kaynağı değişmiş/);

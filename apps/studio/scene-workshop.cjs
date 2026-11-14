@@ -84,9 +84,11 @@ class SceneWorkshop {
             layers:(o.visual.layers??[]).map(layer=>({...layer,
               image:assets.find(a=>a.path===layer.asset)?.dataUrl}))})),
       ],
+      objectVisuals: this.site.objectVisuals?.(source) ?? [],
       previewArt: this.site.previewArt?.(source) ?? [],
       roomObjects: this.site.roomObjects?.(source) ?? [],
       focusTargets: this.site.focusTargets?.(source) ?? [],
+      cameraCover: this.site.cameraCover?.() ?? null,
     };
   }
   async save({ scene, presentation = null, assets = [], expectedSourceHash }) {

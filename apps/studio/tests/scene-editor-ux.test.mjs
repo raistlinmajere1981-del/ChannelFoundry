@@ -36,10 +36,11 @@ test('daily controls reference only real type-specific canonical parameters and 
   assert.ok(basicControls('smoke').some(control=>control.key==='spread'));
   assert.ok(!basicControls('flame').some(control=>control.key==='spread'));
 });
-test('site source allows parameter/offset edits but rejects invented slots, types, anchors, poses and visibility',()=>{
+test('site source allows Boolean visibility and effect changes but rejects new slots, anchors and locked poses',()=>{
   const source=fixture();
   const edit=structuredClone(source);applySceneProfile(edit.effects[0],'Sakin');
   edit.effects[0].target.offset.x=.11;edit.effects[0].enabled=false;edit.effects[0].seed='edited';
+  for(const owner of edit.objects.filter(o=>o.kind!=='artwork'))owner.visible=false;
   assert.doesNotThrow(()=>assertSiteStructure(edit,source));validateProject(edit);
   for(const change of [
     scene=>scene.effects.push({...structuredClone(scene.effects[0]),id:'fake-site-slot'}),
@@ -48,7 +49,7 @@ test('site source allows parameter/offset edits but rejects invented slots, type
     scene=>{scene.effects[0].target.anchorId='other';},
     scene=>{scene.objects[0].pose.x+=.01;},
     scene=>{scene.objects[0].anchors[0].x+=.01;},
-    scene=>{scene.objects[0].visible=false;},
+    scene=>{scene.objects[0].visible='false';},
     scene=>{scene.viewport.width=1920;},
   ]){
     const invalid=structuredClone(source);change(invalid);
@@ -82,7 +83,7 @@ test('normalized room hit areas are validated and independent of editor pose', a
   assert.throws(()=>validateProject(changed),/Tıklama alanı/);
 });
 
-test('Studio accepts editing hit areas without unlocking object poses or effect identities', async () => {
+test('Studio accepts independent physical material movement while keeping native identities locked', async () => {
  const {assertSiteStructure}=await import('../src/scene-workspace/scene-ux.mjs');
  const {readFileSync}=await import('node:fs');
  const original=JSON.parse(readFileSync(new URL('../../../channels/birdesengor/web/src/effects/birdesengor-effects.v2.json',import.meta.url),'utf8'));
@@ -90,5 +91,10 @@ test('Studio accepts editing hit areas without unlocking object poses or effect 
  changed.objects.find(item=>item.id==='archive-chest').hitArea.y+=.01;
  assert.doesNotThrow(()=>assertSiteStructure(changed,original));
  changed.objects.find(item=>item.id==='guardian-sword-left').pose.x+=.01;
+ assert.doesNotThrow(()=>assertSiteStructure(changed,original));
+ changed.objects.find(item=>item.id==='candle').pose.x+=.01;
+ changed.objects.find(item=>item.id==='incense-holder').pose.x+=.01;
+ assert.doesNotThrow(()=>assertSiteStructure(changed,original));
+ changed.objects.find(item=>item.id==='camera').pose.x+=.01;
  assert.throws(()=>assertSiteStructure(changed,original),/Nesne yerleşimi/);
 });

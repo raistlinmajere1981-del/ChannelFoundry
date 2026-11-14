@@ -24,12 +24,16 @@ export const PHYSICAL_ART_SLOTS=Object.freeze({
     {path:'/scene-assets/books/community-live/ribbon.webp',label:'Kapak şeridi'},
     {path:'/scene-assets/books/community-rag-paper.webp',label:'Okuma sayfaları · kâğıt dokusu'},
   ]),
+  'stone-specimen':Object.freeze([
+    {path:'/scene-assets/stone/copper-drip-arm.webp',label:'Taş damlalığı · bağımsız bakır mekanizma',
+     warning:'Çıkış ağzı taşın impact ankrajının tam üstünde kalmalı; damla önceden görselde bulunmamalı.'},
+  ]),
   camera:Object.freeze([
     {path:'/scene-assets/camera/research/camera-body.webp',label:'Kamera gövdesi',warning:'Gövde görselindeki LCD menteşe ve kamera lensinin konumu korunmalı. Fiziksel LCD ince ayarı ayrıca yapılabilir.'},
   ]),
   'vefk-stand':Object.freeze([
     {path:'/scene-assets/vefk/vellum.webp',label:'Parşömen dokusu'},
-    {path:'/scene-assets/vefk/chassis-no-nameplate.webp',label:'Ahşap/metal çerçeve',warning:'Şasi üzerindeki düğme ve parşömen boşlukları mevcut kontrol koordinatlarıyla uyumlu olmalı.'},
+    {path:'/scene-assets/vefk/chassis-tabletop.webp',label:'Ayaksız masaüstü şasi',warning:'1024 × 1536 kontrol koordinatları sabit. Kasa altındaki fiziksel kaide 1190. pikselde biter; çizim ve düğme merkezleri değişmez.'},
     {path:'/scene-assets/vefk/inkwell.webp',label:'Bakır mürekkep kabı',warning:'Divitin dinlenme ucu bu görselin sabit kalibre edilmiş ağız noktasını izler.'},
     {path:'/scene-assets/vefk/quill.webp',label:'Divit',warning:'Divitin çelik uç noktası kaynak görselde sabittir; farklı uç konumu mevcut çizim kalibrasyonunu bozar.'},
     {path:'/scene-assets/vefk/lever.webp',label:'Mekanik kol'},

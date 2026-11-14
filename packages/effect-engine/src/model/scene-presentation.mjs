@@ -1,4 +1,5 @@
 import {defaultLanguageSwitchLayout,validateLanguageSwitchLayout} from './language-switch-layout.mjs';
+import {defaultSceneAppearance,validateSceneAppearance} from './scene-appearance.mjs';
 
 /** One validated, versioned contract for the physical focus objects.
  * These are presentation knobs only: publication, auth, effects and Grabfold
@@ -10,6 +11,31 @@ export const FOCUS_OBJECT_IDS=Object.freeze([
 ]);
 export const BOOK_OBJECT_IDS=Object.freeze(['research-journal','community-journal']);
 export const PHYSICAL_DEVICE_IDS=Object.freeze(['camera','vefk-stand']);
+// Room-only placement for the actual physical camera and drawing instrument.
+// Independent of device-specific focus projection or the source photo/anchors.
+const ROOM_DEVICE_DEFAULTS=Object.freeze({
+  camera:Object.freeze({x:.895,y:.832,scale:1}),
+  'vefk-stand':Object.freeze({x:.776,y:.478,scale:1}),
+});
+const ROOM_DEVICE_LIMITS=Object.freeze({x:[.05,.96],y:[.04,.96],scale:[.55,1.75]});
+export function defaultRoomDevicePlacement(id){
+  if(!Object.hasOwn(ROOM_DEVICE_DEFAULTS,id))throw Error('Odada taşınabilir cihaz yok: '+id);
+  return {...ROOM_DEVICE_DEFAULTS[id]};
+}
+export function roomDevicePlacement(presentation,id){
+  return presentation?.objects?.[id]?.roomPlacement??defaultRoomDevicePlacement(id);
+}
+export function placedDeviceHitArea(presentation,id,area){
+  if(!area || !PHYSICAL_DEVICE_IDS.includes(id))return area;
+  const home=defaultRoomDevicePlacement(id),next=roomDevicePlacement(presentation,id);
+  const factor=next.scale;
+  return {
+    x:next.x+(area.x+area.width/2-home.x)*factor-area.width*factor/2,
+    y:next.y+(area.y+area.height/2-home.y)*factor-area.height*factor/2,
+    width:area.width*factor,height:area.height*factor,
+  };
+}
+
 const BOOK_PLACEMENT_LIMITS=Object.freeze({
   x:[.08,.92],y:[.18,.95],width:[.1,.5],angle:[-30,30],
   surfaceScaleY:[.7,1.25],
@@ -28,6 +54,7 @@ const VALUE_LIMITS=Object.freeze({
 const BOOK_LIMITS=Object.freeze({
   turnMs:[300,1600],thickness:[10,50],
   pageRatio:[.7,.93],mobilePageRatio:[.5,.68],
+  coverBrightness:[.52,1.05],
   depthDesktop:[32,72],depthMobile:[14,30],
   readingPadXDesktop:[5,13],readingPadYDesktop:[4,11],
   readingPadXMobile:[5,13],readingPadYMobile:[5,12],
@@ -46,6 +73,7 @@ const CAMERA_LIMITS=Object.freeze({
   bezelPaddingX:[8,40],bezelPaddingY:[12,40],
   contentPadding:[7,22],archiveWidth:[250,420],
   videoMinHeight:[180,275],hingeAngle:[-12,12],
+  coverX:[0,100],coverY:[0,100],coverScale:[1,1.35],coverBrightness:[.7,1.2],
 });
 const WORKSHOP_LIMITS=Object.freeze({
   paperX:[-28,28],paperY:[-28,28],paperScale:[.92,1.08],
@@ -58,9 +86,9 @@ const WORKSHOP_LIMITS=Object.freeze({
 export function defaultPhysicalPresentation(id){
   if(id==='camera')return {
     desktop:{offsetX:0,offsetY:0,widthScale:1,heightScale:1,
-      bezelPaddingX:24,bezelPaddingY:30,contentPadding:14,archiveWidth:330,videoMinHeight:200,hingeAngle:0},
+      bezelPaddingX:24,bezelPaddingY:30,contentPadding:14,archiveWidth:330,videoMinHeight:200,hingeAngle:0,coverX:50,coverY:50,coverScale:1,coverBrightness:.93},
     mobile:{offsetX:0,offsetY:0,widthScale:1,heightScale:1,
-      bezelPaddingX:12,bezelPaddingY:22,contentPadding:11,archiveWidth:330,videoMinHeight:226,hingeAngle:0},
+      bezelPaddingX:12,bezelPaddingY:22,contentPadding:11,archiveWidth:330,videoMinHeight:226,hingeAngle:0,coverX:50,coverY:50,coverScale:1,coverBrightness:.93},
   };
   if(id==='vefk-stand')return {
     desktop:Object.fromEntries(Object.keys(WORKSHOP_LIMITS).map(key=>[key,key==='paperScale'?1:key==='quillRestAngle'?14:0])),
@@ -75,6 +103,7 @@ export function defaultBookPresentation(id){
   return {
     turnMs:community?760:840,thickness:community?22:28,
     pageRatio:.82,mobilePageRatio:.58,
+    coverBrightness:community?1:.79,
     depthDesktop:community?44:56,depthMobile:community?20:22,
     readingPadXDesktop:community?6.5:8,readingPadYDesktop:community?5.5:6,
     readingPadXMobile:community?7:8,readingPadYMobile:community?6:8,
@@ -86,6 +115,7 @@ export function defaultScenePresentation(){
   return {
     version:1,sceneId:PRESENTATION_SCENE_ID,
     controls:{languageSwitch:defaultLanguageSwitchLayout()},
+    appearance:defaultSceneAppearance(),
     objects:Object.fromEntries(FOCUS_OBJECT_IDS.map(id=>[id,{
       roomVisible:true,
       ...(BOOK_OBJECT_IDS.includes(id)?{closedBook:defaultClosedBookPlacement(id)}:{}),
@@ -107,7 +137,9 @@ const within=(value,range,label,whole=false)=>{
     throw Error(label+': '+range.join('–')+(whole?' tam sayı':' sayı')+' gerekli.');
 };
 export function validateScenePresentation(input){
-  exactKeys(input,['version','sceneId','objects','controls'],'Sahne sunumu');
+  exactKeys(input,['version','sceneId','objects','controls',
+    ...(input?.appearance!==undefined?['appearance']:[])],'Sahne sunumu');
+  if(input.appearance!==undefined)validateSceneAppearance(input.appearance);
   if(input.version!==1||input.sceneId!==PRESENTATION_SCENE_ID)
     throw Error('Sahne sunumunun sürümü veya sahne kimliği geçersiz.');
   exactKeys(input.controls,['languageSwitch'],'Sahne kontrolleri');
@@ -119,7 +151,7 @@ export function validateScenePresentation(input){
     exactKeys(entry,['focusMs','returnMs','detailMs','desktop','mobile',
       ...(entry.roomVisible!==undefined?['roomVisible']:[]),
       ...(isBook?['book']:[]),...(isBook&&entry.closedBook!==undefined?['closedBook']:[]),
-      ...(isPhysical?['physical']:[])],id);
+      ...(isPhysical?['physical']:[]),...(isPhysical&&entry.roomPlacement!==undefined?['roomPlacement']:[])],id);
     if(entry.roomVisible!==undefined&&typeof entry.roomVisible!=='boolean')
       throw Error(id+'.roomVisible boolean olmalı.');
     if(isBook&&entry.closedBook!==undefined){
@@ -136,6 +168,11 @@ export function validateScenePresentation(input){
       for(const key of DEVICE_FIELDS)within(values[key],VALUE_LIMITS[key],id+'.'+device+'.'+key);
     }
     if(isPhysical){
+      if(entry.roomPlacement!==undefined){
+        exactKeys(entry.roomPlacement,Object.keys(ROOM_DEVICE_LIMITS),id+'.roomPlacement');
+        for(const [key,range] of Object.entries(ROOM_DEVICE_LIMITS))
+          within(entry.roomPlacement[key],range,id+'.roomPlacement.'+key);
+      }
       const defaults=defaultPhysicalPresentation(id);
       exactKeys(entry.physical,['desktop','mobile'],id+'.physical');
       const limits=id==='camera'?CAMERA_LIMITS:WORKSHOP_LIMITS;

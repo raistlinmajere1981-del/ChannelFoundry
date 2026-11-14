@@ -57,7 +57,7 @@ test("Channel Foundry reads canonical live scene without writing web or Admin da
   assert.equal(current.scene.sceneId, "birdesengor-study-v2");
   assert.equal(current.scene.effects.length, 22);
   assert.deepEqual(site.readiness(current.scene, current), {
-    ready: true, effectCount: 22, enabledCount: 14, mountedCount: 22, problems: [],
+    ready: true, effectCount: 22, enabledCount: 15, mountedCount: 22, problems: [],
   });
   validateIdentity(current.scene);
   const valid = structuredClone(current.scene);

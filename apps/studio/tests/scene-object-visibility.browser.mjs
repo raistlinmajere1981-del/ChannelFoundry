@@ -42,30 +42,56 @@ try{
   const snapshot=()=>page.evaluate(()=>window.__sceneEditor.snapshot());
   const bookObject='research-journal';
   assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),1);
-  assert.equal(await page.locator('#preview-eye-'+bookObject).getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#site-eye-'+bookObject).getAttribute('aria-pressed'),'true');
   const original=await snapshot();
-  await page.locator('#preview-eye-'+bookObject).click();
-  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),0,'local eye must hide physical book');
-  assert.equal(await page.locator('#stage-object-'+bookObject).isHidden(),true,'local eye must hide overlay');
-  assert.equal(await page.locator('#preview-eye-'+bookObject).getAttribute('aria-pressed'),'false');
-  const afterEye=await snapshot();
-  assert.deepEqual(afterEye.scene,original.scene,'preview visibility must not mutate scene');
-  assert.deepEqual(afterEye.presentation,original.presentation,'preview visibility must not mutate site presentation');
-  await page.locator('#preview-eye-'+bookObject).click();
+  const vefkGrade=await page.locator('[data-room-object="vefk-stand"] .scene-room-vefk-material')
+    .evaluate(node=>{
+      const stage=document.querySelector('#scene-viewport');
+      const filter=getComputedStyle(node).filter;
+      return {
+        filter,
+        brightness:Number(filter.match(/brightness\(([0-9.]+)\)/)?.[1]),
+        sceneMaterial:Number(getComputedStyle(stage).getPropertyValue('--scene-material-brightness')),
+        parts:node.querySelectorAll('img').length,
+      };
+    });
+  assert.equal(vefkGrade.parts,4,'Studio keeps a single graded Vefk assembly with four parts');
+  assert.ok(Math.abs(vefkGrade.brightness-.73*vefkGrade.sceneMaterial)<.002,
+    'Studio room preview matches live Vefk material grading');
+  assert.match(vefkGrade.filter,/saturate\(0\.74\)/);
+  await page.locator('#site-eye-'+bookObject).click();
+  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),0,
+    'site tree eye hides physical book');
+  assert.equal(await page.locator('#stage-object-'+bookObject).isHidden(),true);
+  assert.equal(await page.locator('#site-eye-'+bookObject).getAttribute('aria-pressed'),'false');
+  let afterEye=await snapshot();
+  assert.equal(afterEye.scene.objects.find(item=>item.id===bookObject).visible,false,
+    'site tree eye MUST update publishable native source');
+  assert.deepEqual(afterEye.presentation,original.presentation,'native eye never alters presentation');
+  assert.equal(site.readiness(afterEye.scene,source,afterEye.presentation).ready,true);
+  await page.locator('#site-eye-'+bookObject).click();
   assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),1);
+  assert.deepEqual((await snapshot()).scene,original.scene,'tree eye restores persisted source');
+
+  // A separately labeled, non-published preview toggle remains available.
   await page.locator('#object-select-'+bookObject).click();
+  await page.locator('[data-inspector-tab="visual"]').click();
+  await page.locator('#preview-object-visible').uncheck();
+  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),0);
+  assert.deepEqual((await snapshot()).scene,original.scene,
+    'preview checkbox does not mutate published source');
+  assert.equal(await page.locator('#site-eye-'+bookObject).getAttribute('aria-pressed'),'true',
+    'site eye still exposes publication state while preview is hidden');
+  await page.locator('#preview-object-visible').check();
+  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),1);
+
+  await page.locator('[data-inspector-tab="focus"]').click();
   assert.equal(await page.locator('#presentation-roomVisible').isChecked(),true);
   await page.locator('#presentation-roomVisible').uncheck();
   let draft=await snapshot();
   assert.equal(draft.presentation.objects[bookObject].roomVisible,false);
   assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),0);
-  assert.deepEqual(draft.scene,source.scene,'publish visibility must change presentation alone');
-  // A published-hidden object can be shown locally for editing without changing the published flag.
-  await page.locator('#preview-eye-'+bookObject).click();
-  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),1);
-  assert.deepEqual((await snapshot()).presentation,draft.presentation);
-  await page.locator('#preview-eye-'+bookObject).click();
-  assert.equal(await page.locator('[data-room-object="'+bookObject+'"]').count(),0);
+  assert.deepEqual(draft.scene,source.scene,'room-only visibility changes presentation alone');
   await page.locator('#undo').click();
   assert.equal((await snapshot()).presentation.objects[bookObject].roomVisible,true);
   await page.locator('#redo').click();
@@ -108,12 +134,59 @@ try{
   assert.equal(validateScenePresentation(draft.presentation),draft.presentation);
   assert.equal(site.readiness(draft.scene,source,draft.presentation).ready,true);
 
-  // Existing independent artwork visibility is publishable; photographic objects are only local preview masks.
-  await page.locator('#preview-eye-candle').click();
+  // The tree eye is now persisted, whereas the labeled preview control is not.
+  await page.locator('#object-select-candle').click();
+  await page.locator('[data-inspector-tab="visual"]').click();
+  await page.locator('#preview-object-visible').uncheck();
   assert.equal(await page.locator('#stage-object-candle').isHidden(),true);
-  assert.equal(await page.locator('#scene-photo').isVisible(),true,'cannot erase candle embedded in photographic source');
+  assert.equal(await page.locator('#scene-photo').isVisible(),true);
   assert.deepEqual((await snapshot()).scene,source.scene);
-  await page.locator('#preview-eye-candle').click();
+  await page.locator('#preview-object-visible').check();
+
+  // The real native-site checkbox must be available and stageable, unlike the
+  // local eye. Hiding a source object removes both its rendering and effects,
+  // but does not erase master-photo pixels or touch the focus presentation.
+  for(const id of ['candle','ceremonial-robe','research-journal']){
+    await page.locator('#object-select-'+id).click();
+    await page.locator('[data-inspector-tab="visual"]').click();
+    const control=page.locator('#site-object-visible');
+    assert.equal(await control.isVisible(),true,id+' persists on website');
+    assert.equal(await control.isChecked(),true,id+' starts visible');
+    const unchanged=await snapshot();
+    await control.uncheck();
+    const hidden=await snapshot();
+    assert.equal(hidden.scene.objects.find(item=>item.id===id).visible,false);
+    assert.equal(await page.locator('#stage-object-'+id).isHidden(),true);
+    assert.equal(await page.locator('#site-eye-'+id).getAttribute('aria-pressed'),'false');
+    if(id==='research-journal'){
+      assert.equal(await page.locator('[data-room-object="research-journal"]').count(),0,
+        'book image must disappear with scene visibility, not just its focus button');
+      assert.deepEqual(hidden.presentation,unchanged.presentation,
+        'native site visibility is independent of the room-only focus setting');
+    }
+    assert.equal(site.readiness(hidden.scene,source,hidden.presentation).ready,true,
+      'site approval can publish native '+id+' visibility');
+    assert.equal(await page.locator('#scene-photo').isVisible(),true,
+      'master pixels, including wall hanger, are never edited by hiding a cutout');
+    await page.locator('#undo').click();
+    const restored=await snapshot();
+    assert.equal(restored.scene.objects.find(item=>item.id===id).visible,true);
+    assert.deepEqual(restored.scene,unchanged.scene,'Undo recovers original native source');
+  }
   assert.deepEqual(errors,[]);
-  console.log('PASS local eye vs published visibility, closed book placement, hit polygon, undo/redo, photo boundary, source integrity');
+  // The same eye that users see in the tree now persists for every native
+  // object, and selecting the right inspector confirms the exact same state.
+  for(const id of ['archive-chest','incense-holder']){
+    const originalVisible=(await snapshot()).scene.objects.find(o=>o.id===id).visible;
+    await page.locator('#site-eye-'+id).click();
+    assert.equal((await snapshot()).scene.objects.find(o=>o.id===id).visible,!originalVisible,id);
+    await page.locator('#object-select-'+id).click();
+    await page.locator('[data-inspector-tab="visual"]').click();
+    assert.equal(await page.locator('#site-object-visible').isChecked(),!originalVisible,
+      'tree eye and inspector must agree for '+id);
+    await page.locator('#undo').click();
+    assert.equal((await snapshot()).scene.objects.find(o=>o.id===id).visible,originalVisible,
+      'Undo restores even an already hidden published object');
+  }
+  console.log('PASS tree eye persistence vs preview-only inspector, archive chest/incense publish, focus, Undo, master photo');
 }finally{await browser?.close();server.kill('SIGTERM');}

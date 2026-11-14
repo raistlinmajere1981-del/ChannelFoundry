@@ -2,8 +2,8 @@
 // object effects and of the language/transition engine.
 export const LANGUAGE_SWITCH_CONTROL='languageSwitch';
 const LIMITS=Object.freeze({
-  x:[5,85],y:[60,96],bottom:[22,90],plateScale:[.75,1.4],
-  hitWidth:[1,1.7],hitHeight:[1,1.7],skew:[-35,-10],
+  x:[5,85],y:[60,96],bottom:[22,90],plateScale:[.45,2.25],
+  hitWidth:[1,1.7],hitHeight:[1,1.7],skew:[-55,15],
 });
 export function defaultLanguageSwitchLayout(){
   return {desktop:{x:22,y:90.5,plateScale:1,hitWidth:1,hitHeight:1,skew:-23},

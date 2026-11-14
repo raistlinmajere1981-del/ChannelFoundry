@@ -8,6 +8,7 @@ import {compileObjectScene} from '../../packages/effect-engine/src/runtime/objec
 import {validateAssetOverrides,webpDimensions,ROOM_BACKGROUND_ASSET} from './scene-asset-overrides.mjs';
 import {PHYSICAL_ART_SLOTS,ALL_PHYSICAL_ART_PATHS} from './scene-physical-art.mjs';
 import {closedBooksFor} from '../../channels/birdesengor/web/src/book/closedBookLayout.js';
+import {buildVideoCatalog} from '../../channels/birdesengor/web/src/camera/videoCatalog.js';
 import {validateScenePresentation} from '../../packages/effect-engine/src/model/scene-presentation.mjs';
 
 export const BIRDESENGOR_SITE=resolve(dirname(fileURLToPath(import.meta.url)),'../../channels/birdesengor/web');
@@ -16,6 +17,7 @@ const MANIFEST='src/scene/data/study.scene.json';
 const PRESENTATION='src/scene/data/scene-presentation.v1.json';
 const ADAPTER='src/effects/effectsAdapter.js';
 const PREVIEW='public'+ROOM_BACKGROUND_ASSET;
+const INDEPENDENT_ROOM_MATERIAL_IDS=Object.freeze(['water-basin','guardian-sword-left','guardian-sword-right','candle','incense-holder']);
 const ROOT='src/scene/SceneRoot.jsx';
 const STAGE_CSS='src/scene/study-foundation.css';
 const LANGUAGE_CSS='src/language/language.css';
@@ -24,6 +26,7 @@ const LANGUAGE_CSS='src/language/language.css';
 const PRESENTATION_STYLES=Object.freeze([
  'src/book/universe-tome.css','src/book/book-ribbons.css',
  'src/book/journal-pages.css','src/book/physical-books.css',
+ 'src/book/scene-closed-books.css',
  'src/book/reading-controls.css','src/community/community-journal.css',
  'src/camera/camera-artwork.css','src/camera/camera-single-view.css',
  'src/vefk/physical-vefk.css',
@@ -64,10 +67,13 @@ function verifiedMounts(entries){
   'Inactive scene effects publish no transparent click/hover targets':
     scene.includes('ACTIVE_PULSE_IDS.has(object.id)')
     && scene.includes('ACTIVE_HOVER_INPUT_IDS.has(object.id)')
-    && scene.includes('CANDLE_EFFECT_ACTIVE && <button')
-    && scene.includes('INCENSE_EFFECT_ACTIVE && <button')
+    && scene.includes("CANDLE_EFFECT_ACTIVE && roomObjectVisible('candle') && <button")
+    && scene.includes("INCENSE_EFFECT_ACTIVE && roomObjectVisible('incense-holder') && <button")
     && scene.includes('[...ACTIVE_HOVER_IDS].filter')
     && scene.includes("hoverEnabled={ACTIVE_HOVER_IDS.has('camera')}")
+    && scene.includes('if(!roomObjectVisible(object.id))return null;')
+    && hook.includes('if(!roomObjectVisible(objectId))continue;')
+    && hook.includes('allowed:id=>roomObjectVisible(id)')
     && hook.includes("if(!selection.effects.some(effect=>effect.enabled))continue;")
     && hook.includes('...(interactive ? {interactive:true,interactionTarget:input} : {})'),
   'Motion slot mounts the declared visual layer':scene.includes('object.visual.layers.map')
@@ -129,8 +135,8 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   }
   visit(ROOT);
   const sourceManifest=JSON.parse(entries.get(MANIFEST));
-  for(const object of (sourceManifest.objects??[]).filter(o=>o.motionLayers?.length)){
-    for(const asset of [object.visual.asset,...object.visual.layers.map(layer=>layer.asset)]){
+  for(const object of (sourceManifest.objects??[]).filter(o=>o.motionLayers?.length||INDEPENDENT_ROOM_MATERIAL_IDS.includes(o.id))){
+    for(const asset of [object.visual.asset,...(object.visual.layers??[]).map(layer=>layer.asset)]){
       if(!/^\/scene-assets\/[a-z0-9/-]+\.webp$/.test(asset))throw Error('Geçersiz hareket görsel yolu.');
       const file='public'+asset;entries.set(file,read(file));
     }
@@ -235,6 +241,17 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
   });
   return [...books,...devices];
  }
+ // Preview-only catalog metadata; outside the scene source revision and never
+ // written to the site. An isolated clone with no local export returns null.
+ function cameraCover(){
+   const filename=resolve(root,'../.local-data/studio/public-export/content/publication.json');
+   try{
+     if(realpathSync(filename)!==filename||statSync(filename).size>12*1024*1024)return null;
+     const published=JSON.parse(readFileSync(filename,'utf8'));
+     const item=buildVideoCatalog(published).videos.find(video=>video.thumbnailUrl);
+     return item?{url:item.thumbnailUrl,videoId:item.videoId,publishedAt:item.publishedAt}:null;
+   }catch{return null;}
+ }
  function focusTargets(state){return state.manifest.objects.filter(o=>['research-journal','community-journal','camera','vefk-stand'].includes(o.id))
    .map(o=>({id:o.id,foundation:o.foundation}));}
  function validateAssets(assets,state,scene=state.scene){
@@ -263,6 +280,18 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     });
   });
  }
+ function objectVisuals(state){
+  return state.manifest.objects.map(object=>({
+    id:object.id,kind:object.visual?.kind??'unknown',
+    auxiliaryAssets:[
+      ...(PHYSICAL_ART_SLOTS[object.id]??[]).map(slot=>slot.path),
+      ...(object.id==='archive-chest'?['/scene-assets/chest/interior-light-mask.webp']:[]),
+      ...(object.id==='ceremonial-dagger'?['/scene-assets/dagger/dagger-blade-mask.webp']:[]),
+    ],
+    asset:object.visual?.asset??null,
+    layers:(object.visual?.layers??[]).map(layer=>({id:layer.id,asset:layer.asset}))
+  }));
+ }
  function previewObjects(state){
   const image=asset=>{
     const bytes=state.entries.get('public'+asset);
@@ -270,7 +299,10 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     return 'data:image/webp;base64,'+bytes.toString('base64');
   };
   return [
-    ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})})),
+    ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{}),...(o.id==='stone-specimen'?{dropper:image('/scene-assets/stone/copper-drip-arm.webp')}:{})})),
+    ...state.manifest.objects.filter(o=>INDEPENDENT_ROOM_MATERIAL_IDS.includes(o.id)).map(o=>({
+      objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:[]
+    })),
     ...state.scene.objects.filter(o=>o.kind==='artwork').map(o=>({
       objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,
       layers:(o.visual.layers??[]).map(layer=>({...layer,image:image(layer.asset)}))
@@ -365,5 +397,5 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     changedFiles:[...changedFiles.map(([file])=>file),...removedFiles],
     sourceHash:after.sourceHash,readiness:report};
  }
- return {snapshot,validate,validateAssets,readiness,preview,backgroundInfo,previewObjects,previewArt,roomObjects,focusTargets,stage};
+ return {snapshot,validate,validateAssets,readiness,preview,backgroundInfo,previewObjects,objectVisuals,previewArt,roomObjects,focusTargets,cameraCover,stage};
 }

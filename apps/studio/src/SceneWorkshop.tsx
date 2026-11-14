@@ -60,7 +60,7 @@ export default function SceneWorkshop() {
       if (!editor.current) throw new Error("Sahne modülü henüz hazır değil.");
       editor.current.load({
         scene: reply.scene, previewImage: reply.previewImage, background: reply.background,
-        previewObjects: reply.previewObjects, previewArt: reply.previewArt, roomObjects: reply.roomObjects, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: reply.siteSource!==false, genericEditable:reply.siteSource===false,
+        previewObjects: reply.previewObjects, objectVisuals: reply.objectVisuals, previewArt: reply.previewArt, roomObjects: reply.roomObjects, cameraCover: reply.cameraCover, assets: reply.assets, presentation: reply.presentation, focusTargets: reply.focusTargets, siteSource: reply.siteSource!==false, genericEditable:reply.siteSource===false,
       });
       sourceHash.current = reply.sourceHash;
       setCanPublish(reply.canPublish!==false);

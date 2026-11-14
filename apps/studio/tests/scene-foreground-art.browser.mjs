@@ -12,22 +12,41 @@ let log='';server.stdout.on('data',b=>log+=String(b));server.stderr.on('data',b=
 let browser;
 try{
  let ok=false;
- for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v2-harness.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+ for(let i=0;i<120;i++){try{if((await fetch(origin+'/tests/scene-v3-harness.html')).ok){ok=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
  assert.ok(ok,'Studio edit server: '+log);
  const site=siteSceneSource(),source=await site.snapshot();
  const artwork=site.previewArt(source),roomObjects=site.roomObjects(source);
- assert.equal(artwork.length,19);
+ assert.equal(artwork.length,ALL_PHYSICAL_ART_PATHS.length);
  assert.deepEqual(new Set(artwork.map(a=>a.path)),new Set(ALL_PHYSICAL_ART_PATHS));
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/home/raistlin/.claude-server-commander/puppeteer-cache/chrome/linux-155.0.8059.39/chrome-linux64/chrome',
    headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  const page=await browser.newPage({viewport:{width:1600,height:900}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
- const packet={type:'studio:load',scene:source.scene,presentation:source.presentation,roomObjects,
-   previewImage:await site.preview(source),previewObjects:site.previewObjects(source),previewArt:artwork,
-   focusTargets:site.focusTargets(source),assets:[],siteSource:true};
- await page.evaluate(message=>window.postMessage(message,'*'),packet);
- await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,{timeout:20000});
+ await page.goto(origin+'/tests/scene-v3-harness.html',{waitUntil:'domcontentloaded'});
+ const packet={scene:source.scene,presentation:source.presentation,roomObjects,
+   previewImage:await site.preview(source),background:site.backgroundInfo(source),
+   previewObjects:site.previewObjects(source),objectVisuals:site.objectVisuals(source),
+   previewArt:artwork,focusTargets:site.focusTargets(source),
+   assets:[],siteSource:true,readiness:site.readiness(source.scene,source),sourceHash:source.sourceHash};
+ await page.evaluate(message=>{
+   window.channelFoundryStudio={
+     sceneWorkshopLoad:async()=>message,
+     sceneWorkshopSave:async()=>({sourceHash:message.sourceHash,readiness:message.readiness,message:'Kaydedildi'}),
+     onSceneWorkshopProgress:()=>()=>{},
+   };
+   window.__mountStudioSceneV3();
+ },packet);
+ try {
+   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22
+      ||Boolean(document.querySelector('strong[role=alert]')),{timeout:30000});
+ }catch(e){
+   console.error('V3 foreground load diagnosis:',
+     await page.locator('strong[role=alert]').allTextContents(),errors);
+   throw e;
+ }
+ assert.equal(await page.locator('strong[role=alert]').count(),0,
+   (await page.locator('strong[role=alert]').allTextContents()).join(' | '));
+
  assert.equal(await page.locator('#scene-room-objects [data-room-object]').count(),4,'four objects composited over room');
  assert.equal(await page.locator('#show-room-objects').getAttribute('aria-pressed'),'true');
  for(const id of ['research-journal','community-journal','camera','vefk-stand']){
@@ -81,18 +100,14 @@ try{
  await page.locator('[data-room-object="camera"]').click();
  assert.match(await page.locator('#selected-object-name').textContent(),/Kamera/);
  await page.locator('#object-select-research-journal').click();
- const get=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
-   const requestId='artwork-'+Math.random(),timeout=setTimeout(()=>reject(Error('art draft timeout')),8000);
-   const listener=e=>{if(e.data?.requestId!==requestId||e.data.type!=='studio:data')return;
-     clearTimeout(timeout);window.removeEventListener('message',listener);resolve(e.data);};
-   window.addEventListener('message',listener);window.postMessage({type:'studio:get',requestId},'*');
- }));
+ const get=()=>page.evaluate(()=>window.__sceneEditor.snapshot());
  const file=(path)=>({name:'replacement.webp',mimeType:'image/webp',buffer:readFileSync(BIRDESENGOR_SITE+'/public'+path)});
  const book='/scene-assets/books/scene-closed/evren-master-closed.webp';
  const bookEn='/scene-assets/books/scene-closed/evren-master-closed-en.webp';
  const camera='/scene-assets/camera/research/camera-body.webp';
  const vellum='/scene-assets/vefk/vellum.webp';
  await page.locator('#object-select-research-journal').click();
+ await page.locator('[data-inspector-tab="visual"]').click();
  assert.equal(await page.locator('#visual-source-settings').isVisible(),true);
  assert.equal(await page.locator('#visual-crop-settings').isVisible(),false,'book has image source but no destructive crop controls');
  assert.equal(await page.locator('#visual-source-slot option').count(),PHYSICAL_ART_SLOTS['research-journal'].length);
@@ -105,7 +120,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('3:2'));
  assert.equal((await get()).assets.length,0);
  await page.locator('#visual-source-file').setInputFiles(file(bookEn));
- await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.textContent.includes('Yeni kaynak taslakta'),{timeout:20000});
+ await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.dataset.modified==='true',{timeout:20000});
  let draft=await get();
  assert.equal(draft.assets.length,1);
  assert.equal(draft.assets[0].path,book);
@@ -116,36 +131,50 @@ try{
  await page.locator('#visual-source-slot').selectOption(bookEn);
  assert.match(await page.locator('.scene-source-warning').textContent(),/Türkçe kapak/);
  await page.locator('#object-select-community-journal').click();
+ await page.locator('[data-inspector-tab="visual"]').click();
  assert.equal(await page.locator('#visual-source-slot option').count(),PHYSICAL_ART_SLOTS['community-journal'].length);
  await page.locator('#visual-source-slot').selectOption('/scene-assets/books/community-live/spine.webp');
  assert.ok(await page.locator('.scene-source-preview img').isVisible());
  await page.locator('#object-select-camera').click();
+ await page.locator('[data-inspector-tab="visual"]').click();
  assert.equal(await page.locator('#visual-source-slot option').count(),1);
  assert.equal(await page.locator('#visual-source-slot').inputValue(),camera);
  await page.locator('#visual-source-file').setInputFiles(file(camera));
- await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.textContent.includes('Yeni kaynak taslakta'),{timeout:20000});
+ await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.dataset.modified==='true',{timeout:20000});
  await page.locator('#object-select-vefk-stand').click();
+ await page.locator('[data-inspector-tab="visual"]').click();
  assert.equal(await page.locator('#visual-source-slot option').count(),PHYSICAL_ART_SLOTS['vefk-stand'].length);
  assert.equal(await page.locator('#visual-source-slot').inputValue(),vellum);
  await page.locator('#visual-source-file').setInputFiles(file(vellum));
- await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.textContent.includes('Yeni kaynak taslakta'),{timeout:20000});
+ await page.waitForFunction(()=>document.querySelector('#visual-source-inspector')?.dataset.modified==='true',{timeout:20000});
  draft=await get();
  assert.deepEqual(draft.assets.map(a=>a.path),[book,camera,vellum]);
  assert.equal(site.validateAssets(draft.assets,source).length,3);
  assert.equal(site.readiness(draft.scene,source,draft.presentation).ready,true);
  assert.deepEqual(draft.scene,source.scene);
  // Saved local sources restore in their own object, including preview.
- await page.evaluate(message=>window.postMessage(message,'*'),{...packet,assets:draft.assets});
- await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Sahne hazır.'));
+ await page.reload({waitUntil:'domcontentloaded'});
+ await page.evaluate(message=>{
+   window.channelFoundryStudio={
+     sceneWorkshopLoad:async()=>message,
+     sceneWorkshopSave:async()=>({sourceHash:message.sourceHash,readiness:message.readiness,message:'Kaydedildi'}),
+     onSceneWorkshopProgress:()=>()=>{},
+   };
+   window.__mountStudioSceneV3();
+ },{...packet,assets:draft.assets});
+ await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22);
  await page.locator('#object-select-research-journal').click();
- assert.match(await page.locator('#visual-source-inspector').textContent(),/Yeni kaynak taslakta/);
+ await page.locator('[data-inspector-tab="visual"]').click();
+ assert.equal(await page.locator('#visual-source-inspector').getAttribute('data-modified'),'true');
  await page.locator('#visual-source-restore').click();
  assert.notEqual(await page.locator('[data-room-object="research-journal"] img').getAttribute('src'),
    draft.assets.find(a=>a.path===book).dataUrl,'restoring draft also restores room picture');
  assert.deepEqual((await get()).assets.map(a=>a.path),[camera,vellum]);
  await page.locator('#object-select-stone-specimen').click();
- assert.equal(await page.locator('#visual-source-slot option').count(),2,'previous detached motion assets still editable');
+ await page.locator('[data-inspector-tab="visual"]').click();
+ assert.equal(await page.locator('#visual-source-slot option').count(),3,
+   'stone, copper plinth and physically independent dropper sources remain editable');
  assert.equal(await page.locator('#visual-crop-settings').isVisible(),true);
  assert.deepEqual(errors,[]);
- console.log('PASS 19 physical art slots, book alpha ratio protection, source preview, 3-object draft restore and legacy crop');
+ console.log('PASS '+artwork.length+' physical art slots, book alpha ratio protection, source preview, 3-object draft restore and independent stone crop');
 }finally{await browser?.close();server.kill('SIGTERM');}

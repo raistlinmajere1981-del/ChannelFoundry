@@ -95,7 +95,15 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-book-controls>summary{cursor:pointer;font-size:12px;font-weight:650;color:#dac5a0;padding:2px 0 5px}
 .scene-book-controls>.field{margin:6px 0 9px}
 .scene-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+.scene-photo{filter:brightness(var(--scene-room-brightness,1)) contrast(var(--scene-room-contrast,1)) saturate(var(--scene-room-saturation,1))}
 .scene-photo[hidden]{display:none}
+/* Matched to study-frame's atmosphere overlay; controls remain above wash. */
+.scene-atmosphere-wash{position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:
+    radial-gradient(ellipse at 50% 42%,transparent 27%,rgba(1,4,9,var(--scene-vignette,0)) 100%),
+    linear-gradient(180deg,rgba(26,53,70,var(--scene-cool-tint,0)),rgba(12,32,49,var(--scene-cool-tint,0)));}
+.scene-contact-shadow{pointer-events:none;user-select:none;}
+
 .has-photo.scene-viewport::before{display:none}
 .has-photo .scene-object{background:transparent;border-color:#c4d7d43d;box-shadow:none}
 .has-photo .scene-object.selected{border-color:var(--accent);box-shadow:0 0 0 1px #e9a24b55}
@@ -112,22 +120,46 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
   box-shadow:var(--shadow),inset 0 0 80px #0008}
 .scene-viewport::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:10% 10%;opacity:.7}
 .scene-room-objects,.scene-objects,.scene-markers{position:absolute;inset:0}
-.scene-room-objects{z-index:2;pointer-events:none}
+.scene-room-objects{z-index:4;pointer-events:none}
 .scene-room-figure{box-sizing:border-box;display:block;position:absolute;min-width:0;min-height:0;margin:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:pointer;user-select:none;outline-offset:4px;transform-origin:center;filter:none}
 .scene-room-figure:focus-visible{outline:2px solid var(--accent)}
 .scene-room-figure[data-selected="true"]{filter:drop-shadow(0 0 5px #d99d56b0)}
 .scene-room-figure img{display:block;max-width:none;pointer-events:none;user-select:none;-webkit-user-drag:none}
-.scene-room-figure--book img{width:100%;height:auto;filter:brightness(.81) saturate(.83) drop-shadow(0 2px 1px #080401c8)}
-.scene-room-figure--camera img{width:100%;height:100%;object-fit:fill;filter:brightness(.68) saturate(.77) drop-shadow(0 7px 3px #0704029c)}
+.scene-room-figure--book img{width:100%;height:auto;filter:brightness(calc(.81 * var(--scene-material-brightness,1))) saturate(.83) drop-shadow(0 2px 1px #080401c8)}
+.scene-room-figure[data-room-object="research-journal"] > canvas.object-effect-overlay{
+  mix-blend-mode:screen;pointer-events:none!important;
+}
+.scene-room-figure--camera img{width:100%;height:100%;object-fit:fill;filter:brightness(calc(.68 * var(--scene-material-brightness,1))) saturate(.77) drop-shadow(0 7px 3px #0704029c)}
+/* Exactly the same room-only material pass used by the live physical drawing
+   device. The near/focus preview remains untouched and readable. */
+.scene-room-figure--vefk .scene-room-vefk-material{
+  position:absolute;inset:0;display:block;pointer-events:none;
+  filter:brightness(calc(.73 * var(--scene-material-brightness,1))) saturate(.74) contrast(1.04);
+}
 .scene-room-figure--vefk img{position:absolute;pointer-events:none}
 .scene-room-figure--vefk .scene-room-paper{left:11.23%;top:11.07%;width:77.15%;height:47.26%;filter:brightness(.85) saturate(.7)}
 .scene-room-figure--vefk .scene-room-chassis{inset:0;width:100%;height:100%;filter:drop-shadow(2px 3px 3px #000a)}
 .scene-room-figure--vefk .scene-room-inkwell{left:7.81%;top:61.91%;width:10.94%;height:7.29%;filter:brightness(.8) drop-shadow(2px 2px 1px #0009)}
 .scene-room-figure--vefk .scene-room-quill{left:6.07%;top:48.46%;width:15.87%;height:15.87%;transform-origin:45.4% 97.5%;transform:rotate(14deg);filter:drop-shadow(1px 2px 2px #0009)}
 .scene-room-objects[hidden]{display:none}
+/* Studio-only V4 spatial contract. Nothing under this overlay is interactive.
+   It cannot alter the site photo, effect anchors, focus or browser hit areas. */
+.scene-composition-guide{position:absolute;inset:0;z-index:6;pointer-events:none}
+.scene-composition-guide[hidden]{display:none!important}
+.scene-plan-zone{position:absolute;box-sizing:border-box;pointer-events:none;
+  border:1px dashed #c2d4d0;box-shadow:inset 0 0 0 1px #05111666;
+  background:#92b9ca18;border-radius:3px}
+.scene-composition-guide[data-mode="fixed"] .scene-plan-zone{border-color:#d9ae80;background:#c38c471b}
+.scene-composition-guide[data-mode="focus"] .scene-plan-zone{border-color:#96c2be;background:#72aeb01c}
+.scene-composition-guide[data-mode="details"] .scene-plan-zone{border-color:#b7aad7;background:#aa90c61c}
+.scene-plan-label{display:inline-block;position:absolute;left:0;top:0;
+  background:#10191eea;border:1px solid #bdd1d062;color:#eff6f4;
+  padding:2px 4px;border-radius:2px;font-size:clamp(8px,.9vw,11px);
+  line-height:1.2;white-space:nowrap;max-width:min(160px,35vw);overflow:hidden;text-overflow:ellipsis}
+
 .scene-objects{z-index:1}
 .scene-objects{z-index:1}
-.scene-markers{z-index:5;pointer-events:none}
+.scene-markers{z-index:7;pointer-events:none}
 .hide-effect-markers .scene-markers{display:none}
 .scene-object{position:absolute;transform-origin:center;overflow:visible;border:1px solid #7a8c92;border-radius:6px;background:#243136c9;color:#e9eff0;cursor:pointer;min-width:8px;min-height:8px;transition:border-color .12s,box-shadow .12s}
 .scene-object:hover{border-color:#b8d4d9}
@@ -151,6 +183,22 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-inspector{max-height:calc(100dvh - 118px);overflow:auto}
 .scene-inspector h3{margin:13px 0 5px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#aab8bb}
 .scene-inspector .scene-field,.scene-inspector .field{margin-bottom:8px}
+.scene-family-status{padding:7px 8px;background:#25312e;border:1px solid #497365;
+  display:flex;flex-direction:column;gap:3px;border-radius:6px;margin:6px 0 8px;font-size:11px}
+.scene-family-status strong{color:#d2e9d6;font-size:12px}
+.scene-family-status span{color:#afc9c2}
+.scene-family-status[data-family-stage="needs-art"]{background:#302621;border-color:#896b4b}
+.scene-family-status[data-family-stage="partial"]{background:#2c2a32;border-color:#716588}
+.scene-family-part{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 6px;
+  margin:4px 0;padding:6px;border-radius:5px;border:1px solid #3a454b;background:#151f23}
+.scene-family-part strong{font-size:11px;overflow-wrap:anywhere}
+.scene-family-part>span{font-size:10px;color:#d0c4a0}
+.scene-family-part[data-part-state="ready"]>span{color:#9fd1b4}
+.scene-family-part[data-part-state="needs-art"]>span{color:#e9b698}
+.scene-family-part p,.scene-family-part code{grid-column:1/-1;margin:0;font-size:10px;line-height:1.5;
+  color:#aebdc0;overflow-wrap:anywhere}
+.scene-family-part code{font-size:9px;white-space:normal}
+
 .scene-param{border-top:1px solid #30393e;padding-top:8px;margin-top:8px}
 .scene-param-line{display:grid;grid-template-columns:minmax(0,1fr) 84px;align-items:center;gap:8px}
 .scene-param-line label{font-size:11px;color:#c7d0d2;overflow-wrap:anywhere}
@@ -307,8 +355,17 @@ body.embedded .scene-workspace{padding:8px;gap:8px}
   background:transparent;color:#f4e0bc;border:1px solid transparent;border-radius:4px;
   padding:0;pointer-events:auto;cursor:pointer;touch-action:none}
 .scene-language-switch[data-selected="true"]{outline:1px dashed #e3b876;outline-offset:3px}
-.scene-language-switch .scene-switch-plate{position:absolute;left:50%;top:50%;
-  width:82%;height:77%;box-sizing:border-box;border:1px solid #c48d5c;border-radius:3px;
+.scene-language-switch::before{
+  content:'';position:absolute;left:50%;top:50%;
+  width:calc(82% / var(--scene-switch-hit-width,1) + 9px);height:calc(77% / var(--scene-switch-hit-height,1) + 8px);box-sizing:border-box;
+  transform:translate(-50%,-50%) skewX(var(--scene-switch-skew,-23deg)) scaleY(.82) scale(var(--scene-switch-scale,1));
+  border-radius:4px;border:2px solid #0d0908;
+  background:linear-gradient(145deg,#21120d,#080705 54%,#2b1a12);
+  box-shadow:0 0 0 2px #4b332355,inset 1px 2px 4px #000e,0 2px 2px #050302;
+  pointer-events:none;
+}
+.scene-language-switch .scene-switch-plate{z-index:1;position:absolute;left:50%;top:50%;
+  width:calc(82% / var(--scene-switch-hit-width,1));height:calc(77% / var(--scene-switch-hit-height,1));box-sizing:border-box;border:1px solid #c48d5c;border-radius:3px;
   transform:translate(-50%,-50%) skewX(var(--scene-switch-skew,-23deg)) scaleY(.82) scale(var(--scene-switch-scale,1));
   display:flex;align-items:center;justify-content:space-around;
   background:linear-gradient(145deg,#bc8253,#7d492e 48%,#44271c);
@@ -330,6 +387,11 @@ body.embedded .scene-workspace{padding:8px;gap:8px}
 .scene-editor-root .scene-room-figure--book {touch-action:none;}
 .scene-editor-root .visual-edit-mode .scene-room-figure--book {cursor:grab;}
 .scene-editor-root .visual-edit-mode .scene-room-figure--book:active {cursor:grabbing;}
+.scene-editor-root .scene-room-figure--device{touch-action:none;}
+.scene-editor-root .visual-edit-mode .scene-room-figure--camera,
+.scene-editor-root .visual-edit-mode .scene-room-figure--vefk{cursor:grab;}
+.scene-editor-root .visual-edit-mode .scene-room-figure--camera:active,
+.scene-editor-root .visual-edit-mode .scene-room-figure--vefk:active{cursor:grabbing;}
 
 /* Physical art is alpha composited. Generic button hover/pressed styles must not
    paint a rectangle behind its transparent source, even when hovered/focused. */
@@ -375,6 +437,30 @@ body.embedded .scene-workspace{padding:8px;gap:8px}
 .scene-editor-root .scene-focus-lcd-layout {flex:1;min-height:0;display:flex;gap:3px;padding:3px;border:1px solid #506054;}
 .scene-editor-root .scene-focus-lcd-list {width:var(--archive-pct,30%);border-right:1px solid #526454;background:#141a16;display:grid;place-items:center;text-align:center;color:#a8b0a1;font-size:9px;}
 .scene-editor-root .scene-focus-lcd-player {flex:1;min-height:var(--player-min-height,20%);display:grid;place-items:center;text-align:center;background:#050a08;color:#adb4aa;font-size:10px;}
+/* A read-only, authenticated-publication cover in the physical LCD preview.
+   The native controls above it still edit the same web presentation fields. */
+.scene-editor-root .scene-focus-lcd--poster{overflow:hidden;position:absolute;background:#080e0b;}
+.scene-editor-root .scene-focus-poster{position:relative;flex:1;min-height:0;overflow:hidden;background:#09120e;border:1px solid #596956;}
+.scene-editor-root .scene-focus-poster img{position:absolute;pointer-events:none;user-select:none;}
+.scene-editor-root .scene-focus-poster-ambient{
+  inset:-7%;width:114%;height:114%;object-fit:cover;
+  object-position:var(--camera-cover-x,50%) var(--camera-cover-y,50%);
+  filter:blur(9px) saturate(.7) brightness(var(--camera-cover-brightness,.93));opacity:.38;
+}
+.scene-editor-root .scene-focus-poster-art{
+  inset:7%;width:86%;height:86%;object-fit:contain;
+  object-position:var(--camera-cover-x,50%) var(--camera-cover-y,50%);
+  transform:scale(var(--camera-cover-scale,1));
+  filter:saturate(.94) brightness(var(--camera-cover-brightness,.93)) contrast(1.12);
+  border:1px solid #6774665c;box-shadow:0 0 0 3px #070b08b8;
+}
+.scene-editor-root .scene-focus-poster-date{
+  position:absolute;top:5px;left:5px;padding:3px 5px;
+  background:#06110dc9;color:#cfddc0;font:8px ui-monospace,monospace;pointer-events:none;
+}
+.scene-editor-root .scene-focus-poster-unavailable{display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:14px;background:#08100dea;color:#d3b989;text-align:center;font:11px/1.4 system-ui;}
+.scene-editor-root .scene-focus-poster--unavailable .scene-focus-poster-unavailable{display:flex;}
+.scene-editor-root .scene-focus-poster--unavailable img{display:none;}
 .scene-editor-root .scene-focus-vefk {height:90%;aspect-ratio:2/3;max-width:85%;}
 .scene-editor-root .scene-focus-vefk img {position:absolute;display:block;pointer-events:none;object-fit:fill;}
 .scene-editor-root .scene-focus-paper {z-index:0;filter:brightness(.89);}

@@ -71,7 +71,7 @@ function validateObjectScene(scene) {
     if(item.kind!==undefined&&item.kind!=='artwork')fail('Bilinmeyen nesne türü.');
     if(item.visual!==undefined){
       keys(item.visual,['asset','layers'],'Nesne görseli');
-      if(typeof item.visual.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(item.visual.asset))
+      if(typeof item.visual.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp(?:\?v=[a-f0-9]{12})?$/.test(item.visual.asset))
         fail('Bağımsız görsel kaynağı yalnız yerel custom WebP olabilir.');
       if(item.visual.layers!==undefined){
         if(item.kind!=='artwork'||!Array.isArray(item.visual.layers)||item.visual.layers.length>8)
@@ -81,7 +81,7 @@ function validateObjectScene(scene) {
           keys(layer,['id','asset','box'],'Görsel alt katmanı');
           if(typeof layer.id!=='string'||!/^[a-z][a-z0-9-]{0,79}$/.test(layer.id)||layerIds.has(layer.id))
             fail('Hareket katmanı kimliği geçersiz veya tekrar ediyor.');
-          if(typeof layer.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp$/.test(layer.asset)||layerAssets.has(layer.asset))
+          if(typeof layer.asset!=='string'||!/^\/scene-assets\/custom\/[a-z0-9-]+\.webp(?:\?v=[a-f0-9]{12})?$/.test(layer.asset)||layerAssets.has(layer.asset))
             fail('Katman görseli benzersiz bir custom WebP olmalı.');
           keys(layer.box,['x','y','width','height'],'Katman alanı');
           for(const key of ['x','y','width','height'])

@@ -47,6 +47,8 @@ test('presentation rejects unknown ids, malformed devices, unknown controls and 
   value=>{value.objects.camera.physical.mobile.inject=true;},
   value=>{value.objects['vefk-stand'].physical.desktop.catalogY=-200;},
   value=>{value.objects.camera.physical.desktop.hingeAngle=45;},
+  value=>{value.objects.camera.physical.desktop.coverX=120;},
+  value=>{value.objects.camera.physical.mobile.coverScale=.5;},
   value=>{value.objects['vefk-stand'].physical.mobile.quillDockX=99;},
   value=>{value.objects['vefk-stand'].physical.desktop.quillRestAngle=-8;},
   value=>{value.objects['research-journal'].roomVisible='false';},
@@ -61,4 +63,32 @@ test('presentation rejects unknown ids, malformed devices, unknown controls and 
   const invalid=structuredClone(source);change(invalid);
   assert.throws(()=>validateScenePresentation(invalid));
  }
+});
+
+test('camera and drawing board room placement is optional, bounded and moves touch hit-area with one coordinate source',async()=>{
+ const {roomDevicePlacement,defaultRoomDevicePlacement,placedDeviceHitArea}=await import('../src/model/scene-presentation.mjs');
+ const config=defaultScenePresentation();
+ for(const id of ['camera','vefk-stand']){
+  const home=defaultRoomDevicePlacement(id);
+  assert.deepEqual(roomDevicePlacement(config,id),home);
+  const hit={x:home.x-.05,y:home.y-.15,width:.1,height:.3};
+  assert.deepEqual(placedDeviceHitArea(config,id,hit),hit);
+  config.objects[id].roomPlacement={x:home.x-.11,y:home.y+.09,scale:1.25};
+  const updated=placedDeviceHitArea(config,id,hit);
+  assert.ok(Math.abs(updated.x-(hit.x-.11-.0125))<.0001);
+  assert.ok(Math.abs(updated.y-(hit.y+.09-.0375))<.0001);
+  assert.ok(Math.abs(updated.width-.125)<1e-8);
+  assert.ok(Math.abs(updated.height-.375)<1e-8);
+ }
+ validateScenePresentation(config);
+ for(const id of ['camera','vefk-stand']){
+  for(const invalid of [{x:2,y:.6,scale:1},{x:.4,y:-.1,scale:1},{x:.4,y:.4,scale:3},{x:.4,y:.4,scale:'huge'}]){
+   const draft=structuredClone(config);draft.objects[id].roomPlacement=invalid;
+   assert.throws(()=>validateScenePresentation(draft),id+' limits');
+  }
+ }
+ const original=structuredClone(config);
+ delete original.objects.camera.roomPlacement;
+ delete original.objects['vefk-stand'].roomPlacement;
+ assert.doesNotThrow(()=>validateScenePresentation(original),'legacy V4.9 data remains valid');
 });

@@ -16,7 +16,7 @@ export function createChestLid({params}){
   const progress=()=>disposed?0:chestPulseProgress(elapsed,params);
   return {
     update(dt){if(!disposed)elapsed=Math.min(total(),elapsed+Math.max(0,dt));},
-    motion:()=>{const p=progress();return {angle:0,tilt:p?-params.openAngle*p:0,lift:params.lift*p};},
+    motion:()=>{const p=progress();return {angle:0,tilt:p?-params.openAngle*p:0};},
     isComplete:complete,
     inspect:()=>({type:'chest-lid-open',elapsed,progress:progress(),disposed}),
     destroy(){disposed=true;},
@@ -34,16 +34,18 @@ export function createChestLight({params}){
       const intensity=progress()*params.opacity;
       if(complete()||intensity<.003||width<=0||height<=0)return;
       ctx.save();
-      const centerX=width*.5,centerY=height*.48,span=Math.max(1,width*.31*params.spread);
+      // The authored interior-light mask covers the upper half of the square chest
+      // material. Paint in that aperture, not below its masked boundary.
+      const centerX=width*.5,centerY=height*.44,span=Math.max(1,width*.43*params.spread);
       const halo=ctx.createRadialGradient(centerX,centerY,0,centerX,centerY,span*1.75);
-      halo.addColorStop(0,'rgba(255,190,79,'+(.75*intensity)+')');
-      halo.addColorStop(.36,'rgba(236,130,38,'+(.40*intensity)+')');
-      halo.addColorStop(1,'rgba(182,83,24,0)');
+      halo.addColorStop(0,'rgba(255,215,118,'+(.96*intensity)+')');
+      halo.addColorStop(.36,'rgba(245,160,57,'+(.60*intensity)+')');
+      halo.addColorStop(1,'rgba(191,94,33,0)');
       ctx.fillStyle=halo;
       ctx.fillRect(0,0,width,height);
       ctx.strokeStyle='rgba(255,201,110,'+(.75*intensity)+')';
       ctx.lineWidth=Math.max(.6,height*.008*params.spread);
-      ctx.beginPath();ctx.moveTo(width*.17,centerY);ctx.lineTo(width*.82,centerY);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(width*.10,centerY);ctx.lineTo(width*.9,centerY);ctx.stroke();
       ctx.restore();
       painted=true;
     },

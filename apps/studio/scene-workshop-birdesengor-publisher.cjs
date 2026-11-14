@@ -25,7 +25,7 @@ function createRunner(webRoot) {
     plan: () => run("npm", ["run", "deploy:natro", "--", "--plan"]),
     dryRun: () => run(wrapper, ["clean-dry-run"]),
     deploy: () => run(wrapper, ["clean-deploy"], {}, 600_000),
-    verifyLive: () => run("npm", ["run", "verify:live"], {}, 60_000),
+    verifyLive: () => run("npm", ["run", "verify:live"], {}, 180_000),
   };
 }
 

@@ -100,6 +100,12 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-room-figure img{display:block;max-width:none;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .scene-room-figure--book img{width:100%;height:auto;filter:brightness(.81) saturate(.83) drop-shadow(0 2px 1px #080401c8)}
 .scene-room-figure--camera img{width:100%;height:100%;object-fit:fill;filter:brightness(.68) saturate(.77) drop-shadow(0 7px 3px #0704029c)}
+/* Exactly the same room-only material pass used by the live physical drawing
+   device. The near/focus preview remains untouched and readable. */
+.scene-room-figure--vefk .scene-room-vefk-material{
+  position:absolute;inset:0;display:block;pointer-events:none;
+  filter:brightness(calc(.73 * var(--scene-material-brightness,1))) saturate(.74) contrast(1.04);
+}
 .scene-room-figure--vefk img{position:absolute;pointer-events:none}
 .scene-room-figure--vefk .scene-room-paper{left:11.23%;top:11.07%;width:77.15%;height:47.26%;filter:brightness(.85) saturate(.7)}
 .scene-room-figure--vefk .scene-room-chassis{inset:0;width:100%;height:100%;filter:drop-shadow(2px 3px 3px #000a)}

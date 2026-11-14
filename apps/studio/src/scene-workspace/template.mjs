@@ -22,6 +22,7 @@ export const sceneTemplate = String.raw`
         <div class="scene-toolbar">
           <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
           <button type="button" id="open-background" title="Sahne arka planı ve ekran kadrajı">Kadraj</button>
+          <button type="button" id="scene-plan-toggle" title="Sahne V4 yerleşim bölgeleri yalnız Studio önizlemesinde gösterilir" disabled>Plan: kapalı</button>
           <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects">Nesneler</button>
           <button type="button" id="show-object-areas" aria-pressed="false" aria-label="Nesne yerleşim alanları">Sınırlar</button>
           <button type="button" id="show-hit-areas" aria-pressed="true" aria-label="Tıklama alanları">Tıklama</button>
@@ -55,6 +56,8 @@ export const sceneTemplate = String.raw`
        <div id="scene-screen-preview" class="scene-screen-preview" data-simulated="false">
        <div id="scene-viewport" class="scene-viewport hide-object-areas" aria-label="Normalleştirilmiş sahne görünümü">
         <img id="scene-photo" class="scene-photo" alt="BirDeSenGör güncel çalışma odası" draggable="false" hidden>
+        <div id="scene-atmosphere-wash" class="scene-atmosphere-wash" aria-hidden="true"></div>
+        <div id="scene-composition-guide" class="scene-composition-guide" hidden aria-hidden="true"></div>
         <div id="scene-room-objects" class="scene-room-objects" aria-label="Fiziksel oda nesneleri önizlemesi"></div>
         <div id="scene-controls" class="scene-controls" aria-label="Sahne arayüz kontrolleri"></div>
         <div id="scene-objects" class="scene-objects"></div>
@@ -86,6 +89,10 @@ export const sceneTemplate = String.raw`
       <section id="scene-control-inspector"></section>
     </div>
     <div class="scene-inspector-page" data-inspector-page="visual" hidden>
+      <details id="scene-family-settings" class="scene-advanced" open hidden>
+        <summary>V4 · Nesne ailesi ve kaynak durumu</summary>
+        <section id="scene-family-inspector"></section>
+      </details>
       <details id="visual-placement-settings" class="scene-advanced" open hidden><summary>Konum ve boyut</summary><section id="visual-inspector"></section></details>
       <details id="visual-source-settings" class="scene-advanced" open hidden><summary>Kaynak görsel</summary><section id="visual-source-inspector"></section><input type="file" id="visual-source-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Yeni nesne resmi seç"></details>
       <details id="visual-layers-settings" class="scene-advanced" hidden><summary>Görsel katmanları</summary><section id="visual-layers-inspector"></section><input type="file" id="visual-layer-file" hidden accept="image/webp,image/png,image/jpeg" aria-label="Hareketli görsel katmanı ekle"></details>

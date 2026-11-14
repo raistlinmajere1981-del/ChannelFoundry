@@ -42,6 +42,11 @@ try{
  await page.locator('.scene-book-controls > summary').filter({hasText:'Arşiv ve oynatıcı'}).click();
  await change('#physical-archiveWidth',355);
  await change('#physical-hingeAngle',7);
+ await page.locator('.scene-book-controls > summary').filter({hasText:'Son bölüm afişi'}).click();
+ await change('#physical-coverX',64);
+ await change('#physical-coverY',42);
+ await change('#physical-coverScale',118);
+ await change('#physical-coverBrightness',106);
  let draft=await get();
  let camera=draft.presentation.objects.camera.physical;
  assert.equal(camera.desktop.offsetX,8);
@@ -49,6 +54,10 @@ try{
  assert.equal(camera.desktop.bezelPaddingX,29);
  assert.equal(camera.desktop.archiveWidth,355);
  assert.equal(camera.desktop.hingeAngle,7);
+ assert.equal(camera.desktop.coverX,64);
+ assert.equal(camera.desktop.coverY,42);
+ assert.equal(camera.desktop.coverScale,1.18);
+ assert.equal(camera.desktop.coverBrightness,1.06);
  await page.locator('#presentation-device').selectOption('mobile');
  assert.equal(await page.locator('#physical-widthScale').inputValue(),'100');
  await change('#physical-offsetY',-10);
@@ -61,6 +70,7 @@ try{
  assert.equal(camera.mobile.heightScale,.98);
  assert.equal(camera.mobile.contentPadding,13);
  assert.equal(camera.desktop.contentPadding,14);
+ assert.equal(camera.mobile.coverX,50,'desktop and mobile cover framing stay independent');
  await page.locator('#undo').click();
  assert.equal((await get()).presentation.objects.camera.physical.mobile.contentPadding,11);
  await page.locator('#redo').click();
