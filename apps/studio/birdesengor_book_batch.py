@@ -7,6 +7,7 @@ No schema migration, SQLite writes, narrative approvals, deploy, or Git operatio
 from __future__ import annotations
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 from pathlib import Path
@@ -238,8 +239,25 @@ def run_codex(out, job, action, model, effort, timeout):
     schema = out / ("draft-schema.json" if action == "generate" else "audit-schema.json")
     schema.write_text(json.dumps(DRAFT_SCHEMA if action == "generate" else AUDIT_SCHEMA), encoding="utf-8")
     if target.is_file() and target.stat().st_size:
-        print(f"SKIP {job['serial']:03} {job['video']['videoId']}: {target.name} already exists")
-        return True
+        try:
+            prior = load_json(target)
+            errors = (draft_check(prior, job) if action == "generate"
+                      else audit_check(prior, load_json(draft_file), job))
+            if action == "audit":
+                seal = seal_file(audit_file)
+                seal_data = load_json(seal) if seal.is_file() else {}
+                if (seal_data.get("sourceFingerprint") != job["video"]["sourceFingerprint"]
+                    or seal_data.get("draftSha256") != digest(draft_file.read_bytes())
+                    or seal_data.get("auditSha256") != digest(audit_file.read_bytes())):
+                    errors.append("audit seal missing or stale")
+            if errors:
+                print(f"BLOCK {action} {job['serial']:03} invalid prior output: {errors}", file=sys.stderr)
+                return False
+            print(f"SKIP {job['serial']:03} {job['video']['videoId']}: {target.name} already valid", flush=True)
+            return True
+        except (ValueError, OSError) as exc:
+            print(f"BLOCK {action} {job['serial']:03} invalid existing file: {exc}", file=sys.stderr)
+            return False
     if action == "audit":
         if not draft_file.is_file() or draft_check(load_json(draft_file), job):
             print(f"BLOCK {job['serial']:03}: no valid source draft", file=sys.stderr)
@@ -273,31 +291,65 @@ def main():
     p.add_argument("--action", choices=["status", "generate", "audit", "seal"], default="status")
     p.add_argument("--batch", type=int, help="Batch 1..18; required for generation/audit")
     p.add_argument("--limit", type=int, default=10, help="Maximum items to process per call")
+    p.add_argument("--workers", type=int, default=1, help="Independent Codex workers (1-3)")
+    p.add_argument("--video-id", action="append", help="Process only the exact video ID, repeatable")
     p.add_argument("--model", default="gpt-6.1-sol")
     p.add_argument("--effort", choices=["low", "medium", "high", "xhigh"], default="medium")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = p.parse_args()
+    # A project source edit or approved chapter import invalidates queue ordering.
+    # Refuse stale packets instead of generating against an old Universe snapshot.
+    try:
+        subprocess.run([sys.executable, "-B", str(ROOT / "apps/studio/birdesengor_book_coverage.py"),
+                        "--check-snapshot", "--out", str(args.out)],
+                       cwd=ROOT, capture_output=True, text=True, check=True, timeout=60)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise SystemExit(f"Coverage snapshot is stale or cannot be verified: {exc}")
     jobs = job_data(args.out)
     if args.action == "status":
         status(args.out, jobs, args.batch)
         return
     if args.batch is None:
         p.error("--batch is required for generation/audit to prevent processing all 171 at once")
-    group = [job for job in jobs if job["batch"] == args.batch][:args.limit]
+    group = [job for job in jobs if job["batch"] == args.batch]
+    if args.video_id:
+        selected = set(args.video_id)
+        available = {job["video"]["videoId"] for job in group}
+        if selected - available:
+            p.error(f"Video IDs outside selected batch: {sorted(selected - available)}")
+        group = [job for job in group if job["video"]["videoId"] in selected]
+    group = group[:args.limit]
     if not group:
         p.error("Unknown/empty batch")
-    failures = 0
-    for job in group:
+    if not 1 <= args.workers <= 3:
+        p.error("--workers must be 1..3")
+    def task(job):
         if args.action == "seal":
             try:
                 seal_audit(args.out, job)
-                print(f"SEALED {job['serial']:03} (audit only, not editorial approval)")
+                print(f"SEALED {job['serial']:03} (audit only, not editorial approval)", flush=True)
+                return True
             except (OSError, ValueError) as exc:
+                print(f"SEAL_ERROR {job['serial']:03}: {exc}", file=sys.stderr, flush=True)
+                return False
+        return run_codex(args.out, job, args.action, args.model, args.effort, args.timeout)
+    failures = 0
+    if args.workers == 1:
+        for job in group:
+            if not task(job):
                 failures += 1
-                print(f"SEAL_ERROR {job['serial']:03}: {exc}", file=sys.stderr)
-        elif not run_codex(args.out, job, args.action, args.model, args.effort, args.timeout):
-            failures += 1
+    else:
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = {pool.submit(task, job): job for job in group}
+            for future in as_completed(futures):
+                job = futures[future]
+                try:
+                    if not future.result():
+                        failures += 1
+                except Exception as exc:
+                    failures += 1
+                    print(f"ERROR {job['serial']:03}: {exc}", file=sys.stderr, flush=True)
     status(args.out, jobs, args.batch)
     if failures:
         raise SystemExit(f"{failures} source tasks failed. No canonical book data was changed.")

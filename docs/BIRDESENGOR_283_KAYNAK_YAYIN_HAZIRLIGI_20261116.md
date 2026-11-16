@@ -42,9 +42,9 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 0 — Kaynak envanteri / güvenlik (tamamlandı).** 283 kaynağın analizi, altyazısı ve bağlantıları test edildi. Envanter ve 18 paket hazır. Son genel kaynak farkı ve önceki 105 anlatı değişmedi. Snapshot bütünlük kontrolü çalışıyor.
 
-**Aşama 1 — İlk 10 kaynak için yöntem sınaması (ilk iki kaynak tamamlandı, parti sürüyor).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
+**Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — 128 onaylı kaynaklı video.** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 118 onaylı hikâye/olay kaynaklı video.** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -113,3 +113,15 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 **Uygulama notu:** İlk kaynak Q8e_Zar_dIM ("Zifir Kuyusu ve Okyanusun Dibi") ve ikinci kaynak VMcU2s8e-II ("Siyah Kitapların Peşindeki") ayrı kaynak-sınırlı taslaklara dönüştürüldü; ikisi de bağımsız kaynak denetiminde `pass` aldı ve metin/denetim/source hashleri mühürlendi. İkinci kaynağın ilk denetiminde AI taslakta bulunmayan bir cümleyle alakasız bir Ömer kimliği gerekçesi üretti; sözleşme bunu reddetti, hatalı rapor arşivlendi ve kurallar netleştirilerek denetim tekrarlandı. Hiçbir metin otomatik olarak değiştirilmedi veya kitaba aktarılmadı.
 
 **Yayın kapısı sınırı:** `--require-complete` teknik olarak doğrudan video bağlantı sayısını 283/283'e çıkarma koşuludur; bunun geçmesi, nitel kaynak sadakatinin denetlendiği anlamına **tek başına gelmez**. Ayrı editoryal kanıt kayıtları tamamlanmadan yayına onay verilmez.
+
+
+## 16 Kasım — İlk kaynak partisinin kapanışı
+
+- **10/10 kaynakta taslak üretim ve özgün altyazıya bağımsız denetim PASS.** 3 gerçek ifade/kaynak atfı düzeltmesi ile yanıltıcı alıntı özetleri giderildi.
+- Yeni on kayıt Düğümlü Kitap → Ara Kayıtlar içinde yerel Studio'da onaylandı: **105→115 anlatı**, **112→122 doğrudan kaynak video**.
+- Kaynak-sınırlı run #21; önceki 105 anlatı/dil kaydının birebir eşitliği doğrulandı. 3.930 genel Evren kaynak farkı tüketilmedi.
+- **TR 115/115, EN 115/115** güncel onaylı; İngilizce on bölüm kaynak yapısı ve dil doğrulamasını geçti.
+- Yedek: `channels/birdesengor/.local-data/studio/backups/before-book-batch01-20261116.sqlite`.
+- Geçmiş ilk kaynak/denetim/yerleşim dosyaları: `channels/birdesengor/.local-data/studio/book-coverage/completed-batches/batch-01-20261116/`.
+- Güncel yeni başlangıç çizgisi: **283 işlenmiş / 122 kitapta / 161 kalan / 17 parti**; bunun **118** kaynağında onaylı olay-hikâye, **43** kaynağında yalnız taslak olay-hikâye var.
+- Canlı site, şifre, SEO ve görsellerin yayını değiştirilmedi. Ayrıntılı rapor: `docs/BIRDESENGOR_283_BATCH01_EDITORIAL_APPROVAL_20261116.md`.

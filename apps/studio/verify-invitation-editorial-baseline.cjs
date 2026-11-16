@@ -19,5 +19,16 @@ try{
   assert.equal(after.changes.length,before.changes.length);
   assert.equal(after.removed.length,before.removed.length);
   assert.equal(after.inputFingerprint,before.inputFingerprint);
-  console.log("PASS scoped editorial approval run does not consume",before.changes.length,"pending source changes.");
+  const additional=db.prepare("INSERT INTO narrative_runs(state,baseline_run_id,universe_fingerprint,input_fingerprint,input_json,model,applied_at)" +
+    "VALUES('applied',?,?,?,?,?,CURRENT_TIMESTAMP)").run(
+    before.baselineRunId,general.universeFingerprint,store.fingerprint({probe:"video"}),
+    JSON.stringify({scope:"video-editorial-v1",probe:true}),
+    "video-editorial:baseline-verification");
+  const afterVideo=store.buildInput(db);
+  assert.equal(store.latestAppliedRun(db).id,Number(additional.lastInsertRowid));
+  assert.equal(afterVideo.baselineRunId,before.baselineRunId);
+  assert.equal(afterVideo.changes.length,before.changes.length);
+  assert.equal(afterVideo.removed.length,before.removed.length);
+  assert.equal(afterVideo.inputFingerprint,before.inputFingerprint);
+  console.log("PASS scoped invitation/video editorial runs do not consume",before.changes.length,"pending source changes.");
 }finally{db.close();}

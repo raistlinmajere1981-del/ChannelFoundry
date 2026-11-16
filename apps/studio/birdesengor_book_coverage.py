@@ -252,7 +252,7 @@ def markdown_report(rows, batches, chapters):
         "",
         "## Yöntem",
         "",
-        "1. Mevcut anlatıların metnine dokunma. İlk önce 112 kaynak bağlantısının gerçek metin kapsamını denetle.",
+        f"1. Mevcut anlatıların metnine dokunma. Önce kitaptaki {cohorts['covered']} video bağlantısının gerçek metin kapsamını denetle.",
         "2. Her eksik video için özgün altyazı ve çözümlemeden kaynak dosyası hazırla; önerilen olay bağlarını bağımsız doğrula.",
         "3. Onaylı hikâye/olay kaynağı olan partilerden başla; yalnız taslak kaydı olan 43 kaynak için ayrıca kimlik/onay incelemesi yap.",
         "4. Aynı olay zincirini anlatan videoları kaynağa uygun biçimde bir bölümde topla veya ayrı bölümlere ayır.",
@@ -345,8 +345,14 @@ def main():
     }
     atomic_json(args.out / "manifest.json", manifest)
     (args.out / "REPORT.md").write_text(markdown_report(rows, batches, chapters), encoding="utf-8")
+    packet_dir = args.out / "source-packets"
     for name, data in packets.items():
-        atomic_json(args.out / "source-packets" / name, data)
+        atomic_json(packet_dir / name, data)
+    # A completed batch shortens and renumbers the remaining queue. Never let
+    # retired packet names masquerade as active source material.
+    for obsolete in packet_dir.glob("batch-*.json"):
+        if obsolete.name not in packets:
+            obsolete.unlink()
     print(json.dumps({
         **result, "output": str(args.out),
         "manifestSha256": digest((args.out / "manifest.json").read_bytes()),
