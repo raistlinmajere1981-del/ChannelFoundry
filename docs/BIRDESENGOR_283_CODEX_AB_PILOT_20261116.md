@@ -1,6 +1,8 @@
 # BirDeSenGör — İki kaynaklık model/subagent A/B pilotu
 
-**16 Kasım 2026 · hazırlık; gerçek model denemesi henüz çalıştırılmadı**
+**16 Kasım 2026 · pilot tasarımı ve gerçekleşen denemenin teknik şartnamesi**
+
+**Deneme sonucu:** `docs/BIRDESENGOR_283_CODEX_AB_RESULTS_20261116.md` — Sol/Medium üretim + Sol/High denetim kaynak sadakati için tercih edildi; çok ajanlı seri üretim tercih edilmedi.
 
 ## Amaç
 
@@ -38,8 +40,11 @@ cd /home/raistlin/ChannelFoundry
 # Model kullanılmaz; test planı ve model/ajan sınırları gösterilir.
 python3 -B apps/studio/birdesengor_book_pilot.py plan --count 2
 
-# Gerçek model tüketimi, yalnız bu açık opt-in komutuyla:
-python3 -B apps/studio/birdesengor_book_pilot.py run --count 2 --workers 1 --execute
+# Kaynak-kısıtlı tek ajan tekrar denemesi (mevcut geçerli çıktıları atlar):
+python3 -B apps/studio/birdesengor_book_pilot.py run --count 2 --workers 1 --variant sol-medium-solo --execute
+
+# Native subagent tekrar denemesi ayrıca --allow-expensive-native gerektirir.
+# Yüksek token tüketimi nedeniyle rutin kullanım için ÖNERİLMİYOR.
 
 # İstenildiği zaman kaynak veya kota tüketmeden sonucu göster:
 python3 -B apps/studio/birdesengor_book_pilot.py report --count 2
@@ -49,7 +54,7 @@ python3 -B apps/studio/birdesengor_book_batch.py --action generate --batch 1 --w
   --model gpt-6.1-sol --effort medium --meter-tokens
 ```
 
-Deneme **kendi kendine ilerlemez**; çalışması için `run ... --execute` komutunun gerçekten yürütülmesi gerekir. Taslaklar `channels/birdesengor/.local-data/studio/book-coverage/pilots/batch04-ab-v1/` içindedir. `metrics/*.json`, `*.codex.jsonl`, `*.raw.json`, `drafts/*.json` ve mühürler projeden Git'e dahil edilmez.
+Deneme **kendi kendine ilerlemez**; çalışması için `run ... --execute` komutunun gerçekten yürütülmesi gerekir. Native varyant, ayrıca `--allow-expensive-native` olmadan çalışmaz ve kaynak başına çok yüksek token tüketimi doğurabilir. Taslaklar `channels/birdesengor/.local-data/studio/book-coverage/pilots/batch04-ab-v1/` içindedir. `metrics/*.json`, `*.codex.jsonl`, `*.raw.json`, `drafts/*.json` ve mühürler projeden Git'e dahil edilmez.
 
 Çalışma dosyaları:
 - `apps/studio/birdesengor_book_pilot.py`: çalışma yöneticisi, iki strateji, belge kaynağı izolasyonu ve rapor
@@ -69,4 +74,4 @@ Eski üç paketteki klasik insan-okur Codex loglarının yalnız son satırları
 
 Pilot yalnız JSON dosyalarını üretir; SQLite açıp değiştirmez, kalıcı onay vermez, yeni `Büyük Meclisler` dizisi oluşturmaz, yayına/dil varyantına/görsellere dokunmaz, otomatik deploy veya push çalıştırmaz. Salt-okunur Codex sandbox'ı her çağrıda açıkça atanır. Altyazı içindeki talimatlar güvenilmeyen veri kabul edilir. Aynı kaynağa ait eski bir çıktı ancak **kaynak fingerprint + SHA-256 + denetim mührü** eşleşirse tekrar kullanılabilir.
 
-**Deneme kapısı:** Model/kota erişimi yeniden açılınca önce pilot, rapor, kaynak hatalarının incelemesi; sonra karar. Tam 10'luk partiye geçiş otomatik değildir.
+**Deneme kararı:** Pilot yapıldı; kaynak denetimi ve oturum bazlı token verileri raporlandı. Gerçek native alt ajan denemesi maliyet/çıktı dengesinde avantaj göstermedi. Tam 10'luk partiye geçiş otomatik değildir; tercih Sol/Medium + bağımsız Sol/High denetimidir.

@@ -166,6 +166,17 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Her ikisini de `gpt-6.1-sol/high` ile bağımsız kaynak denetiminden geçiren ölçümlü pilot script'i ve sahte Codex ile çevrimdışı testler oluşturuldu.
 - Codex JSONL `turn.completed.usage` bilgisi, giriş/cache/çıkış tokenları ve süreyi ayrı topluyor; metrik yoksa bilinmiyor diye bırakılıyor. Her belge ve model izole klasöre yazılıyor.
 - Klasik 10'luk script'e **opsiyonel** `--meter-tokens` eklendi; eski komut davranışları varsayılan olarak değişmedi.
-- Gerçek pilot otomatik çalıştırılmıyor; Codex kota yenilenmesi doğrulanınca açık `run ... --execute` ile başlayacak. **Henüz gerçek yeni token tüketilmedi.**
+- *Bu hazırlık kontrol noktasında* gerçek model çağrısı yapılmadı. Ardından kota yenilenmesiyle ölçümlü A/B pilotu gerçekleştirildi; gerçek token ve denetim sonuçları aşağıdaki ek bölümde kayıtlıdır.
 - Hiçbir anlatı onaylanmadı/aktarılmadı. Kapsam hâlâ **135 TR / 115 EN / 142/283 video**.
 - Tam plan ve yönergeler: `docs/BIRDESENGOR_283_CODEX_AB_PILOT_20261116.md`.
+
+
+## 16 Kasım gece — İki kaynak A/B ve native subagent deneyi tamamlandı
+
+- Sol/Medium üretim + Sol/High denetim, iki kaynakta toplam **549.326 raporlanan token / 311 sn**; denetimlerde ilk kaynak **pass**, ikinci kaynak yalnız **1 küçük dil bulgusu** verdi.
+- Terra/High fiilen tek ajan üretim + aynı denetçi toplam **401.449 token / 202 sn**: daha hızlı ve az token, ancak ikinci kaynak **2 engelleyici anlam hatası + 1 inceleme** taşıyordu. İki taslağın uzunluğu da Sol anlatılarının yaklaşık yarısıydı.
+- Gerçek `multi_agent_v2` deneyinde iki Sol/Medium yardımcı ajan açıldı. İlk kaynakta kök **306.109 token**, yardımcı oturumlar **154.998** ve **120.434** token bildirdi: oturum bazlı yaklaşık **581.541** token, buna rağmen geçersiz kaynak alıntısı. İkinci native deneme maliyet yükselirken durduruldu.
+- Karar: **kaynak-sınırlı anlatı için Sol/Medium**, bağımsız **Sol/High** denetimi ve `--meter-tokens`; native alt ajanlı toplu içerik üretimi kullanılmayacak. Terra High ileride dar kapsamlı seri/yerleşim kontrolünde ayrıca denenebilir.
+- Native çalışma artık `--allow-expensive-native` açık onayını gerektiriyor; başarısız / hatalı taslaklar başka kaynaklarla karıştırılmadan saklandı.
+- Deneme **Studio kitabına aktarım yapmadı**; güncel durum **135 TR, 115 EN, 142/283 kaynak, 141 bekleyen video**. Sıradaki onluk partinin statüsü hâlâ `not_started:10`.
+- Ayrıntılı kaynak hata ve token raporu: `docs/BIRDESENGOR_283_CODEX_AB_RESULTS_20261116.md`.

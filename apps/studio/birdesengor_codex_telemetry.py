@@ -17,6 +17,7 @@ def parse_events(path: Path) -> dict:
     errors = []
     agent_events = []
     malformed = 0
+    native_spawn_errors = []
     seen_types: dict[str, int] = {}
     if not path.exists():
         return {"usage": None, "turns": 0, "errors": ["log_missing"], "events": {},
@@ -27,6 +28,8 @@ def parse_events(path: Path) -> dict:
                 obj = json.loads(line)
             except ValueError:
                 malformed += 1
+                if "collab spawn failed" in line.lower():
+                    native_spawn_errors.append(line.strip()[-350:])
                 continue
             if not isinstance(obj, dict):
                 continue
@@ -58,6 +61,8 @@ def parse_events(path: Path) -> dict:
         usage["note"] = "CLI-reported totals; internal subagents may not have separate breakdowns"
     return {"usage": usage, "turns": len(records), "errors": errors[:8],
             "events": seen_types, "agentEvents": len(agent_events),
+            "nativeSpawnFailures": len(native_spawn_errors),
+            "nativeSpawnErrorSamples": native_spawn_errors[:2],
             "malformedLines": malformed}
 
 

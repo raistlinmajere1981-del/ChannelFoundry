@@ -28,7 +28,7 @@ from birdesengor_codex_telemetry import parse_events, sum_usages
 PROFILES = (
     {"key": "sol-medium-solo", "model": "gpt-6.1-sol", "effort": "medium",
      "native": False, "subagentModel": None, "subagentEffort": None},
-    {"key": "terra-high-multi", "model": "gpt-6.1-terra", "effort": "high",
+    {"key": "terra-high-native-v2", "model": "gpt-6.1-terra", "effort": "high",
      "native": True, "subagentModel": "gpt-6.1-sol", "subagentEffort": "medium"},
 )
 AUDITOR = {"model": "gpt-6.1-sol", "effort": "high", "native": False}
@@ -113,16 +113,19 @@ def codex_command(out, profile, stage):
                       encoding="utf-8")
     target = out / "drafts"
     target.mkdir(parents=True, exist_ok=True)
-    command = ["codex", "exec", "--json", "--ephemeral",
+    command = ["codex", "exec", "--json",
                "-m", profile["model"], "-c", f'model_reasoning_effort="{profile["effort"]}"',
                "-s", "read-only", "-C", str(ROOT), "--output-schema", str(schema)]
     if profile["native"]:
+        # Native V2 children need a resolvable parent rollout: --ephemeral
+        # causes "collab spawn failed: no rollout found" on Codex 0.169.0.
+        # Persist the private session under the user's normal Codex directory.
         command += ["--enable", "multi_agent_v2",
                     "-c", "agents.max_concurrent_threads_per_session=2",
                     "-c", f'agents.default_subagent_model="{profile["subagentModel"]}"',
                     "-c", f'agents.default_subagent_reasoning_effort="{profile["subagentEffort"]}"']
     else:
-        command += ["--disable", "multi_agent_v2"]
+        command += ["--disable", "multi_agent_v2", "--ephemeral"]
     return command
 
 
@@ -208,6 +211,9 @@ uydurma subagent çalışması bildirme.
     success = code == 0 and valid and failure is None
     if stage == "audit" and success:
         seal_audit(folder, job)
+    if profile["native"] and meter.get("nativeSpawnFailures", 0):
+        failure = "Native subagent spawn failed; inspect JSONL diagnostic log"
+        success = False
     if is_codex_quota_exhausted(log):
         CODEX_QUOTA_EXHAUSTED.set()
         failure = "Codex provider usage limit reached"
@@ -244,8 +250,14 @@ def report(base, jobs):
     all_rows = []
     print("| Video | Strateji | Üretim | Denetim | Sonuç | Bulgu | Token | Cache | Süre (sn) | Ajan olayları |")
     print("|---|---|---|---|---|---:|---:|---:|---:|---:|")
+    # The first Terra trial used --ephemeral and could not spawn children.
+    # Keep these historical measurements visible without ever re-running that
+    # mislabeled strategy or treating it as a valid native-subagent baseline.
+    historic = {"key": "terra-high-multi"}
+    include_historic = any(work_dir(base, job, historic).exists() for job in jobs)
+    report_profiles = [PROFILES[0]] + ([historic] if include_historic else []) + [PROFILES[1]]
     for job in jobs:
-        for profile in PROFILES:
+        for profile in report_profiles:
             meta = []
             for stage in ("generate", "audit"):
                 f = meta_file(base, job, profile, stage)
@@ -261,7 +273,9 @@ def report(base, jobs):
             elapsed = sum(x.get("elapsedSeconds", 0) for x in meta)
             agent_events = draft.get("metering", {}).get("agentEvents")
             issues = audit.get("issueCount")
-            print(f"| {job['video']['videoId']} | {profile['key']} | "
+            label = ("terra-high-single-effective (historical)"
+                     if profile["key"] == "terra-high-multi" else profile["key"])
+            print(f"| {job['video']['videoId']} | {label} | "
                   f"{'PASS' if draft.get('valid') else '—'} | "
                   f"{'PASS' if audit.get('valid') else '—'} | {verdict} | "
                   f"{issues if issues is not None else '—'} | "
@@ -270,7 +284,8 @@ def report(base, jobs):
                   f"{elapsed:.1f} | {agent_events if agent_events is not None else '—'} |")
             all_rows.extend(meta)
     totals = sum_usages(all_rows)
-    print("\nCLI'nin bildirdiği toplam tokenlar (eksik sayaç varsa toplam bilinmiyor):",totals)
+    print("\nKÖK Codex exec oturumlarının bildirdiği toplam (native yardımcı oturumlar "
+          "BU TOPLAMA DAHİL DEĞİL; eksik sayaç varsa bilinmiyor):", totals)
     print("Not: Sol/Medium tek ajan ile Terra/High+subagent birlikte değiştiği için "
           "bu ilk tur tek başına saf bir model karşılaştırması değildir.")
     print("Kullanım limiti, API dolar maliyeti değildir; gerçek fatura hesaplanmadı.")
@@ -286,6 +301,10 @@ def main():
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--execute", action="store_true",
                         help="Explicit opt-in for live Codex token consumption")
+    parser.add_argument("--variant", choices=[p["key"] for p in PROFILES],
+                        default=None, help="Run only this A/B strategy (for safe retries)")
+    parser.add_argument("--allow-expensive-native", action="store_true",
+                        help="Separate opt-in: native subagents use extra Codex sessions and tokens")
     args = parser.parse_args()
     base, jobs = prepare(args)
     if args.action == "plan":
@@ -308,15 +327,28 @@ def main():
         return
     if not args.execute:
         raise SystemExit("No requests made: add --execute after reviewing 'plan'")
+    selected_profiles = [profile for profile in PROFILES
+                         if args.variant is None or profile["key"] == args.variant]
+    if any(profile["native"] for profile in selected_profiles) and not args.allow_expensive_native:
+        raise SystemExit(
+            "Native multi-agent pilot BLOCKED: costs can exceed 500k tokens per video. "
+            "Specify --allow-expensive-native explicitly or --variant sol-medium-solo")
+    availability = subprocess.run(["codex", "features", "list"], cwd=ROOT,
+                                  capture_output=True, text=True, timeout=20)
+    if availability.returncode != 0 or "multi_agent_v2" not in availability.stdout:
+        raise SystemExit("Codex native multi_agent_v2 feature not available; no model calls made")
     for stage in ("generate", "audit"):
-        tasks = [(job, profile) for job in jobs for profile in PROFILES]
+        tasks = [(job, profile) for job in jobs for profile in PROFILES
+                 if args.variant is None or profile["key"] == args.variant]
         def call(task):
             job, profile = task
             effective = profile if stage == "generate" else {
                 **AUDITOR, "key": profile["key"],
                 "subagentModel": None, "subagentEffort": None,
             }
-            return stage_call(base, job, effective, stage, args.timeout, True)
+            # Native child sessions may consume more than the parent JSONL reports.
+            stage_timeout = min(args.timeout, 120) if effective["native"] else args.timeout
+            return stage_call(base, job, effective, stage, stage_timeout, True)
         if args.workers == 1:
             for task in tasks:
                 if CODEX_QUOTA_EXHAUSTED.is_set():
@@ -335,6 +367,8 @@ def main():
         incomplete = []
         for job in jobs:
             for profile in PROFILES:
+                if args.variant and profile["key"] != args.variant:
+                    continue
                 for stage in ("generate", "audit"):
                     metric = meta_file(base, job, profile, stage)
                     if not metric.is_file() or not load_json(metric).get("valid"):
