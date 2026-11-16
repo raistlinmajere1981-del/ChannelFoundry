@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 88 onaylı hikâye/olay kaynaklı video (dördüncü parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 78 onaylı hikâye/olay kaynaklı video (beşinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -209,3 +209,14 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - **35 paragraf ve 11 kaynak kanıtıyla asistanın doğrudan incelemesi** tamamlandı, üç düzeltme yapıldı; ikinci Codex çağrısı yapılmadan kaynak incelemesi `audited_pass` oldu.
 - Yeni manuel kanıt SHA mührü tek Studio DB aktarım aracının salt-okunur `IMPORT_READY` doğrulamasından geçti. **Gerçek kitaba aktarılmadı**, dokuz yeni kaynak henüz başlanmadı.
 - Üretim modellerinin toplam token düşüşü cache etkisinden ayrılmadan kota/ücret tasarrufu ilan edilmiyor.
+
+
+## 17 Kasım — Yalın iş akışıyla beşinci 10'luk paketin tamamlanması
+
+- 10 kaynak, yalnız **10 tek-altyazı Codex/Sol Medium ilk taslak** çağrısıyla üretildi. Toplam **348.350 raporlanan token**; herhangi bir ikinci AI denetçisi veya subagent yok.
+- Asistan her videonun özgün altyazısını ve tüm taslak paragraflarını ayrı okudu; kaynakla karşılaştırma kanıtlarını, gerekliyse metin/alıntı düzeltmelerini ve **10/10 kaynak denetimi mühürlerini** oluşturdu.
+- Yalnız gerçek Studio SQLite kullanıldı. Salt-okunur plan kontrolü, otomatik doğrulanmış yedek ve tek transaction ile **145 → 155 TR**, **152 → 162 / 283** video, mevcut **115 EN** aynı kaldı.
+- Yeni dizi: **Bilginler Kitabı (1)** ve **İstihbarat Davetleri (4)**. Kapsız Kitap 11 → 12, Büyük Meclisler 7 → 8, üç bağımsız kaynak.
+- Önceki **145 bölüm, 145 revizyon, 145 dil kaynağı, 260 dil varyantı ve 5 dizi/6 bölüm tanımı** birebir korunmuştur; yalnız Kapsız Kitap'taki eski bir bölümün konumu 10 → 11 oldu. Genel Evren farkı **3.930** olarak kaldı.
+- **121 video / 13 parti** kaldı: 78 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü. İngilizce çeviriler en sona, görseller ve canlı yayın daha sonraya kaldı.
+- Ayrıntılar: `docs/BIRDESENGOR_283_BATCH05_EDITORIAL_APPROVAL_20261117.md`.
