@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 78 onaylı hikâye/olay kaynaklı video (beşinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 68 onaylı hikâye/olay kaynaklı video (altıncı parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -220,3 +220,14 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Önceki **145 bölüm, 145 revizyon, 145 dil kaynağı, 260 dil varyantı ve 5 dizi/6 bölüm tanımı** birebir korunmuştur; yalnız Kapsız Kitap'taki eski bir bölümün konumu 10 → 11 oldu. Genel Evren farkı **3.930** olarak kaldı.
 - **121 video / 13 parti** kaldı: 78 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü. İngilizce çeviriler en sona, görseller ve canlı yayın daha sonraya kaldı.
 - Ayrıntılar: `docs/BIRDESENGOR_283_BATCH05_EDITORIAL_APPROVAL_20261117.md`.
+
+
+## 17 Kasım — Altıncı 10'luk paket, kaynak denetimi ve lokal onay
+
+- **10/10** özgün altyazıdan üretilen Türkçe kaynak anlatısı asistan tarafından tüm paragraf ve özgün alıntılarıyla incelendi, ikinci Codex denetçisi kullanılmadı; **341.244 token** raporlanan toplam ilk üretim.
+- Babil gerçek Büyük Saray toplantısı ve siyah yüzük, Mısır/Aruhan/Edebola/Natra Tapınağı/Petrus hattı, Şenu Kuyusu deneyi, Üç Dağlar kabileleri, Doğubayazıt rahibi ve Anunaki davetçisi ayrı kaynak kayıtları olarak bağlandı.
+- Bir altyazı çapası birebir eşleşmediği için gövde korunarak çıkarıldı. **Edebola 12** yanlışlıkla on ikinci davet sayılmıştı; kod adına düzeltildi ve eski taslak muhafaza edildi.
+- **Tek Studio DB**, salt-okunur plan doğrulaması, otomatik doğrulanmış yedek ve tek transaction: **155 → 165** TR anlatı, **162 → 172 / 283** kaynak, **115** eski EN korundu, **3.930** genel Evren kaynak farkı saklandı.
+- Önceki **155 bölüm, 155 revizyon, 155 dil kaynağı, 270 dil varyantı ve eski kitap konumları** yedekle birebir eşitti. **289/289** web test geçti, Studio ve web derlemeleri başarılı.
+- Tamamlanan altıncı paket arşivlendi. **111 video / 12 paket** kaldı; 68'i onaylı hikâye/olay düğümlü, 43'ü henüz taslak düğümlü. İngilizce tercümeler 283 Türkçe tamamlanınca.
+- Detay: `docs/BIRDESENGOR_283_BATCH06_EDITORIAL_APPROVAL_20261117.md`.
