@@ -112,6 +112,35 @@ function validateSourceFiles(args) {
     assert(plan.decisions.some(d => d.targetChapterKey === key),
       "Prepend chapter must be represented in the source batch");
   }
+  const newSeries = Array.isArray(plan.newSeries) ? plan.newSeries : [];
+  assert(newSeries.length <= 3, "An editorial batch may introduce at most 3 new series");
+  const seriesKeys = new Set();
+  const chapterKeys = new Set();
+  for (const series of newSeries) {
+    assert(series && typeof series === "object");
+    assert(/^topic-series-[a-z0-9-]{3,80}$/.test(series.key), "Invalid new series key");
+    assert(typeof series.title === "string" && series.title.trim().length >= 3 &&
+      series.title.length <= 120, "Invalid new series title");
+    assert(typeof series.description === "string" && series.description.length <= 1200,
+      "Invalid series description");
+    assert(Number.isInteger(series.position) && series.position >= 0 && series.position < 10000,
+      "Invalid new series position");
+    assert(!seriesKeys.has(series.key), "Duplicate new series key");
+    seriesKeys.add(series.key);
+    assert(Array.isArray(series.chapters) && series.chapters.length >= 1 &&
+      series.chapters.length <= 4, "Invalid chapters in new series");
+    for (const chapter of series.chapters) {
+      assert(/^topic-chapter-[a-z0-9-]{3,80}$/.test(chapter.key), "Invalid chapter key");
+      assert(typeof chapter.title === "string" && chapter.title.trim().length >= 3 &&
+        chapter.title.length <= 120, "Invalid chapter title");
+      assert(Number.isInteger(chapter.position) && chapter.position >= 0 &&
+        chapter.position < 10000, "Invalid chapter position");
+      assert(!chapterKeys.has(chapter.key), "Duplicate new chapter key");
+      assert(plan.decisions.some(x => x.targetChapterKey === chapter.key),
+        "Created chapter must receive at least one video");
+      chapterKeys.add(chapter.key);
+    }
+  }
   const seen = new Set();
   const items = [];
   for (let n = 0; n < plan.sourceCount; n++) {
@@ -148,7 +177,7 @@ function validateSourceFiles(args) {
     assert(draft.sourceAnchors.every(a => a && record.originalTranscript.includes(a)), "Invalid subtitle anchor");
     items.push({ vid, decision, draft });
   }
-  return { items, plan };
+  return { items, plan, newSeries };
 }
 
 function originalSnapshot(db) {
@@ -156,13 +185,26 @@ function originalSnapshot(db) {
     book: db.prepare("SELECT r.id,r.section_key,r.title,r.body,r.blocks_json,r.entity_references_json,r.source_keys_json,r.source_video_ids_json,r.state FROM narrative_section_revisions r JOIN narrative_sections s ON s.current_revision_id=r.id WHERE s.state='active' ORDER BY r.id").all(),
     variants: db.prepare("SELECT * FROM publication_language_variants WHERE kind='section' ORDER BY id,language").all(),
     bookCount: db.prepare("SELECT COUNT(*) AS count FROM narrative_sections WHERE state='active'").get().count,
+    originalSeries: db.prepare("SELECT * FROM narrative_series ORDER BY key").all(),
+    originalChapters: db.prepare("SELECT * FROM narrative_chapters ORDER BY key").all(),
   };
 }
 
 function prepare(db, items, plan) {
   narrative.ensureSchema(db);
+  const newSeries = Array.isArray(plan.newSeries) ? plan.newSeries : [];
+  const proposedChapters = new Set(newSeries.flatMap(series => series.chapters.map(c => c.key)));
+  for (const series of newSeries) {
+    assert(!db.prepare("SELECT 1 FROM narrative_series WHERE key=?").get(series.key),
+      "New series already exists; refuse to overwrite: " + series.key);
+    for (const chapter of series.chapters) {
+      assert(!db.prepare("SELECT 1 FROM narrative_chapters WHERE key=?").get(chapter.key),
+        "New chapter already exists; refuse to overwrite: " + chapter.key);
+    }
+  }
   for (const target of new Set(items.map(x => x.decision.targetChapterKey).filter(Boolean))) {
-    assert(db.prepare("SELECT 1 FROM narrative_chapters WHERE key=?").get(target), "Target chapter absent: " + target);
+    assert(proposedChapters.has(target) || db.prepare("SELECT 1 FROM narrative_chapters WHERE key=?").get(target),
+      "Target chapter absent: " + target);
   }
   const before = originalSnapshot(db);
   assert.equal(before.bookCount, plan.expectedBefore, "Book changed since editorial plan");
@@ -203,7 +245,7 @@ function prepare(db, items, plan) {
       ? -1
       : db.prepare(sql).get(...(target ? [target] : [])).m);
   }
-  return { before, general, pending, positions, prependGroups };
+  return { before, general, pending, positions, prependGroups, newSeries };
 }
 
 function apply(db, items, pre) {
@@ -221,6 +263,14 @@ function apply(db, items, pre) {
   const insertIndependent = db.prepare("INSERT INTO narrative_independent_order(section_key,position) VALUES(?,?)");
   db.exec("BEGIN IMMEDIATE");
   try {
+    for (const series of pre.newSeries) {
+      db.prepare("INSERT INTO narrative_series(key,title,description,position) VALUES(?,?,?,?)")
+        .run(series.key, series.title.trim(), series.description.trim(), series.position);
+      for (const chapter of series.chapters) {
+        db.prepare("INSERT INTO narrative_chapters(key,series_key,title,number_label,position) VALUES(?,?,?,'',?)")
+          .run(chapter.key, series.key, chapter.title.trim(), chapter.position);
+      }
+    }
     // Shift only a reviewed book series' placement positions. Existing
     // narrative text and source records remain untouched.
     for (const [chapter, shift] of pre.prependGroups) {
@@ -294,6 +344,10 @@ function apply(db, items, pre) {
       "Approved previous book section changed");
     assert.deepEqual(after.variants.filter(row => pre.before.variants.some(old => old.id === row.id)), pre.before.variants,
       "Existing publication language variants unexpectedly changed");
+    assert.deepEqual(after.originalSeries.filter(row => pre.before.originalSeries.some(old => old.key === row.key)),
+      pre.before.originalSeries, "Old series changed unexpectedly");
+    assert.deepEqual(after.originalChapters.filter(row => pre.before.originalChapters.some(old => old.key === row.key)),
+      pre.before.originalChapters, "Old chapter metadata changed unexpectedly");
     const pending = narrative.buildInput(db);
     assert.equal(pending.baselineRunId, pre.general.id, "Scoped run consumed the general source baseline");
     assert.equal(pending.changes.length, pre.pending.changes.length, "Scoped run consumed pending source changes");
@@ -327,6 +381,7 @@ function main() {
       originalChapters: pre.before.bookCount,
       plannedPlacements: items.map(x => [x.vid, x.decision.targetChapterKey]),
       prependChapterKeys: [...pre.prependGroups.keys()],
+      newSeriesKeys: pre.newSeries.map(series => series.key),
       pendingUniverseChanges: pre.pending.changes.length,
       matchedSourceNodeCounts: items.map(x => [x.vid,x.sources.length]),
     }));

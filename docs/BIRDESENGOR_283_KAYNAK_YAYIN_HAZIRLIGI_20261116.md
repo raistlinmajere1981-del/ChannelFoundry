@@ -149,3 +149,13 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Yedekli geçici ve gerçek yerel SQLite aktarımı, kanıt arşivinden yeniden oynatma, Studio derlemesi, web **289/289** birim testi ve web derlemesi PASS.
 - Arşiv: `completed-batches/batch-03-20261116/`; rapor: `docs/BIRDESENGOR_283_BATCH03_EDITORIAL_APPROVAL_20261116.md`.
 - Canlı yayın, şifre, SEO, görseller, deploy ve push kapsam dışında kaldı.
+
+
+## 16 Kasım — Dördüncü parti kaynak hazırlığı (AI limiti nedeniyle üretim aşaması bekliyor)
+
+- On özgün altyazı ve kaynak düğüm bağlantısı doğrulandı; envanter hashleri değişmedi.
+- İki Kapsız Kitap kaydı, yedi Meclis/Elçi kaydı, bir bağımsız İznik kaydı için *henüz onaylanmamış* editoryal yerleşim önerisi hazırlandı.
+- `Büyük Meclisler` yeni dizi oluşturma yeteneği yalnız geçici SQLite kopyasında başarıyla test edildi; gerçek veritabanına uygulanmadı.
+- Codex kullanım limiti dolduğu için **0 taslak ve 0 denetim** tamamlandı. OpenCode/DeepSeek bağlantısı da zaman aşımı verdi.
+- Güncel kitabın durumu değişmedi: **135 TR, 115 EN, 142/283 video kapsaması, 141 bekleyen kaynak ve 15 parti**. Kullanım limiti hatalarında toplu başarısız çağrıların sürmesini engelleyen koruma eklendi.
+- Ayrıntılı rapor: `docs/BIRDESENGOR_283_BATCH04_SOURCE_PREP_20261116.md`.

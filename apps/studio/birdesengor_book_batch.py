@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Event
 import hashlib
 import json
 from pathlib import Path
@@ -40,6 +41,23 @@ AUDIT_ISSUE = {
     "required": ["severity", "draftClaim", "sourceExcerpt", "explanation", "proposedChange"],
     "additionalProperties": False,
 }
+CODEX_QUOTA_EXHAUSTED = Event()
+
+
+def is_codex_quota_exhausted(log_path):
+    """Detect provider quota without treating generic errors as exhaustion."""
+    try:
+        # Read the tail only: full logs may include lengthy source transcripts.
+        with log_path.open("rb") as file:
+            file.seek(0, 2)
+            file.seek(max(0, file.tell() - 4096))
+            text = file.read().decode("utf-8", errors="replace").lower()
+        return ("usage limit" in text and
+                ("you" in text or "try again" in text or "upgrade to pro" in text))
+    except OSError:
+        return False
+
+
 AUDIT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -262,6 +280,10 @@ def run_codex(out, job, action, model, effort, timeout):
         if not draft_file.is_file() or draft_check(load_json(draft_file), job):
             print(f"BLOCK {job['serial']:03}: no valid source draft", file=sys.stderr)
             return False
+    if CODEX_QUOTA_EXHAUSTED.is_set():
+        print(f"QUOTA_BLOCK {action} {job['serial']:03}: previous request exhausted Codex quota",
+              file=sys.stderr, flush=True)
+        return False
     prompt = prompt_generate(job) if action == "generate" else prompt_audit(job, draft_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     log = target.with_suffix(".codex.log")
@@ -282,7 +304,12 @@ def run_codex(out, job, action, model, effort, timeout):
         print(f"OK {action} {job['serial']:03} {job['video']['videoId']}")
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as exc:
-        print(f"ERROR {action} {job['serial']:03}: {exc}", file=sys.stderr)
+        if isinstance(exc, subprocess.CalledProcessError) and is_codex_quota_exhausted(log):
+            CODEX_QUOTA_EXHAUSTED.set()
+            print(f"CODEX_QUOTA_EXHAUSTED {action} {job['serial']:03}: stop remaining queued requests",
+                  file=sys.stderr, flush=True)
+        else:
+            print(f"ERROR {action} {job['serial']:03}: {exc}", file=sys.stderr, flush=True)
         return False
 
 
