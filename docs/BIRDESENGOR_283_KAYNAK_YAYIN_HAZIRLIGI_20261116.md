@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 68 onaylı hikâye/olay kaynaklı video (altıncı parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 58 onaylı hikâye/olay kaynaklı video (yedinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -231,3 +231,15 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Önceki **155 bölüm, 155 revizyon, 155 dil kaynağı, 270 dil varyantı ve eski kitap konumları** yedekle birebir eşitti. **289/289** web test geçti, Studio ve web derlemeleri başarılı.
 - Tamamlanan altıncı paket arşivlendi. **111 video / 12 paket** kaldı; 68'i onaylı hikâye/olay düğümlü, 43'ü henüz taslak düğümlü. İngilizce tercümeler 283 Türkçe tamamlanınca.
 - Detay: `docs/BIRDESENGOR_283_BATCH06_EDITORIAL_APPROVAL_20261117.md`.
+
+
+## 17 Kasım — Yedinci 10'luk paketin kapanışı
+
+- Önceki mesaj akışı kesildiğinde 10 ilk taslak üretilmiş, 2 denetim mühürlenmişti. Terminalden durum doğrulandı; **kalan 8 kayıt** özgün altyazılarla karşılaştırılıp **10/10 kaynak denetimi** tamamlandı. Yeni Codex denetçisi çalıştırılmadı.
+- Yeni yerleşimler: Bilginler Kitabı'na 1, Büyük Meclisler'e 4, İstihbarat Davetleri'ne 5. Suman/Şandina toplantısı, ilk iki boynuzlu padişah daveti ve sonraki Mitna görüşmesi ayrı aşamalar olarak korundu.
+- Son iki ada anlatısında ağır iddialar yalnızca anlatıcıya ve davetliye atfedildi; yaşadığı iddia edilen kişinin kimliği/nerede bulunduğu ve adalardaki fiiller bağımsız kanıt olarak doğrulanmadı.
+- Tek kanonik SQLite, salt-okunur preflight, otomatik doğrulanmış yedek ve tek transaction: **165 → 175 TR**, **172 → 182/283 video**, mevcut **115 EN** aynen korundu; genel **3.930 Evren farkı** değişmedi.
+- Önceki 165 anlatı ve revizyon, 165 dil kaynağı, 280 dil varyantı, seri/bölüm metadata'sı ve kitap konumları birebir yedekle eşitti.
+- Codex ilk üretimi **343.778 raporlanan token**, ikinci AI denetçi **0**. Studio build, 289/289 web birim testi, web build ve anlatı/yayın denetimleri PASS.
+- **101 video / 11 parti** kaldı: 58 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü kaynak. Tercüme/görsel/SEO/deploy/push ertelendi.
+- Rapor: docs/BIRDESENGOR_283_BATCH07_EDITORIAL_APPROVAL_20261117.md
