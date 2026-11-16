@@ -159,3 +159,13 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Codex kullanım limiti dolduğu için **0 taslak ve 0 denetim** tamamlandı. OpenCode/DeepSeek bağlantısı da zaman aşımı verdi.
 - Güncel kitabın durumu değişmedi: **135 TR, 115 EN, 142/283 video kapsaması, 141 bekleyen kaynak ve 15 parti**. Kullanım limiti hatalarında toplu başarısız çağrıların sürmesini engelleyen koruma eklendi.
 - Ayrıntılı rapor: `docs/BIRDESENGOR_283_BATCH04_SOURCE_PREP_20261116.md`.
+
+## 16 Kasım geç saat — Codex çok ajanlı iki kaynak pilotu hazırlandı
+
+- Dördüncü partinin ilk iki kaynağında A/B karşılaştırma için `gpt-6.1-sol/medium` tek ajan ve `gpt-6.1-terra/high` + `multi_agent_v2` (en fazla iki Sol/Medium subagent) akışları hazır.
+- Her ikisini de `gpt-6.1-sol/high` ile bağımsız kaynak denetiminden geçiren ölçümlü pilot script'i ve sahte Codex ile çevrimdışı testler oluşturuldu.
+- Codex JSONL `turn.completed.usage` bilgisi, giriş/cache/çıkış tokenları ve süreyi ayrı topluyor; metrik yoksa bilinmiyor diye bırakılıyor. Her belge ve model izole klasöre yazılıyor.
+- Klasik 10'luk script'e **opsiyonel** `--meter-tokens` eklendi; eski komut davranışları varsayılan olarak değişmedi.
+- Gerçek pilot otomatik çalıştırılmıyor; Codex kota yenilenmesi doğrulanınca açık `run ... --execute` ile başlayacak. **Henüz gerçek yeni token tüketilmedi.**
+- Hiçbir anlatı onaylanmadı/aktarılmadı. Kapsam hâlâ **135 TR / 115 EN / 142/283 video**.
+- Tam plan ve yönergeler: `docs/BIRDESENGOR_283_CODEX_AB_PILOT_20261116.md`.

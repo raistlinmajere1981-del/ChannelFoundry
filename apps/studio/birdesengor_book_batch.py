@@ -14,6 +14,9 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
+
+from birdesengor_codex_telemetry import parse_events
 
 from birdesengor_book_coverage import DEFAULT_OUT, ROOT, digest
 
@@ -251,7 +254,7 @@ Yalnız şemaya uygun JSON: videoId, verdict=pass|review|fix, issues array (seve
 """
 
 
-def run_codex(out, job, action, model, effort, timeout):
+def run_codex(out, job, action, model, effort, timeout, meter_tokens=False):
     draft_file, audit_file = files_for(out, job)
     target = draft_file if action == "generate" else audit_file
     schema = out / ("draft-schema.json" if action == "generate" else "audit-schema.json")
@@ -290,6 +293,12 @@ def run_codex(out, job, action, model, effort, timeout):
     cmd = ["codex", "exec", "-m", model, "-c", f'model_reasoning_effort="{effort}"',
            "-s", "read-only", "-C", str(ROOT),
            "--output-schema", str(schema), "-o", str(target), "-"]
+    if meter_tokens:
+        cmd.insert(2, "--json")
+        # JSONL event stream supplies model token counters for batch reporting.
+    started = time.monotonic()
+    observed_success = False
+    failure_detail = None
     try:
         with log.open("w", encoding="utf-8") as log_file:
             subprocess.run(cmd, cwd=ROOT, input=prompt, text=True,
@@ -301,9 +310,11 @@ def run_codex(out, job, action, model, effort, timeout):
             return False
         if action == "audit":
             seal_audit(out, job)
+        observed_success = True
         print(f"OK {action} {job['serial']:03} {job['video']['videoId']}")
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as exc:
+        failure_detail = str(exc)[:240]
         if isinstance(exc, subprocess.CalledProcessError) and is_codex_quota_exhausted(log):
             CODEX_QUOTA_EXHAUSTED.set()
             print(f"CODEX_QUOTA_EXHAUSTED {action} {job['serial']:03}: stop remaining queued requests",
@@ -311,6 +322,21 @@ def run_codex(out, job, action, model, effort, timeout):
         else:
             print(f"ERROR {action} {job['serial']:03}: {exc}", file=sys.stderr, flush=True)
         return False
+    finally:
+        if meter_tokens:
+            meter = parse_events(log)
+            metrics = {
+                "schemaVersion": 1, "videoId": job["video"]["videoId"],
+                "sourceFingerprint": job["video"]["sourceFingerprint"],
+                "stage": action, "model": model, "reasoning": effort,
+                "elapsedSeconds": round(time.monotonic() - started, 2),
+                "success": observed_success, "failure": failure_detail,
+                "usage": meter["usage"],
+                "metering": {k: value for k, value in meter.items() if k != "usage"},
+                "noCanonicalWrites": True,
+            }
+            target.with_suffix(".metrics.json").write_text(
+                json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def main():
@@ -323,6 +349,8 @@ def main():
     p.add_argument("--model", default="gpt-6.1-sol")
     p.add_argument("--effort", choices=["low", "medium", "high", "xhigh"], default="medium")
     p.add_argument("--timeout", type=int, default=600)
+    p.add_argument("--meter-tokens", action="store_true",
+                   help="Capture Codex --json usage in ignored per-video local metrics")
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = p.parse_args()
     # A project source edit or approved chapter import invalidates queue ordering.
@@ -360,7 +388,8 @@ def main():
             except (OSError, ValueError) as exc:
                 print(f"SEAL_ERROR {job['serial']:03}: {exc}", file=sys.stderr, flush=True)
                 return False
-        return run_codex(args.out, job, args.action, args.model, args.effort, args.timeout)
+        return run_codex(args.out, job, args.action, args.model, args.effort,
+                         args.timeout, args.meter_tokens)
     failures = 0
     if args.workers == 1:
         for job in group:
