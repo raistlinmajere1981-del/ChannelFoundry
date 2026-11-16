@@ -50,7 +50,29 @@ export default function IncrementalUniverseWorkbench({onOpenReview}:{onOpenRevie
     setResult(runId?(await bridge.universeMergeResult(runId) as MergeResult|null):null);
   };
   useEffect(()=>{void load().catch((e)=>notify(err(e),"error"));return bridge?.onDataChanged?.(()=>{void load().catch(()=>undefined);});},[]);
-  useEffect(()=>{if(!status.run||!["waiting","running"].includes(status.run.state))return;const timer=window.setInterval(()=>void load(),1800);return()=>window.clearInterval(timer);},[status.run?.id,status.run?.state]);
+  useEffect(()=>{
+    if(!status.run||!["waiting","running"].includes(status.run.state)||!bridge)return;
+    let cancelled=false;
+    let polling=false;
+    const tick=async()=>{
+      if(polling)return;
+      polling=true;
+      try{
+        const progress=bridge.universeMergeProgress
+          ? await bridge.universeMergeProgress()
+          : await bridge.universeMergeStatus();
+        if(cancelled)return;
+        if(!progress.run||!["waiting","running"].includes(progress.run.state)){
+          await load();
+        }else{
+          setStatus(current=>({...current,run:progress.run}));
+        }
+      }catch{/* A later tick or explicit refresh can recover. */}
+      finally{polling=false;}
+    };
+    const timer=window.setInterval(()=>void tick(),1800);
+    return()=>{cancelled=true;window.clearInterval(timer);};
+  },[status.run?.id,status.run?.state]);
 
   const nextSources=status.ingest?.nextSources??[];
   const nextSignature=nextSources.map((source)=>source.videoId).join("|");

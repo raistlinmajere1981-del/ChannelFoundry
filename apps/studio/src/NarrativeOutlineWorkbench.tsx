@@ -61,6 +61,8 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
   const [seriesPosition, setSeriesPosition] = useState(0);
   const [chapterPosition, setChapterPosition] = useState(0);
   const [selectedMemoryKey, setSelectedMemoryKey] = useState("");
+  const [invitationNumberInput, setInvitationNumberInput] = useState("");
+  const [invitationSourceVideo, setInvitationSourceVideo] = useState("");
   const [dragged, setDragged] = useState<TreeDrag | null>(null);
   const [suggestions, setSuggestions] = useState<StudioNarrativeOutlineSuggestion[]>([]);
   const [proposal, setProposal] = useState<StudioNarrativeOutlineSuggestion | null>(null);
@@ -107,6 +109,18 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
   const chapters = catalog?.chapters ?? [];
   const assignments = catalog?.assignments ?? [];
   const placement = new Map(assignments.map(item => [item.sectionKey, item]));
+  const invitationByKey = new Map((catalog?.invitationNumbers ?? []).map(entry => [entry.sectionKey, entry]));
+  const displaySectionTitle = (section: StudioNarrativeSectionRevision) => {
+    const num = invitationByKey.get(section.sectionKey)?.number;
+    return num && !new RegExp("^" + num + "\\.\\s*Davet", "iu").test(section.title)
+      ? num + ". Davet — " + section.title : section.title;
+  };
+  const selectMemory = (key: string) => {
+    const entry = invitationByKey.get(key);
+    setSelectedMemoryKey(key);
+    setInvitationNumberInput(entry ? String(entry.number) : "");
+    setInvitationSourceVideo(entry?.sourceVideoId ?? "");
+  };
   const memoryByKey = new Map(memory.map(item => [item.sectionKey, item]));
   const independent = (catalog?.independentOrder ?? memory.map(item => item.sectionKey))
     .map(key => memoryByKey.get(key)).filter((item): item is StudioNarrativeSectionRevision => item !== undefined && !placement.has(item.sectionKey));
@@ -139,6 +153,10 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
   };
 
   const selectedMemory = memoryByKey.get(selectedMemoryKey);
+  const selectedChapterKey = selectedMemory ? placement.get(selectedMemory.sectionKey)?.chapterKey : undefined;
+  const selectedSeriesKey = selectedChapterKey ? chapters.find(chapter => chapter.key === selectedChapterKey)?.seriesKey : undefined;
+  const selectedSeriesName = selectedSeriesKey ? series.find(item => item.key === selectedSeriesKey)?.title : "";
+
   if (!bridge) return null;
 
   return <section className="panel narrative-outline">
@@ -178,9 +196,9 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
                         <div className="outline-tree-children" onDragOver={event => dragOver(event,"section")}
                           onDrop={event => dropInto(event,"section",ch.key)}>
                           {linked.map(section => <TreeRow key={section.sectionKey} kind="section" id={section.sectionKey}
-                            depth={2} title={section.title} selected={selectedMemoryKey === section.sectionKey}
+                            depth={2} title={displaySectionTitle(section)} selected={selectedMemoryKey === section.sectionKey}
                             disabled={busy} siblings={linked.map(entry => entry.sectionKey)}
-                            onSelect={() => {setSelectedMemoryKey(section.sectionKey);}}
+                            onSelect={() => selectMemory(section.sectionKey)}
                             dragged={dragged} setDragged={setDragged}
                             onMove={(target,source) => move(source ?? {kind:"section",key:section.sectionKey},{...target,parentKey:ch.key})} />)}
                           {!linked.length && <span className="outline-empty-drop">Anıyı buraya bırak</span>}
@@ -199,9 +217,9 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
             onDrop={event => dropInto(event,"section",null)}>
             <strong>Bağımsız anılar <small>{standalone.length}</small></strong>
             {standalone.map(section => <TreeRow key={section.sectionKey} kind="section" id={section.sectionKey}
-              title={section.title} depth={1} selected={selectedMemoryKey === section.sectionKey}
+              title={displaySectionTitle(section)} depth={1} selected={selectedMemoryKey === section.sectionKey}
               siblings={standalone.map(entry => entry.sectionKey)} disabled={busy}
-              onSelect={() => {setSelectedMemoryKey(section.sectionKey);}}
+              onSelect={() => selectMemory(section.sectionKey)}
               dragged={dragged} setDragged={setDragged}
               onMove={(target,source) => move(source ?? {kind:"section",key:section.sectionKey},{...target,parentKey:null})} />)}
             {!standalone.length && <span className="outline-empty-drop">Bağımsız anı yok · Anıyı buraya bırak</span>}
@@ -227,6 +245,33 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
                 <option key={ch.key} value={ch.key}>{s.title} / {ch.numberLabel ? ch.numberLabel + " · " : ""}{ch.title}</option>))}
             </select>
           </label>
+          {selectedSeriesKey && <div className="outline-invitation-editor">
+            <label>Davet numarası <small>({selectedSeriesName} içinde)</small>
+              <input type="number" min={1} max={999} step={1} value={invitationNumberInput}
+                disabled={busy} placeholder="Örn. 54"
+                onChange={event => setInvitationNumberInput(event.target.value)} />
+            </label>
+            <label>Numarayı doğrulayan kaynak video
+              <select disabled={busy} value={invitationSourceVideo}
+                onChange={event => setInvitationSourceVideo(event.target.value)}>
+                <option value="">Kaynak video seç</option>
+                {(selectedMemory.sourceVideoIds ?? []).map(id => <option value={id} key={id}>{catalog?.videoTitles?.[id] || id} ({id})</option>)}
+              </select>
+            </label>
+            <p>Davet numarası, yayın tarihinden tahmin edilmez. Aynı konu içinde numaralar tekrarlanamaz. Numarası belirlenmeyen anlatılar boş kalabilir.</p>
+            <button type="button" className="secondary-button" disabled={busy ||
+              (Boolean(invitationNumberInput.trim()) && (!invitationSourceVideo || !/^\d+$/.test(invitationNumberInput)))}
+              onClick={() => void execute(async () => {
+                await bridge.narrativeInvitationSave({
+                  sectionKey: selectedMemory.sectionKey,
+                  seriesKey: selectedSeriesKey,
+                  number: invitationNumberInput.trim() ? Number(invitationNumberInput) : null,
+                  sourceVideoId: invitationSourceVideo,
+                });
+              }, invitationNumberInput.trim() ? "Davet numarası ve kaynak bağlantısı kaydedildi." : "Davet numarası kaldırıldı.")}>
+              {invitationNumberInput.trim() ? "Davet numarasını kaydet" : "Numarayı temizle"}
+            </button>
+          </div>}
           <small>Metin burada değiştirilmez; anlatı onayı ayrı korunur.</small>
         </div> : <section className="outline-edit-details"><h4>Dizileri ve alt bölümleri düzenle</h4>
           <div className="narrative-outline-fields outline-series-fields">

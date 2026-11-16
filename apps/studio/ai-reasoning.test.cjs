@@ -68,6 +68,27 @@ test("save/reopen text & image choices are independent and no provider names are
     assert.throws(()=>config.saveConfig(directory,{imageReasoningMode:"fake-level"}),/biçimi/);
   }finally{fs.rmSync(directory,{recursive:true,force:true});}
 });
+test("Universe merge forwards the persisted text reasoning effort to Codex, independently of image settings",()=>{
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"studio-merge-reasoning-"));
+  const merge=require("./universe-merge-ai.cjs");
+  const aiCli=require("./ai-cli.cjs");
+  try{
+    config.saveConfig(directory,{
+      provider:"codex-cli",model:"gpt-6.1-terra",
+      reasoningEffort:"xhigh",reasoningMode:"effort",
+      imageProvider:"codex-cli",imageModel:"gpt-6.1-terra",
+      imageReasoningEffort:"low",imageReasoningMode:"effort",
+    });
+    const selected=merge.privateConfig(directory);
+    assert.equal(selected.reasoningEffort,"xhigh");
+    assert.equal(selected.reasoningMode,"effort");
+    const args=aiCli.codexArgs(selected);
+    assert.ok(args.includes('model_reasoning_effort="xhigh"'));
+    config.saveConfig(directory,{reasoningEffort:"",reasoningMode:""});
+    const defaultArgs=aiCli.codexArgs(merge.privateConfig(directory));
+    assert.ok(!defaultArgs.some(part=>part.startsWith("model_reasoning_effort=")));
+  }finally{fs.rmSync(directory,{recursive:true,force:true});}
+});
 test("reasoning effort reaches supported OpenAI chat transport only if chosen; defaults omit",async()=>{
   const captured=[];
   const server=http.createServer((request,response)=>{

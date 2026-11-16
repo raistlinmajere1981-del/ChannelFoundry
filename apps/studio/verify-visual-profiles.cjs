@@ -49,4 +49,28 @@ assert.equal(cleared.cleared, true);
 assert.equal(cleared.profile.imagePath, "");
 assert.equal(cleared.profile.prompt, "Karanlık ortamda uzun boylu bir varlık");
 
+// Publication is also built by fresh CLI Node processes, which have never
+// called ensureSchema(db, userDataPath). A relative asset must still resolve
+// beside its owning SQLite file instead of defaultStudioDataRoot().
+const diskDir = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-visual-db-"));
+try {
+  const dbPath = path.join(diskDir, "channel-foundry-studio.sqlite");
+  const imageDir = path.join(diskDir, "visual-assets");
+  fs.mkdirSync(imageDir);
+  const actualImage = path.join(imageDir, "portable.webp");
+  fs.writeFileSync(actualImage, Buffer.from("52494646", "hex"));
+  const writer = new DatabaseSync(dbPath);
+  visual.ensureSchema(writer);
+  visual.save(writer, {entityKey:"character:portable",entityType:"character"});
+  writer.prepare("UPDATE entity_visual_profiles SET image_path=? WHERE entity_key=?")
+    .run("visual-assets/portable.webp","character:portable");
+  writer.close();
+  const reader = new DatabaseSync(dbPath);
+  try {
+    const p = visual.getMetadata(reader,"character:portable");
+    assert.equal(p.imagePath,actualImage,"Fresh CLI publisher resolves image relative to owner DB");
+    assert.equal(fs.existsSync(p.imagePath),true);
+  } finally {reader.close();}
+} finally {fs.rmSync(diskDir,{recursive:true,force:true});}
+
 console.log("visual profile prompts and portable image assets ready");

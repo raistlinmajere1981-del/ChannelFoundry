@@ -53,3 +53,8 @@ Bu rapor alınca kullanıcı bu sohbet oturumuna dönecek; **burada birlikte de�
 - Devir çıktısını `channels/birdesengor/.local-data/studio/nexa-analysis/` altında yeni blok ve raporlarla sakla; genel yöntem/gözlem ilkesini bu dosyada devam ettir.
 - Kaynak analizler, veri tabanı, canlı yayın ve çevriler üzerinde yıkıcı toplu değişiklik yapma.
 - Gereksiz görsel üretme, hikâyeleştirme veya deploy yok. Arşiv/saha analizi için terminal bağlantısı yeterli, başka AI üretici kotasına bağımlı hale getirme.
+
+---
+
+## 14 Kasım 2026 — SEÇİM PLANI DEĞİŞİKLİĞİ
+**Bu dosyanın özgün 51–60'ı yeni kaynaklardan seçme talimatı artık yürürlükte değil; geçmiş yöntem/gözlem ilkeleri geçerliliğini korur.** Kullanıcı, son 100 Pzt/Per/Cts uzun videoyu Studio'dan sabit liste olarak seçip eskiden yeniye işleme kararı verdi. Eski çözümlemesi yapılmış 50 kayıt bu yeni kronolojinin **51–100**'üdür; daha eski 50 kayıt **1–50**'dir. Yeni sabit dosya `channels/birdesengor/.local-data/studio/nexa-analysis/block-2026-11-09-100-reindexed.json`. İlk yeni 1–10 (23 Mart–13 Nisan) **01 Çözümleme + 02 Ayıklama tamam**; 03 Evrene İşleme kullanıcıya bırakıldı. Bağımsız gözlemler `older-batch01-observation-continuity.md` ve ana `docs/BIRDESENGOR_ANLATI_TUTARLILIK_DEFTERI.md` içine işlendi. Bundan sonraki Nexa parti seçimi `older-batch-02-10.json` (11–20) üzerinden yapılmalı, genel `next` komutu üzerinden otomatik seçim yapılmamalı.

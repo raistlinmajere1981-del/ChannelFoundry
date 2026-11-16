@@ -2,7 +2,7 @@ const universeMerge = require("./universe-merge.cjs");
 const universeIngest = require("./universe-ingest.cjs");
 const importer = require("./universe-workspace-import.cjs");
 const accumulator = require("./universe-workspace-accumulate.cjs");
-const { nodeRows } = require("./universe-workspace-core.cjs");
+const { resolveNodeRows } = require("./universe-workspace-core.cjs");
 const revisions = require("./universe-workspace-revisions.cjs");
 const store = require("./universe-workspace-store.cjs");
 
@@ -11,7 +11,7 @@ function applyRun(db, requestedRunId = null) {
   const freshness = result?.id ? universeIngest.assertRunFresh(db, result.id) : { tracked: false };
   const previous = new Map(store.listNodes(db).map((node) => [node.key, node]));
   const approved = new Map([...previous].filter(([, node]) => node.state === "approved"));
-  const rows = result?.state === "done" && result.complete ? nodeRows(result.universe) : [];
+  const rows = result?.state === "done" && result.complete ? resolveNodeRows(db, result.universe) : [];
   const applied = importer.applyRun(db, requestedRunId);
   let accumulatedDrafts = 0;
   if (freshness.tracked && result?.id) {

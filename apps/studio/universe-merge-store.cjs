@@ -184,6 +184,27 @@ function sourceCoverage(universe, sourceSignature) {
   };
 }
 
+// Lightweight progress lookup for UI polling: do not rescan or fingerprint
+// every curated transcript on each tick. Full status() stays available on demand.
+function progress(db) {
+  const runId = latestRunId(db);
+  if (!runId) return { run: null };
+  const run = db.prepare(`SELECT id, state, model, analysis_count AS analysisCount,
+      error, created_at AS createdAt, updated_at AS updatedAt, finished_at AS finishedAt
+    FROM universe_merge_runs WHERE id=?`).get(runId);
+  const counts = db.prepare(`SELECT COUNT(*) AS totalChunks,
+      SUM(CASE WHEN state='done' THEN 1 ELSE 0 END) AS doneChunks,
+      SUM(CASE WHEN state='error' THEN 1 ELSE 0 END) AS errorChunks,
+      MAX(level) AS level FROM universe_merge_chunks WHERE run_id=?`).get(runId);
+  return { run: {
+    ...run, id: Number(run.id), analysisCount: Number(run.analysisCount),
+    totalChunks: Number(counts.totalChunks ?? 0),
+    doneChunks: Number(counts.doneChunks ?? 0),
+    errorChunks: Number(counts.errorChunks ?? 0),
+    level: Number(counts.level ?? 0),
+  } };
+}
+
 function status(db, requestedRunId = null) {
   ensureSchema(db);
   aiAnalysis.ensureSchema(db);
@@ -316,4 +337,4 @@ function advance(db, runId) {
   return status(db, runId);
 }
 
-module.exports = { MAX_INGEST_SELECTION, advance, cancelActive, claimNext, completeChunk, editorialBacklog, ensureSchema, failChunk, latestResult, pendingSourcePreview, resetInterrupted, selectPendingEntries, sourceCoverage, start, status };
+module.exports = { MAX_INGEST_SELECTION, advance, cancelActive, claimNext, completeChunk, editorialBacklog, ensureSchema, failChunk, latestResult, pendingSourcePreview, progress, resetInterrupted, selectPendingEntries, sourceCoverage, start, status };

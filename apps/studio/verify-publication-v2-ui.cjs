@@ -22,6 +22,11 @@ const deployWeb = read("apps/web/scripts/deploy-natro.mjs");
 
 assert.match(center, /YAYIN MERKEZİ · PUBLICATION V2/, "Yayınlama merkezi tek hedefi Publication V2 olarak göstermeli");
 assert.match(center, /Değişiklikleri yayınla/, "Güncelleme tek yayın eylemine bağlanmalı");
+assert.match(center,/preview\?\.baselineAvailable&&preview\?\.update\?\.ready\?'update':'full'/,
+  "Mevcut canlı içerikte güvenli güncelleme varsa tam yayın eksikleri bu yolu kapatmamalı");
+assert.match(center,/Mevcut kayıt ve görseller yayınlanabilir/,
+  "Güvenli güncelleme yeni kayıtların dışarıda kalacağı konusunda açık olmalı");
+
 assert.match(center, /Tam yayını başlat/, "Tam yayın, aynı yayın eyleminden başlatılmalı");
 assert.match(center, /Durumu yenile/, "Dışarıdan yapılan FTPS yayını Studio ekranında yeniden okunabilmeli");
 assert.doesNotMatch(center, /Yerel approved içerik canlı publication.dan farklı/, "Fark bildirimi hata gibi sunulmamalı");
@@ -43,6 +48,9 @@ assert.match(runtime, /uploadPublicationAsset/, "Studio canlı yayından önce p
 assert.match(runtime, /publishPublication\(snapshot,\s*seo\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
 assert.match(runtime, /mode === "full" && !local.readiness\?\.readyForTheme/, "Runtime tam yayının 05/06 kapısını korumalı");
 assert.match(runtime, /publicationUpdates\.buildUpdatePublication/, "Runtime mevcut yayını güvenle güncellemeli");
+assert.match(runtime,/mode === "full"[\s\S]*seoWorkspace\.manifest\([\s\S]*: null;/,
+  "Güvenli görsel güncellemesi SEO dosyalarını değiştirmemeli");
+
 assert.match(runtime, /deploymentEnabled/, "Offline kanal canlı yayınını açıkça etkinleştirmeden engellemeli");
 assert.doesNotMatch(runtime, /publishVisualManifest|buildPublicSnapshot|preparePublicVisuals/, "Runtime legacy snapshot/visual-manifest hattını kullanmamalı");
 

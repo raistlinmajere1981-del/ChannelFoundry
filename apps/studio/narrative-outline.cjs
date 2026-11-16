@@ -1,6 +1,7 @@
 "use strict";
 const crypto = require("node:crypto");
 const narrativeStore = require("./narrative-store.cjs");
+const invitationNumbers = require("./narrative-invitation-numbers.cjs");
 const channelProjects = require("./channel-projects.cjs");
 
 const clean = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -209,8 +210,16 @@ function moveNode(db, input) {
 }
 
 function status(db) {
+  ensureSchema(db);
+  const videoTitles = {};
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_videos'").get()) {
+    const title = db.prepare("SELECT title FROM youtube_videos WHERE video_id=?");
+    const videos = new Set(narrativeStore.narrativeMemory(db).flatMap(section => section.sourceVideoIds ?? []));
+    for (const id of videos) videoTitles[id] = title.get(id)?.title || id;
+  }
   return { profile: profile(db), series: seriesList(db), chapters: chapterList(db),
-    assignments: assignments(db), independentOrder: independentKeys(db) };
+    assignments: assignments(db), independentOrder: independentKeys(db),
+    invitationNumbers: invitationNumbers.get(db), videoTitles };
 }
 
 function publishedOutline(db, sections) {

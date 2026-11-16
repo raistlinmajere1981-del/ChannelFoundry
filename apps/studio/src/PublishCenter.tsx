@@ -8,8 +8,11 @@ type Publisher = Omit<NonNullable<typeof window.channelFoundryStudio>,"publishPu
   getPublicationInfo():Promise<PublicationInfo|null>;
 };
 type Mode='auto'|'full'|'update';
+// A partial, verified update is the safe default when a live baseline exists.
+// Unfinished translation/visual work and unrelated new records must not turn a
+// portrait update into an impossible full release. Full remains an explicit choice.
 const modeFor=(preview:PublicationPreview|null,selection:Mode):'full'|'update'=>
-  selection!=='auto'?selection:!preview?.baselineAvailable||preview?.coverage?.requiresFull||!preview?.update?.ready?'full':'update';
+  selection!=='auto'?selection:preview?.baselineAvailable&&preview?.update?.ready?'update':'full';
 const newCount=(value?:number)=>Number(value||0).toLocaleString('tr-TR');
 
 export default function PublishCenter(){
@@ -48,6 +51,7 @@ export default function PublishCenter(){
  const reasons:string[]=[];
  if(!project?.deploymentEnabled)reasons.push('Web yayını Ayarlar bölümünde henüz etkinleştirilmemiş.');
  if(!communityConnected)reasons.push('Topluluk yönetici bağlantısı gerekli.');
+ if(!full&&preview?.coverage?.requiresFull)reasons.push('Yeni bölüm/seri veya diğer tam yayın değişiklikleri bu güvenli güncellemeye dahil edilmeyecek. Mevcut kayıt ve görseller yayınlanabilir.');
  if(full&&preview?.readiness?.narrativeSections===0)reasons.push('Onaylı anlatı bölümü bulunamadı.');
  if(full&&preview?.readiness?.narrativeChangesPending)reasons.push('Onaylı evren değişiklikleri anlatıya henüz işlenmemiş.');
  if(full&&preview?.readiness&&!preview.readiness.visualComplete)reasons.push('Görsel tamamlama kararları bekliyor.');
@@ -97,13 +101,13 @@ export default function PublishCenter(){
      <div className="publish-v3-check-row"><span className={preview?.changed?'is-pending':'is-ready'}>{preview?.changed?'●':'✓'}</span>Yerel içerik ile canlı paket {preview?.changed?'farklı':'eşleşiyor'}</div>
      <div className="publish-v3-check-row"><span className={ready?'is-ready':'is-pending'}>{ready?'✓':'●'}</span>{full?'Tam yayın hazırlığı':'Güvenli içerik/görsel güncellemesi'} {ready?'hazır':'kontrol bekliyor'}</div>
      <div className="publish-v3-check-row"><span className={communityConnected&&project?.deploymentEnabled?'is-ready':'is-pending'}>{communityConnected&&project?.deploymentEnabled?'✓':'●'}</span>Canlı sunucu ve yönetici bağlantısı</div>
-     <div className="publish-v3-check-row"><span className={languageReady?'is-ready':'is-pending'}>{languageReady?'✓':'●'}</span>TR/EN yayın metinleri <small>{languages?.counts.ready??0} / {languages?.rows.length??0} iki dil onaylı</small></div>
-     {!!coverage?.reasons.length&&<div className="publish-v3-recommendation"><strong>Tam yayın öneriliyor</strong><p>{coverage.reasons.join(' · ')}</p></div>}
+     <div className="publish-v3-check-row"><span className={languageReady?'is-ready':'is-pending'}>{languageReady?'✓':'●'}</span>TR/EN yayın metinleri <small>{languages?.counts.ready??0} / {languages?.rows.length??0} iki dil onaylı · {strictBilingual?'Zorunlu denetim':'Bilgi amaçlı; görsel güncellemesini engellemez'}</small></div>
+     {!!coverage?.reasons.length&&<div className="publish-v3-recommendation"><strong>{full?'Tam yayına alınacak değişiklikler':'Güvenli güncelleme dışında kalacak değişiklikler'}</strong><p>{coverage.reasons.join(' · ')}</p></div>}
      {reasons.length>0&&<div className="publish-v3-blockers">{reasons.map(reason=><p key={reason}>{reason}</p>)}</div>}
      {error&&<p className="publish-v3-error" role="alert">{error}</p>}
     </section>
-    <div className="publish-v3-run"><div><strong>{modeOverride==='auto'?'Sistemin önerdiği yöntem': 'Elle seçilen yöntem'}: {full?'Tam yayın':'Güvenli güncelleme'}</strong><p>{full?'Yeni kayıtlar, görseller ve çizim kataloğu birlikte aktarılır.':'Canlıda bulunan kayıtlar korunarak yalnız güvenli değişiklikler işlenir.'}</p></div><button className="primary-button" disabled={!allowPublish} onClick={()=>void publish()}>{busy?'Paketleniyor ve yayınlanıyor…':full?'Tam yayını başlat':'Değişiklikleri yayınla'}</button></div>
-    <details className="publish-v3-options"><summary>Yayın tercihleri</summary><div><label>Yayın yöntemi<select aria-label="Yayın yöntemi" value={modeOverride} onChange={event=>setModeOverride(event.target.value as Mode)}><option value="auto">Otomatik seç (önerilen)</option><option value="full">Tam yayın</option><option value="update">Yalnız mevcut kayıtları güncelle</option></select></label><label className="publish-v3-checkbox"><input type="checkbox" checked={strictBilingual} onChange={event=>setStrictBilingual(event.target.checked)}/>İki dil tam onaylı olmadan yayınlamayı engelle</label></div><p>Güncelleme yeni hikâye, çizim veya destek kaydı eklemez. Gerekiyorsa tam yayın kullanılır.</p></details>
+    <div className="publish-v3-run"><div><strong>{modeOverride==='auto'?'Sistemin önerdiği yöntem': 'Elle seçilen yöntem'}: {full?'Tam yayın':'Güvenli güncelleme'}</strong><p>{full?'Yeni kayıtlar, görseller ve çizim kataloğu birlikte aktarılır.':'Canlıdaki kayıtlar korunur; mevcut kayıtların yeni/değişen görselleri ve onaylı çift dilli değişiklikleri aktarılır. Yeni kayıtlar, çizimler ve diğer tam yayın kapsamındaki değişiklikler sonraya bırakılır.'}</p></div><button className="primary-button" disabled={!allowPublish} onClick={()=>void publish()}>{busy?'Paketleniyor ve yayınlanıyor…':full?'Tam yayını başlat':'Değişiklikleri yayınla'}</button></div>
+    <details className="publish-v3-options"><summary>Yayın tercihleri</summary><div><label>Yayın yöntemi<select aria-label="Yayın yöntemi" value={modeOverride} onChange={event=>setModeOverride(event.target.value as Mode)}><option value="auto">Otomatik seç (önerilen)</option><option value="full">Tam yayın</option><option value="update">Yalnız mevcut kayıtları güncelle</option></select></label><label className="publish-v3-checkbox"><input type="checkbox" checked={strictBilingual} onChange={event=>setStrictBilingual(event.target.checked)}/>İki dil tam onaylı olmadan yayınlamayı engelle</label></div><p>Otomatik yöntem mümkün olduğunda güvenli güncellemeyi seçer. Bekleyen genel Evren farkları, eksik sahne görselleri ve toplu çeviri onayı bu yöntemi engellemez. Yeni hikâye, arşiv kaydı, çizim veya destek kayıtları bu yöntemle eklenmez.</p></details>
    </main>
    <aside className="publish-v3-side">
     <section><div className="publish-v3-section-head"><strong>CANLI YAYIN</strong><span className={communityConnected&&project?.deploymentEnabled?'is-ready':'is-pending'}>{communityConnected&&project?.deploymentEnabled?'Bağlı':'Bağlantı gerekli'}</span></div><h3>{live?'Yayın doğrulandı':preview?.baseline?'Mevcut yayın':'Henüz canlı yayın yok'}</h3><p>{project?.webUrl??'Web hedefi tanımlanmadı'}</p><div className="publish-v3-stamp"><small>SON CANLI YAYIN</small><strong>{live?.generatedAt||preview?.baseline?.generatedAt?formatExportDate(live?.generatedAt??preview?.baseline?.generatedAt??''):'—'}</strong></div><div className="publish-v3-stamp"><small>CANLI / YEREL</small><strong>{preview?.changed?'Farklı paketler':'Aynı içerik'}</strong></div></section>

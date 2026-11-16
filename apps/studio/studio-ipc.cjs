@@ -16,6 +16,11 @@ const { registerVefkIpc } = require("./vefk-ipc.cjs");
 const { registerVefkSourceIpc } = require("./vefk-source-ipc.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
+const visualPresets = require("./visual-presets.cjs");
+const visualReferences = require("./visual-references.cjs");
+const videoFrameCapture = require("./video-frame-capture.cjs");
+const videoCueSearch = require("./video-cue-search.cjs");
+const visualBasket = require("./visual-basket.cjs");
 const webConnection = require("./web-connection.cjs");
 const channelProjects = require("./channel-projects.cjs");
 const { resolveYoutubeSyncChannel } = require("./youtube-sync-source.cjs");
@@ -220,6 +225,7 @@ function registerAiHandlers() {
   ipcMain.handle("studio:ai-activity-snapshot", (_event, input) => aiActivity.snapshot(input));
   ipcMain.handle("studio:open-ai-workbench", () => runtime.navigateMainWindow("AI Atölyesi"));
   ipcMain.handle("studio:universe-merge-status", () => universeMerge.status(runtime.database()));
+  ipcMain.handle("studio:universe-merge-progress", () => universeMerge.progress(runtime.database()));
   ipcMain.handle("studio:universe-merge-result", (_event, runId) => universeMerge.latestResult(runtime.database(), runId));
   ipcMain.handle("studio:universe-merge-start", (_event, input) => {
     const result = universeMerge.start(runtime.database(), app.getPath("userData"), input);
@@ -250,6 +256,36 @@ function registerEditorialHandlers() {
     runtime.refreshMainWindow();
     return result;
   });
+  visualBasket.recover(runtime.database());
+  app.on("before-quit", () => visualBasket.pause());
+  ipcMain.handle("studio:visual-basket-status", () => visualBasket.status(runtime.database()));
+  ipcMain.handle("studio:visual-basket-settings", (_event, input) => visualBasket.setSettings(runtime.database(), input));
+  ipcMain.handle("studio:visual-basket-add", (_event, input) => visualBasket.add(runtime.database(), input, app.getPath("userData")));
+  ipcMain.handle("studio:visual-basket-remove", (_event, key) => visualBasket.remove(runtime.database(), app.getPath("userData"), key));
+  ipcMain.handle("studio:visual-basket-retry", (_event, key) => visualBasket.retry(runtime.database(), key));
+  ipcMain.handle("studio:visual-basket-preview", (_event, key) => visualBasket.candidate(runtime.database(), app.getPath("userData"), key));
+  ipcMain.handle("studio:visual-basket-accept", async (_event, key) => {
+    const next = await visualBasket.accept(runtime.database(), app.getPath("userData"), key);
+    runtime.refreshMainWindow();
+    return next;
+  });
+  ipcMain.handle("studio:visual-basket-start", () => visualBasket.start(runtime.database(), app.getPath("userData")));
+  ipcMain.handle("studio:visual-basket-pause", () => visualBasket.pause());
+  ipcMain.handle("studio:visual-presets-get", () => visualPresets.get(runtime.database()));
+  ipcMain.handle("studio:visual-presets-save", (_event, input) => visualPresets.save(runtime.database(), input));
+  ipcMain.handle("studio:visual-reference-get", (_event, key) =>
+    visualReferences.get(runtime.database(), app.getPath("userData"), key));
+  ipcMain.handle("studio:visual-reference-pick", (_event, input) => runtime.pickVisualReference(input));
+  ipcMain.handle("studio:visual-frame-preview", (_event, input) => videoFrameCapture.captureFrame(runtime.database(), app.getPath("userData"), input));
+  ipcMain.handle("studio:visual-cue-search", (_event, input) => videoCueSearch.search(runtime.database(), input));
+  ipcMain.handle("studio:visual-frame-accept", async (_event, input) => {
+    const result = await videoFrameCapture.acceptFrame(runtime.database(), app.getPath("userData"), input);
+    runtime.refreshMainWindow();
+    return result;
+  });
+  ipcMain.handle("studio:visual-frame-discard", (_event, input) => videoFrameCapture.discardFrame(input));
+  ipcMain.handle("studio:visual-reference-clear", (_event, key) =>
+    visualReferences.clear(runtime.database(), app.getPath("userData"), key));
   ipcMain.handle("studio:visual-profile-get", (_event, entityKey) => visualProfiles.get(runtime.database(), entityKey));
   ipcMain.handle("studio:visual-profile-save", (_event, input) => {
     const result = visualProfiles.save(runtime.database(), input);

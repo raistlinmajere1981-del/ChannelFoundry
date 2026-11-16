@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAiWorkbenchNotice } from "./AiWorkbenchStatus";
 import "./narrative-workbench.css";
 import NarrativeOutlineWorkbench from "./NarrativeOutlineWorkbench";
+import InvitationDraftWorkbench from "./InvitationDraftWorkbench";
 import "./narrative-stage-layout.css";
 
 type NarrativeBridge = NonNullable<typeof window.channelFoundryStudio> & StudioNarrativeBridge;
@@ -69,7 +70,7 @@ export default function NarrativeWorkbench() {
   const notify = useAiWorkbenchNotice();
   const [status, setStatus] = useState<StudioNarrativeStatus | null>(null);
   const [busy, setBusy] = useState<BusyAction>("");
-  const [activeView, setActiveView] = useState<"narrative"|"outline"|"sources">("narrative");
+  const [activeView, setActiveView] = useState<"narrative"|"outline"|"sources"|"invitations">("narrative");
 
   const load = async () => {
     if (!bridge) return;
@@ -180,12 +181,14 @@ export default function NarrativeWorkbench() {
       {([
         ["narrative","Anlatı",drafts.length?drafts.length:memory.length],
         ["outline","İçindekiler",memory.length],
+        ["invitations","Davetler · 1–10",10],
         ["sources","Kaynaklar",sourceVideos.length],
       ] as const).map(([view,label,count])=><button type="button" role="tab" key={view}
         aria-selected={activeView===view} className={activeView===view?"active":""}
         onClick={()=>setActiveView(view)}>{label}{count!==null&&<b>{number(count)}</b>}</button>)}
     </nav>
     <section className="narrative-view-body" role="tabpanel">
+      {activeView==="invitations" && <InvitationDraftWorkbench bridge={bridge} notify={notify} />}
       {activeView==="sources" && <div className="narrative-sources-view">
     {request && (changes.length > 0 || removed.length > 0 || sourceVideos.length > 0) && <section className="panel narrative-provenance">
       <div className="narrative-section-head"><div><small>KAYNAK ÖZETİ</small><h3>Onaylı Evren bilgileri ve videolar</h3></div><span>{number(proseChanges.length)} kayıt · {number(sourceVideos.length)} video</span></div>

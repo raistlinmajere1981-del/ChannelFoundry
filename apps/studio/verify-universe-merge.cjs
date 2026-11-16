@@ -133,6 +133,23 @@ global.fetch = async (_url, options = {}) => {
     );
     assert.equal(_test.looksTruncated({ finishReason: "MAX_TOKENS", content: "{}" }), true);
     assert.equal(_test.looksTruncated({ finishReason: "stop", content: '{"items":[]}' }), false);
+    // Large final reductions must not resend all irrelevant kinds five times.
+    const targetedMessages = _test.kindMessages({
+      partials: [{ stories: [{ name: "A", sourceVideoIds: ["video-a"] }], characters: [{ name: "UNRELATED" }] }],
+      mainCharacters: [{ name: "Ömer" }],
+    }, 1, { key: "stories", label: "hikâyeler", schema: "{name}" , instruction: "Kaynakları koru" });
+    const targetedInput = JSON.parse(targetedMessages.at(-1).content);
+    assert.equal(targetedInput.partials[0].stories.length, 1);
+    assert.equal(Object.hasOwn(targetedInput.partials[0], "characters"), false);
+    assert.equal(targetedInput.mainCharacters[0].name, "Ömer");
+    const manyRelations = Array.from({ length: 223 }, (_, i) => ({
+      fromType: "story", fromName: "Hikâye", toType: "character", toName: "Ömer",
+      label: `bağlantı-${i}`, sourceVideoIds: ["video-a"],
+    }));
+    const preservedRelations = require("./universe-normalizer.cjs").normalizeUniverse(
+      { relations: manyRelations }, new Set(["video-a"]),
+    ).relations;
+    assert.equal(preservedRelations.length, 223, "223 kaynak ilişkisi kesilmemeli");
 
     fs.writeFileSync(path.join(directory, "ai-config.json"), JSON.stringify({
       provider: "codex-cli",

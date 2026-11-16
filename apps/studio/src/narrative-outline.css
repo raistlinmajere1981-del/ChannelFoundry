@@ -138,3 +138,10 @@
   .outline-tree-scroll { max-height: 400px; }
   .narrative-outline-edit-pane { max-height: none; }
 }
+
+.outline-invitation-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 10px; padding: 10px; border: 1px solid #50483a; border-radius: 5px; background: #2a2b2b; }
+.outline-invitation-editor label { min-width: 0; }
+.outline-invitation-editor :is(input,select) { width: 100%; box-sizing: border-box; }
+.outline-memory-editor .outline-invitation-editor p { grid-column: 1 / -1; max-height: none; font-size: 11px; line-height: 1.4; }
+.outline-invitation-editor button { grid-column: 1 / -1; justify-self: end; }
+@media (max-width: 720px) { .outline-invitation-editor { grid-template-columns: 1fr; } }

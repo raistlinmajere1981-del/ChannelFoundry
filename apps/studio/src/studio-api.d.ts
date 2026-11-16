@@ -319,6 +319,15 @@ type StudioUniverseWorkspaceStateResult = StudioUniverseWorkspaceStatus & {
   ok: true; state: StudioUniverseWorkspaceState; requested: number; affected: number; missing: number;
 };
 
+type StudioVisualPreset = { id: string; name: string; instruction: string; negative: string };
+type StudioVisualPresets = { version: number; defaultId: string; presets: StudioVisualPreset[] };
+type StudioVisualBasketItem = { entityKey: string; entityType: string; title: string; prompt: string; negativePrompt: string; presetId: string; size: string; useReference: boolean; state: "pending" | "working" | "ready" | "error"; candidateFile: string; hasCandidate: boolean; generationProvider?: string; generationModel?: string; error: string; createdAt: string };
+type StudioVisualBasketStatus = { settings: { imagesPerRequest: 1 | 2 | 4 }; items: StudioVisualBasketItem[]; running: boolean; pauseRequested: boolean };
+type StudioVisualBasketInput = StudioVisualProfileInput & { prompt: string; title: string; size: "1024x1024" | "1536x1024" | "1024x1536"; presetId?: string; useReference?: boolean };
+type StudioVisualReference = { entityKey: string; imagePath: string; sourceVideoId: string; sourceSeconds: number | null; crop?: {x:number;y:number;width:number;height:number}|null; imageDataUrl: string; updatedAt: string };
+type StudioVideoFramePreview = { previewId: string; videoId: string; title: string; seconds: number; imageDataUrl: string };
+type StudioVideoCueHit = { startSeconds: number; endSeconds: number; text: string };
+
 type StudioImageOptimization = { format: "webp"; inputBytes: number; bytes: number; width: number; height: number; sourceWidth: number; sourceHeight: number };
 type StudioVisualProfile = {
   entityKey: string;
@@ -507,6 +516,7 @@ interface Window {
     aiAnalysisCancel(): Promise<{ running: boolean; canceled: number }>;
     aiActivitySnapshot(input?: { sessionId?: string; includeEvents?: boolean }): Promise<StudioAiActivitySnapshot>;
     universeMergeStatus(): Promise<StudioUniverseMergeStatus>;
+    universeMergeProgress?(): Promise<{ run: StudioUniverseMergeRun | null }>;
     universeMergeResult(runId?: number): Promise<StudioUniverseMergeResult | null>;
     universeMergeStart(input?: { videoIds?: string[] }): Promise<StudioUniverseMergeStatus>;
     universeMergeResume(): Promise<{ running: boolean; reason?: string } & StudioUniverseMergeStatus>;
@@ -516,10 +526,28 @@ interface Window {
     universeWorkspaceApply(runId?: number): Promise<StudioUniverseWorkspaceApplyResult>;
     universeWorkspaceSetState(input: { keys: string[]; state: StudioUniverseWorkspaceState }): Promise<StudioUniverseWorkspaceStateResult>;
     openAiWorkbench(): Promise<boolean>;
+    visualBasketStatus(): Promise<StudioVisualBasketStatus>;
+    visualBasketSettings(input: { imagesPerRequest: 1 | 2 | 4 }): Promise<{ imagesPerRequest: 1 | 2 | 4 }>;
+    visualBasketAdd(input: StudioVisualBasketInput): Promise<StudioVisualBasketStatus>;
+    visualBasketRemove(entityKey: string): Promise<StudioVisualBasketStatus>;
+    visualBasketRetry(entityKey: string): Promise<StudioVisualBasketStatus>;
+    visualBasketPreview(entityKey: string): Promise<{ entityKey: string; imageDataUrl: string }>;
+    visualBasketAccept(entityKey: string): Promise<StudioVisualBasketStatus>;
+    visualBasketStart(): Promise<StudioVisualBasketStatus>;
+    visualBasketPause(): Promise<{ running: boolean; pauseRequested: boolean }>;
+    visualPresetsGet(): Promise<StudioVisualPresets>;
+    visualPresetsSave(input: StudioVisualPresets): Promise<StudioVisualPresets>;
+    visualReferenceGet(entityKey: string): Promise<StudioVisualReference | null>;
+    visualReferencePick(input: { entityKey: string; sourceVideoId?: string }): Promise<{ canceled: boolean; reference?: StudioVisualReference; optimization?: StudioImageOptimization }>;
+    visualFramePreview(input: { videoId: string; seconds: number }): Promise<StudioVideoFramePreview>;
+    visualCueSearch(input: { videoId: string; query: string }): Promise<{ videoId: string; query: string; hits: StudioVideoCueHit[]; cueCount: number }>;
+    visualFrameAccept(input: { entityKey: string; previewId: string; crop?: { x: number; y: number; width: number; height: number } }): Promise<{ reference: StudioVisualReference; optimization: StudioImageOptimization }>;
+    visualFrameDiscard(input: { previewId: string }): Promise<boolean>;
+    visualReferenceClear(entityKey: string): Promise<{ cleared: boolean; entityKey: string }>;
     visualProfileGet(entityKey: string): Promise<StudioVisualProfile | null>;
     visualProfileSave(input: StudioVisualProfileInput): Promise<StudioVisualProfile>;
     visualImagePick(input: { entityKey: string; entityType?: string }): Promise<{ canceled: boolean; profile?: StudioVisualProfile; optimization?: StudioImageOptimization }>;
-    visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536" }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability; optimization: StudioImageOptimization } }>;
+    visualImageGenerate(input: StudioVisualProfileInput & { size?: "1024x1024" | "1536x1024" | "1024x1536"; presetId?: string; useReference?: boolean }): Promise<{ ok: true; profile: StudioVisualProfile; generation: { file: string; provider: string; model: string; controllerModel?: string; size: string; capability: StudioAiImageCapability; optimization: StudioImageOptimization } }>;
     visualImageClear(entityKey: string): Promise<{ cleared: boolean; entityKey: string; profile?: StudioVisualProfile }>;
     visualImageShow(entityKey: string): Promise<boolean>;
     vefkDelete(input: { id: string; confirmed: true }): Promise<{ id: string; revisions: number; catalogRemoved: boolean }>;

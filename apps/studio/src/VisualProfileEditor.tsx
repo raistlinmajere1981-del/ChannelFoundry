@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import VideoFrameSelector from "./VideoFrameSelector";
+import VisualBasketHub from "./VisualBasketHub";
 
 type VisualEditorItem = { key: string; kind: string; title: string };
 type SeedVisual = Partial<StudioVisualDefinition> | undefined;
 type ImageSize = "1024x1024" | "1536x1024" | "1024x1536";
-type VisualOperation = "save" | "pick" | "generate" | "clear" | null;
+type VisualOperation = "save" | "pick" | "generate" | "clear" | "reference-pick" | "reference-clear" | null;
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -33,6 +35,7 @@ export default function VisualProfileEditor({
   size = "1024x1024",
   onStatus,
   productionActions = false,
+  sourceVideoIds = [],
   dock = false,
   onDirtyChange,
   onBusyChange,
@@ -42,6 +45,7 @@ export default function VisualProfileEditor({
   size?: ImageSize;
   onStatus?: (message: string | null, tone?: "success" | "error") => void;
   productionActions?: boolean;
+  sourceVideoIds?: string[];
   dock?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
@@ -49,6 +53,10 @@ export default function VisualProfileEditor({
   const bridge = window.channelFoundryStudio;
   const [profile, setProfile] = useState<StudioVisualProfile | null>(null);
   const [capability, setCapability] = useState<StudioAiImageCapability | null>(null);
+  const [presets, setPresets] = useState<StudioVisualPresets | null>(null);
+  const [presetId, setPresetId] = useState("");
+  const [reference, setReference] = useState<StudioVisualReference | null>(null);
+  const [useReference, setUseReference] = useState(true);
   const [description, setDescription] = useState("");
   const [attributesText, setAttributesText] = useState("");
   const [atmosphere, setAtmosphere] = useState("");
@@ -70,10 +78,18 @@ export default function VisualProfileEditor({
 
   const load = async () => {
     if (!bridge) return;
-    const nextProfile = await bridge.visualProfileGet(item.key);
-    const nextCapability = productionActions ? await bridge.aiImageCapability() : null;
+    const [nextProfile, nextCapability, nextPresets, nextReference] = await Promise.all([
+      bridge.visualProfileGet(item.key),
+      productionActions ? bridge.aiImageCapability() : Promise.resolve(null),
+      productionActions && bridge.visualPresetsGet ? bridge.visualPresetsGet() : Promise.resolve(null),
+      productionActions && bridge.visualReferenceGet ? bridge.visualReferenceGet(item.key) : Promise.resolve(null),
+    ]);
     applyProfile(nextProfile, seedVisual);
     setCapability(nextCapability);
+    setPresets(nextPresets);
+    setPresetId(nextPresets?.defaultId ?? "");
+    setReference(nextReference);
+    setUseReference(Boolean(nextReference));
   };
 
   useEffect(() => { void load().catch(() => undefined); }, [item.key, productionActions]);
@@ -142,7 +158,7 @@ export default function VisualProfileEditor({
     if (profile?.imagePath && !window.confirm("Bu kayıt için mevcut görsel var. Yeni görsel üretip bağlı dosyayı değiştirmek istiyor musun?")) return;
     begin("generate", "Görsel hazırlanıyor. Bu işlem birkaç dakika sürebilir.");
     try {
-      const generationInput = { ...input(), size, subject: item.title };
+      const generationInput = { ...input(), size, subject: item.title, presetId, useReference };
       const result = await bridge.visualImageGenerate(generationInput);
       const controller = result.generation.controllerModel ? ` · yönetici ${result.generation.controllerModel}` : "";
       applyProfile(result.profile);
@@ -163,13 +179,73 @@ export default function VisualProfileEditor({
     finally { finish(); }
   };
 
+  const pickReference = async () => {
+    if (!bridge || !productionActions) return;
+    begin("reference-pick");
+    try {
+      const result = await bridge.visualReferencePick({ entityKey: item.key });
+      if (!result.canceled && result.reference) {
+        setReference(result.reference);
+        setUseReference(true);
+        onStatus?.("Referans kare kaydedildi. Üretimde seçiliyse Codex CLI görsel girdisi olarak kullanacak.", "success");
+      }
+    } catch (reason) { onStatus?.(errorText(reason), "error"); }
+    finally { finish(); }
+  };
+
+  const clearReference = async () => {
+    if (!bridge || !reference || !window.confirm("Bu kaydın referans karesi kaldırılsın mı? Üretilmiş görsel korunur.")) return;
+    begin("reference-clear");
+    try {
+      await bridge.visualReferenceClear(item.key);
+      setReference(null); setUseReference(false);
+      onStatus?.("Referans kare kaldırıldı; üretilen görsel değişmedi.", "success");
+    } catch (reason) { onStatus?.(errorText(reason), "error"); }
+    finally { finish(); }
+  };
+
+  const referenceControls = productionActions && <section className="visual-reference-panel">
+    <div className="visual-reference-panel__heading"><strong>Kaynak video karesi</strong><small>Yalnız üretime rehberlik eder; kitap görseli değildir.</small></div>
+    {reference && <div className="visual-reference-panel__image">
+      <img src={reference.imageDataUrl} alt="Yüklenmiş referans kare"/>
+      {reference.sourceVideoId && <small>Kaynak: {reference.sourceVideoId}{reference.sourceSeconds != null ? ` · ${Math.floor(reference.sourceSeconds / 60)}:${String(Math.floor(reference.sourceSeconds % 60)).padStart(2, "0")}` : ""}</small>}
+      <label><input type="checkbox" checked={useReference} disabled={busy}
+        onChange={event => setUseReference(event.target.checked)}/> Üretimde kullan</label>
+    </div>}
+    {reference && useReference && capability?.provider !== "codex-cli" &&
+      <small className="visual-reference-panel__warning">Referans kareyle üretim için Codex CLI seçilmeli.</small>}
+    <div className="visual-reference-panel__actions">
+      <button type="button" className="secondary-button" disabled={busy} onClick={() => void pickReference()}>
+        {reference ? "Kareyi değiştir" : "Videodan kare ekle"}</button>
+      {reference && <button type="button" disabled={busy} onClick={() => void clearReference()}>Kareyi kaldır</button>}
+    </div>
+    {!dock && <VideoFrameSelector entityKey={item.key} sourceVideoIds={sourceVideoIds} disabled={busy} onAttached={(next) => {
+      setReference(next); setUseReference(true);
+      onStatus?.("Kaynak videodan kare kaydedildi. Üretilmiş kitap görseli değiştirilmedi.", "success");
+    }}/>}
+  </section>;
+
+  const presetControls = productionActions && <div className="visual-preset-chooser">
+    <label><span>Görsel standardı</span>
+      <select value={presetId} disabled={busy || !presets?.presets.length}
+        onChange={event => setPresetId(event.target.value)}>
+        {(presets?.presets ?? []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+      </select>
+    </label>
+    <small>Ortak varsayılan, Ayarlar → Görsel standartları bölümünden değiştirilebilir.</small>
+  </div>;
+
   const generating = operation === "generate";
+
+  const basket = productionActions && <VisualBasketHub current={{...input(), title:item.title, prompt, size, presetId, useReference}}
+    hasImage={Boolean(profile?.imagePath)} disabled={busy} onAccepted={()=>{void load();}} onStatus={onStatus}/>;
 
   const actionButtons = <div className="entity-visual-actions">
     {productionActions && <button className="secondary-button" disabled={busy || (!description.trim() && !attributesText.trim())} onClick={preparePrompt}>Tariften prompt hazırla</button>}
     <button className="secondary-button" disabled={busy} onClick={() => void save()}>{operation === "save" ? "Kaydediliyor…" : changed ? "Profili kaydet *" : "Profili kaydet"}</button>
     {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
     {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}
+    {basket}
   </div>;
   // In the compact dock the file actions must live outside the aspect-ratio
   // image viewport; otherwise its overflow clipping hides the lower controls.
@@ -189,6 +265,10 @@ export default function VisualProfileEditor({
     {fileActions && <div className="record-visual-file-actions">{fileActions}</div>}
     <div className="record-visual-quick-actions">
       {productionActions && <button type="button" disabled={busy} onClick={() => void pick()}><span>＋</span> Görsel ekle</button>}
+      {productionActions && <VideoFrameSelector entityKey={item.key} sourceVideoIds={sourceVideoIds} disabled={busy} onAttached={(next)=>{
+        setReference(next);setUseReference(true);onStatus?.("Video referansı kırpılarak kaydedildi.","success");
+      }}/>}
+      {basket}
     </div>
     <details className="record-visual-config">
       <summary>Görsel tarifi ve üretim ayarları {changed ? "●" : ""}</summary>
@@ -198,6 +278,8 @@ export default function VisualProfileEditor({
         <label><span>Atmosfer</span><textarea disabled={busy} value={atmosphere} onChange={event => setAtmosphere(event.target.value)}/></label>
         <label><span>Üretim promptu</span><textarea className="prompt-area" disabled={busy} value={prompt} onChange={event => setPrompt(event.target.value)}/></label>
         <label><span>Kaçınılacak özellikler</span><textarea disabled={busy} value={negativePrompt} onChange={event => setNegativePrompt(event.target.value)}/></label>
+        {presetControls}
+        {referenceControls}
         {actionButtons}
       </div>
     </details>
@@ -221,11 +303,14 @@ export default function VisualProfileEditor({
         <div className="form-two"><label><span>Özellikler · satır satır</span><textarea disabled={busy} value={attributesText} onChange={(event) => setAttributesText(event.target.value)} placeholder={"Varlık türü: …\nBoy: …\nBelirgin özellik: …"}/></label><label><span>Atmosfer</span><textarea disabled={busy} value={atmosphere} onChange={(event) => setAtmosphere(event.target.value)} placeholder="Karanlık, sisli, arşiv hissi…"/></label></div>
         <label><span>Görsel üretim promptu</span><textarea disabled={busy} className="prompt-area" value={prompt} onChange={(event) => setPrompt(event.target.value)}/></label>
         <label><span>Kaçınılacak özellikler · opsiyonel</span><textarea disabled={busy} value={negativePrompt} onChange={(event) => setNegativePrompt(event.target.value)}/></label>
+        {presetControls}
+        {referenceControls}
         <div className="entity-visual-actions">
           {productionActions && <button className="secondary-button" disabled={busy || (!description.trim() && !attributesText.trim())} onClick={preparePrompt}>Tariften prompt hazırla</button>}
           <button className="secondary-button" disabled={busy} onClick={() => void save()}>{operation === "save" ? "Kaydediliyor…" : "Profili kaydet"}</button>
           {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
           {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}
+          {basket}
         </div>
       </div>
       <div className={`entity-visual-preview${generating ? " is-generating" : ""}`}>

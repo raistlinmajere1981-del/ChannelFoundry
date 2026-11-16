@@ -221,6 +221,13 @@ export default function AiProviderSettings() {
   if (!bridge) return null;
   const reasoningOptions = role === "text" ? textReasoningOptions : imageReasoningOptions;
   const selectedReasoning = role === "text" ? reasoning : imageReasoning;
+  // A stored choice is authoritative even before the provider catalog is fetched.
+  // Keep it visible after leaving/reopening Settings, without inventing new options.
+  const restoredReasoning = !reasoningOptions.length && selectedReasoning &&
+    (role === "text" ? savedTextReasoning : savedImageReasoning)
+    ? [{reasoningEffort: selectedReasoning, description: "Kaydedilen seçim · seçenekleri yenilemek için Modelleri getir"}]
+    : [];
+  const shownReasoningOptions = reasoningOptions.length ? reasoningOptions : restoredReasoning;
   return <section className="ai-provider-panel ai-minimal">
     <header className="ai-minimal-header"><h2>AI modelleri</h2>
       {!coordinated&&<button className="primary-button" disabled={Boolean(busy)} onClick={() => void save().catch(()=>undefined)}>{busy === "save" ? "Kaydediliyor…" : "Kaydet"}</button>}
@@ -261,15 +268,15 @@ export default function AiProviderSettings() {
           {displayModels.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}
         </select>
         {role === "text" && current?.transport !== "cli" && <label><span>Yedek model</span><select value={fallbackModel} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
-        {reasoningOptions.length > 0 && <label><span>Reasoning · modelin bildirdiği seçenekler</span>
+        {shownReasoningOptions.length > 0 && <label><span>Reasoning · {reasoningOptions.length ? "modelin bildirdiği seçenekler" : "kaydedilen seviye"}</span>
           <select aria-label="Reasoning" value={selectedReasoning}
             onChange={(event) => { if (role === "text") setReasoning(event.target.value); else setImageReasoning(event.target.value); setFeedback(); }}>
             <option value="">Varsayılan</option>
-            {reasoningOptions.map((entry) => <option key={entry.reasoningEffort} value={entry.reasoningEffort}
+            {shownReasoningOptions.map((entry) => <option key={entry.reasoningEffort} value={entry.reasoningEffort}
               title={entry.description}>{entry.reasoningEffort}{entry.description ? " · " + entry.description : ""}</option>)}
           </select>
         </label>}
-        {model && models.some((entry)=>entry.id === model) && !reasoningOptions.length &&
+        {model && models.some((entry)=>entry.id === model) && !shownReasoningOptions.length &&
           <p className="ai-minimal-note">Bu model reasoning seçeneklerini katalogda bildirmiyor. Varsayılan kullanılacak; seçenek tahmin edilmeyecek.</p>}
         <div className="ai-minimal-actions">
           <button type="button" className="secondary-button" disabled={Boolean(busy) || !model} onClick={() => void test()}>{busy === "test" ? "Test ediliyor…" : "Modeli dene"}</button>

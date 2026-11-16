@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import Dashboard from "./Dashboard";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import AiProviderSettings from "./AiProviderSettings";
+import VisualPresetSettings from "./VisualPresetSettings";
 import CommunityAdminSettings from "./CommunityAdminSettings";
 import UniverseMaintenanceSettings from "./UniverseMaintenanceSettings";
 import ChannelProjectsSettings from "./ChannelProjectsSettings";
@@ -12,6 +12,7 @@ import StudioIcon, { type StudioIconName } from "./StudioIcon";
 import { initialSidebarMode, saveSidebarMode, type StudioSidebarMode } from "./studio-shell";
 import { studioLogoMarkUrl } from "./studio-assets";
 
+const Dashboard = lazy(() => import("./Dashboard"));
 const VideoArchive = lazy(() => import("./VideoArchive"));
 const SubtitleResearch = lazy(() => import("./SubtitleResearch"));
 const AiWorkbench = lazy(() => import("./AiWorkbench"));
@@ -84,7 +85,11 @@ function makeIdentity(kind: ItemKind) {
 
 export default function StudioPipeline() {
   const bridge = window.channelFoundryStudio as StudioChannelBridge | undefined;
-  const [active, setActive] = useState<Section>("Gösterge Paneli");
+  const [active, setActive] = useState<Section>("Video Arşivi");
+  const activeRef = useRef<Section>("Video Arşivi");
+  const lastSectionRef = useRef<Section>("Video Arşivi");
+  const initialStartupLoadStarted = useRef(false);
+  activeRef.current = active;
   const [items, setItems] = useState<StudioPersistedItem[]>([]);
   const [relations, setRelations] = useState<StudioPersistedRelation[]>([]);
   const [workspaceNodes, setWorkspaceNodes] = useState<StudioUniverseWorkspaceNode[]>([]);
@@ -108,7 +113,23 @@ export default function StudioPipeline() {
   const sceneWorkspaceActive = active === "Sahne Atölyesi" || active === "Kayıt Dosyaları";
   const effectiveSidebarMode: StudioSidebarMode = sidebarMode;
 
-  const load = async () => {
+  // Startup only needs the project/channel header. VideoArchive owns its
+  // catalog data and dashboard statistics must not block the first page.
+  const loadStartup = async () => {
+    if (!bridge) { setReady(true); return; }
+    await bridge.bootstrap({});
+    const [nextProjects, nextChannels, nextActiveChannel] = await Promise.all([
+      bridge.channelProjects(), bridge.youtubeCatalogChannels(), bridge.youtubeCatalogActive(),
+    ]);
+    setProjects(nextProjects.projects);
+    setActiveProjectId(nextProjects.activeId);
+    setChannels(nextChannels);
+    setActiveChannelId(nextActiveChannel?.id || "");
+    setError(null);
+    setReady(true);
+  };
+
+  const loadDashboard = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
     await bridge.bootstrap({});
     const [state, info, nextChannels, nextActiveChannel, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo, nextProjects] = await Promise.all([
@@ -143,10 +164,55 @@ export default function StudioPipeline() {
     setReady(true);
   };
 
+  // Dashboard is a snapshot: refresh only when the user enters it, never
+  // because a background merge, translation or editorial event has fired.
+  const loadEditorial = async () => {
+    if (!bridge) return;
+    const [state, nodes, status] = await Promise.all([
+      bridge.loadState(), bridge.universeWorkspaceList(), bridge.universeWorkspaceStatus(),
+    ]);
+    setItems(state.items);
+    setRelations(state.relations);
+    setWorkspaceNodes(nodes);
+    setWorkspaceStatus(status);
+  };
+  const loadSettingsSummary = async () => {
+    if (!bridge) return;
+    const [info, catalog, status] = await Promise.all([
+      bridge.getDatabaseInfo(), bridge.youtubeCatalogStats(), bridge.universeWorkspaceStatus(),
+    ]);
+    setDatabaseInfo(info);
+    setCatalogStats(catalog);
+    setWorkspaceStatus(status);
+  };
+
   useEffect(() => {
-    void load().catch((reason) => { setError(errorText(reason)); setReady(true); });
-    return bridge?.onDataChanged?.(() => { void load().catch(() => undefined); });
+    // React StrictMode invokes mount effects twice during development.
+    // Fetch only lightweight navigation state on launch, once.
+    if (!initialStartupLoadStarted.current) {
+      initialStartupLoadStarted.current = true;
+      void loadStartup().catch((reason) => { setError(errorText(reason)); setReady(true); });
+    }
+    // Records are live-editable; their data alone needs event-driven refresh.
+    // Other pages own their own state, and Dashboard numbers remain a snapshot.
+    return bridge?.onDataChanged?.(() => {
+      if (activeRef.current === "Kayıt Dosyaları") {
+        void loadEditorial().catch(() => undefined);
+      }
+    });
   }, []);
+
+  useEffect(() => {
+    if (!ready || lastSectionRef.current === active) return;
+    lastSectionRef.current = active;
+    if (active === "Gösterge Paneli") {
+      void loadDashboard().catch((reason) => setError(errorText(reason)));
+    } else if (active === "Kayıt Dosyaları") {
+      void loadEditorial().catch((reason) => setError(errorText(reason)));
+    } else if (active === "Ayarlar") {
+      void loadSettingsSummary().catch((reason) => setError(errorText(reason)));
+    }
+  }, [active, ready]);
 
   const studioItems = useMemo<StudioItem[]>(() => items.map((item) => ({ ...item, relatedCount: connectedKeys(item.key, relations).size })), [items, relations]);
   const activateSection = (section: NavigableSection) => {
@@ -239,7 +305,7 @@ export default function StudioPipeline() {
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
           {active === "Vefk Atölyesi" && <VefkWorkshop/>}
           {active === "Sahne Atölyesi" && <SceneWorkshop/>}
-          {active === "Kayıt Dosyaları" && <EditorialWorkspaceV3 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={load} onCreate={() => setShowCreate(true)}/>}
+          {active === "Kayıt Dosyaları" && <EditorialWorkspaceV3 nodes={workspaceNodes} legacyItems={studioItems} legacyRelations={relations} onReload={loadEditorial} onCreate={() => setShowCreate(true)}/>}
           {active === "Topluluk" && <CommunityAdmin key={activeProjectId} projectId={activeProjectId}/>}
           {active === "Yayınlama" && <PublishCenter/>}
           {active === "Ayarlar" && <Settings databaseInfo={databaseInfo} catalog={catalogStats} workspaceStatus={workspaceStatus}/>}
@@ -293,10 +359,11 @@ function SectionLoading({ section }: { section: Section }) {
   return <div className="pipeline-loading"><span>{section}</span><strong>Çalışma alanı hazırlanıyor…</strong></div>;
 }
 
-type SettingsTab = "project" | "ai" | "community" | "data" | "seo";
+type SettingsTab = "project" | "ai" | "visual" | "community" | "data" | "seo";
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: "project", label: "Kanal ve yayın" },
   { id: "ai", label: "AI servisleri" },
+  { id: "visual", label: "Görsel standartları" },
   { id: "community", label: "Topluluk" },
   { id: "data", label: "Yerel veri" },
   { id: "seo", label: "SEO" },
@@ -330,6 +397,7 @@ function SettingsWorkspace({ databaseInfo, catalog, workspaceStatus }: { databas
       <div hidden={tab!=="project"}>{visited.includes('project')&&<ChannelProjectsSettings/>}</div>
       <div hidden={tab!=="seo"}>{visited.includes('seo')&&<SeoSettings active={tab==='seo'}/>}</div>
       <div hidden={tab!=="ai"}>{visited.includes('ai')&&<AiProviderSettings/>}</div>
+      <div hidden={tab!=="visual"}>{visited.includes("visual")&&<VisualPresetSettings/>}</div>
       <div hidden={tab!=="community"}>{visited.includes('community')&&<CommunityAdminSettings/>}</div>
       <div hidden={tab!=="data"}>{visited.includes('data')&&<div className="studio-settings-data">
         <section className="panel settings-card settings-data-card">

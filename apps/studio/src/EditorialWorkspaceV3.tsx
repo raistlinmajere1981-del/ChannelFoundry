@@ -240,7 +240,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
         <PublicationTranslationCenter focusName={activeWorkspace?.name??activeLegacy?.title??''} onDirtyChange={onTranslationDirty} onBusyChange={onTranslationBusy} onRecordPick={onTranslationPick}/>
       </Suspense>
       {rightOpen&&<aside className="records-v3-context records-v3-translation-visual"><div className="records-v3-context-scroll">
-        {translationVisual?<VisualProfileEditor key={translationVisual.key} item={{key:translationVisual.key,kind:translationVisual.kind,title:translationVisual.name}} seedVisual={(translationVisual.payload as Record<string,unknown>|undefined)?.visual as StudioVisualDefinition|undefined} productionActions dock onDirtyChange={onVisualDirty} onBusyChange={onVisualBusy} onStatus={onStatus}/>
+        {translationVisual?<VisualProfileEditor key={translationVisual.key} item={{key:translationVisual.key,kind:translationVisual.kind,title:translationVisual.name}} seedVisual={(translationVisual.payload as Record<string,unknown>|undefined)?.visual as StudioVisualDefinition|undefined} sourceVideoIds={translationVisual.sourceVideoIds} productionActions dock onDirtyChange={onVisualDirty} onBusyChange={onVisualBusy} onStatus={onStatus}/>
           :<section className="records-v3-rail-block"><strong>GÖRSEL</strong><p>Görseller, bağlı evren kayıtları seçildiğinde burada düzenlenebilir. Yayın metninin görüntüsü başka bir kayda ait olabilir.</p></section>}
         <section className="records-v3-rail-block"><strong>DİL DURUMU</strong><p>Çeviri önerileri yalnız onaylı Türkçe yayın metinlerinden hazırlanır. Taslaklar ve onaylı metinler otomatik olarak canlıya gönderilmez.</p></section>
       </div></aside>}
@@ -274,7 +274,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
      </main>
      {rightOpen&&<aside className="records-v3-context" aria-label="Görsel ve kayıt bağlamı">
        <div className="records-v3-context-scroll">
-         {activeImage&&<VisualProfileEditor key={activeImage.key} item={{key:activeImage.key,kind:activeImage.kind,title:activeImage.title}} seedVisual={activeImage.seedVisual} productionActions dock onStatus={onStatus} onDirtyChange={onVisualDirty} onBusyChange={onVisualBusy}/>}
+         {activeImage&&<VisualProfileEditor key={activeImage.key} item={{key:activeImage.key,kind:activeImage.kind,title:activeImage.title}} seedVisual={activeImage.seedVisual} sourceVideoIds={sourceIds} productionActions dock onStatus={onStatus} onDirtyChange={onVisualDirty} onBusyChange={onVisualBusy}/>}
          {activeSupport&&<section className="records-v3-rail-block"><strong>KAYNAK VİDEO</strong><p>{sourceById.get(activeSupport.videoId)?.title??activeSupport.videoId}</p><small>{!sourceById.get(activeSupport.videoId)||sourceById.get(activeSupport.videoId)?.sourceValid===false?"Kaynak video bulunamadı · Yeni kaynak seçilmeli":sourceById.get(activeSupport.videoId)?.state==="excluded"?"Yayın dışı":"Editoryal destek kaydı"}</small></section>}
          {(activeWorkspace||activeLegacy)&&<>
            <section className="records-v3-rail-block"><div className="records-v3-rail-title"><strong>İLİŞKİLER</strong><span>{activeRelations.length}</span></div>

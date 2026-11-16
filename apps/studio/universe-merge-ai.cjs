@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { isCliProvider, normalizeEndpoint, normalizeProvider, normalizeTimeoutSeconds } = require("./ai-config.cjs");
+const { isCliProvider, normalizeEndpoint, normalizeProvider, normalizeTimeoutSeconds, normalizeReasoningEffort } = require("./ai-config.cjs");
+const { validatedMode } = require("./ai-reasoning.cjs");
 const aiJson = require("./ai-json.cjs");
 const aiActivity = require("./ai-activity.cjs");
 const { requestTextCompletion } = require("./ai-client.cjs");
@@ -59,6 +60,8 @@ function privateConfig(userDataPath) {
     endpoint,
     model,
     displayModel: model || "Codex CLI · varsayılan",
+    reasoningEffort: normalizeReasoningEffort(config?.reasoningEffort),
+    reasoningMode: validatedMode(config?.reasoningMode),
     fallbackModel,
     apiKey: cliProvider ? "" : cleanText(config?.apiKey, 1000),
     timeoutSeconds,
@@ -117,6 +120,11 @@ function assertCompleteResponse(userDataPath, label, response) {
 }
 
 function kindMessages(input, level, definition) {
+  // Final reduction needs only the requested kind; sending every partial type
+  // repeatedly makes Codex CLI read huge unrelated payloads and hit timeout.
+  const targeted = level > 0 && Array.isArray(input?.partials)
+    ? { ...input, partials: input.partials.map((partial) => ({ [definition.key]: partial?.[definition.key] ?? [] })) }
+    : input;
   return [
     {
       role: "system",
@@ -135,7 +143,7 @@ function kindMessages(input, level, definition) {
         "Markdown, code fence, giriş veya sonuç cümlesi yazma. Yalnız tek bir JSON nesnesi döndür.",
       ].join(" "),
     },
-    { role: "user", content: JSON.stringify(input) },
+    { role: "user", content: JSON.stringify(targeted) },
   ];
 }
 
@@ -289,7 +297,7 @@ function consolidateKind(key, collections) {
 }
 
 function recoverableMergeError(error) {
-  return ["AI_OUTPUT_MAX_TOKENS", "AI_OUTPUT_TRUNCATED", "UNIVERSE_COVERAGE_MISSING", "UNIVERSE_SCHEMA_INCOMPLETE", "AI_JSON_REPAIR_FAILED"].includes(error?.code);
+  return ["AI_OUTPUT_MAX_TOKENS", "AI_OUTPUT_TRUNCATED", "UNIVERSE_COVERAGE_MISSING", "UNIVERSE_SCHEMA_INCOMPLETE", "AI_JSON_REPAIR_FAILED", "AI_CLI_TIMEOUT"].includes(error?.code);
 }
 
 async function requestKind(config, userDataPath, input, level, definition, depth, signal, activity) {
@@ -483,6 +491,7 @@ module.exports = {
   _test: {
     consolidateKind,
     deriveRelations,
+    kindMessages,
     expectedKindSourceIds,
     looksTruncated,
     validateKindCoverage,

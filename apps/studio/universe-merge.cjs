@@ -135,6 +135,7 @@ module.exports = {
   resetInterrupted: store.resetInterrupted,
   start: store.start,
   status: store.status,
+  progress: store.progress,
   latestResult,
   processNext,
 };

@@ -211,15 +211,17 @@ async function imageBufferFromOpenAiPayload(payload) {
   throw new Error("Görsel sağlayıcısı desteklenen base64 veya URL çıktısı döndürmedi.");
 }
 
-async function requestGeneratedImage(config, finalPrompt, size, signal) {
+async function requestGeneratedImage(config, finalPrompt, size, signal, referenceImagePath = "") {
   const provider = imageProvider(config);
   if (provider === "codex-cli") {
     return aiCli.requestImageGeneration(config, finalPrompt, {
       size,
       signal,
+      referenceImagePath,
       timeoutMs: normalizeTimeoutSeconds(config.timeoutSeconds) * 1000,
     });
   }
+  if (referenceImagePath) throw new Error("Referans kareyle üretim yalnız Codex CLI ile desteklenir.");
   const endpoint = imageEndpoint(config);
   const apiKey = imageApiKey(config);
   if (provider === "cloudflare-workers-ai" && !apiKey) throw new Error("Cloudflare Workers AI API anahtarı gerekli.");
@@ -267,11 +269,12 @@ async function generateImage(userDataPath, input) {
   const size = ["1024x1024", "1536x1024", "1024x1536"].includes(String(input?.size)) ? String(input.size) : "1024x1024";
   const negative = String(input?.negativePrompt ?? "").trim();
   const finalPrompt = negative ? `${prompt}\n\nKaçınılacak özellikler: ${negative}` : prompt;
+  const referenceImagePath = String(input?.referenceImagePath ?? "").trim();
   const controller = new AbortController();
   const timeoutMs = normalizeTimeoutSeconds(config.timeoutSeconds) * 1000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const generated = await requestGeneratedImage(config, finalPrompt, size, controller.signal);
+    const generated = await requestGeneratedImage(config, finalPrompt, size, controller.signal, referenceImagePath);
     const { buffer, extension } = generated;
     if (!buffer?.length || buffer.length > 25 * 1024 * 1024) throw new Error("Üretilen görsel boş veya 25 MB sınırını aşıyor.");
     const file = visualProfiles.targetFile(userDataPath, entityKey, extension);

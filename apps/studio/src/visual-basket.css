@@ -1,0 +1,49 @@
+.visual-basket-hub{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vbm-backdrop{position:fixed;inset:0;z-index:2147483001;display:grid;place-items:center;padding:20px;background:#0d0f11bf}
+.vbm-panel{display:flex;flex-direction:column;width:min(1120px,97vw);height:min(850px,92vh);background:#f3ecdf;color:#342b1f;border:1px solid #b89d72;border-radius:12px;overflow:hidden;box-shadow:0 20px 85px #0009;font:12px/1.5 system-ui,sans-serif}
+.vbm-panel button{min-height:33px;padding:6px 10px;border:1px solid #c6b598;border-radius:5px;background:#eee1cc;color:#3b3328;cursor:pointer;font:inherit}
+.vbm-panel button:hover:not(:disabled){border-color:#917044;background:#dfcfb5}
+.vbm-panel button:disabled{opacity:.4;cursor:default}
+.vbm-panel .vbm-primary{background:#816233;border-color:#735528;color:#fff6df;font-weight:700}
+.vbm-header{display:flex;gap:20px;align-items:start;justify-content:space-between;flex-shrink:0;padding:17px 22px;background:#eadcc5;border-bottom:1px solid #c9b697}
+.vbm-header h2{margin:2px 0 4px;font:500 24px Georgia,serif}
+.vbm-header small{font-size:10px;letter-spacing:.12em;color:#906c3e;font-weight:750}
+.vbm-header p{margin:0;color:#75634a}
+.vbm-summary{display:flex;align-items:center;gap:15px;flex-shrink:0;flex-wrap:wrap;padding:13px 20px;border-bottom:1px solid #c7b8a1}
+.vbm-summary>span{display:flex;gap:5px;align-items:baseline;white-space:nowrap}
+.vbm-summary>span strong{font-size:20px;color:#806030}
+.vbm-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vbm-actions small{color:#836e50}
+.vbm-main{display:grid;grid-template-columns:minmax(0,1fr) auto;min-height:0;flex:1;overflow:hidden}
+.vbm-list{overflow:auto;padding:15px 18px;display:grid;align-content:start;gap:9px;min-width:0}
+.vbm-item{border:1px solid #cbbda6;border-radius:6px;background:#faf6ee;padding:12px;display:grid;gap:6px}
+.vbm-item.ready{border-left:4px solid #568561}
+.vbm-item.working{border-left:4px solid #92713b}
+.vbm-item.error{border-left:4px solid #a65c50}
+.vbm-item-head{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.vbm-item-head>div{display:grid;gap:2px;min-width:0}
+.vbm-item-head strong{font-size:13px;overflow-wrap:anywhere}
+.vbm-item-head small{font-size:10px;color:#796d5c}
+.vbm-item-head b{font-size:10px;white-space:nowrap;color:#7e633d}
+.vbm-item>p{margin:0;color:#746753;font-size:11px;line-height:1.4;max-height:45px;overflow:hidden}
+.vbm-item .vbm-failure{color:#b04439}
+.vbm-item-actions{display:flex;gap:7px;flex-wrap:wrap}
+.vbm-inspection{width:min(360px,30vw);display:flex;flex-direction:column;gap:10px;overflow:auto;padding:14px;border-left:1px solid #cbbda6;background:#eee5d6}
+.vbm-inspection header{display:flex;align-items:start;gap:10px;justify-content:space-between}
+.vbm-inspection img{display:block;width:100%;object-fit:contain;background:#fff;border:1px solid #ccba9e}
+.vbm-inspection p{color:#75634a;font-size:11px;line-height:1.6}
+.vbm-empty{padding:36px;text-align:center;border:1px dashed #baa98e;color:#746753}
+.vbm-footer{display:flex;gap:9px;align-items:center;padding:12px 20px;border-top:1px solid #c7b8a1;background:#eadcc5;flex-shrink:0}
+.vbm-footer span{flex:1;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#745b3c}
+@media(max-width:720px){.vbm-backdrop{padding:5px}.vbm-panel{height:98vh;width:100%}.vbm-main{display:block;overflow:auto}.vbm-list{overflow:visible}.vbm-inspection{width:auto;border-left:0;border-top:1px solid #cbbda6}.vbm-summary{gap:8px}.vbm-actions{margin-left:0;width:100%}.vbm-footer{flex-wrap:wrap}.vbm-footer span{flex-basis:100%}}
+
+.vbm-library{gap:8px}
+.vbm-library>label{display:grid;gap:4px;font-size:11px}
+.vbm-library select,.vbm-library>input{box-sizing:border-box;width:100%;min-height:34px;border:1px solid #bca888;border-radius:4px;padding:6px 9px;background:#fffaf2;color:#322819}
+.vbm-library-list{display:grid;align-content:start;gap:3px;flex:1;overflow:auto;min-height:120px;max-height:400px;background:#f7efe1;border:1px solid #c9b79b;padding:6px}
+.vbm-library-list label{display:flex;gap:8px;align-items:flex-start;padding:7px 5px;border-bottom:1px solid #e2d4be;cursor:pointer}
+.vbm-library-list label input{margin-top:3px;accent-color:#947044}
+.vbm-library-list label span{min-width:0;display:grid;gap:2px}
+.vbm-library-list label strong{font-size:11px;overflow-wrap:anywhere}
+.vbm-library-list label small{font-size:10px;color:#786a57}
+.vbm-library>small{color:#786a57}

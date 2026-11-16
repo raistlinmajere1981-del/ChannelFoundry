@@ -143,6 +143,24 @@ function nodeRows(universe) {
   return result;
 }
 
+function resolveNodeRows(db, universe) {
+  const rows = nodeRows(universe);
+  // An editor may rename a node without changing its historical stable key.
+  // Match on the exact normalized displayed name before inventing another key.
+  const existing = db.prepare("SELECT key,kind,name FROM universe_workspace_nodes").all();
+  const byName = new Map();
+  for (const item of existing) {
+    const identity = `${item.kind}:${normalizedName(item.name)}`;
+    const prior = byName.get(identity);
+    if (prior === undefined) byName.set(identity, String(item.key));
+    else if (prior !== item.key) byName.set(identity, null); // ambiguous: never force a merge
+  }
+  return rows.map((row) => {
+    const matched = byName.get(`${row.kind}:${normalizedName(row.name)}`);
+    return matched ? { ...row, key: matched } : row;
+  });
+}
+
 function nodeIndex(rows) {
   const index = new Map();
   for (const row of rows) index.set(`${row.kind}:${normalizedName(row.name)}`, row.key);
@@ -165,4 +183,4 @@ function hydrateNode(row) {
   };
 }
 
-module.exports = { clean, ensureSchema, hydrateNode, nodeIndex, nodeRows, normalizedName, relationKey, safeJson, textArray };
+module.exports = { clean, ensureSchema, hydrateNode, nodeIndex, nodeRows, resolveNodeRows, normalizedName, relationKey, safeJson, textArray };

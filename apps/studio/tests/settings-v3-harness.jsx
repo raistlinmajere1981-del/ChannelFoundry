@@ -25,8 +25,8 @@ window.channelFoundryStudio={
   {id:'ollama',label:'Ollama',role:'text',transport:'local',endpoint:'http://localhost:11434',secret:false},
   {id:'disabled',label:'Kapalı',role:'image',transport:'none',endpoint:'',secret:false},
  ],
- aiModels:async()=>({models:[{id:'codex-saved-model',label:'Saved Model',text:true},{id:'codex-new-model',label:'New Model',text:true}]}),
- aiImageModels:async()=>({models:[{id:'image-saved-model',label:'Saved Image Model'},{id:'image-new-model',label:'New Image Model'}]}),
+ aiModels:async()=>({models:[{id:'codex-saved-model',label:'Saved Model',text:true,supportedReasoningEfforts:[{reasoningEffort:'medium',mode:'effort'},{reasoningEffort:'xhigh',mode:'effort'}]},{id:'codex-new-model',label:'New Model',text:true,supportedReasoningEfforts:[{reasoningEffort:'medium',mode:'effort'},{reasoningEffort:'xhigh',mode:'effort'}]}]}),
+ aiImageModels:async()=>({models:[{id:'image-saved-model',label:'Saved Image Model',supportedReasoningEfforts:[{reasoningEffort:'high',mode:'effort'}]},{id:'image-new-model',label:'New Image Model'}]}),
  aiSaveConfig:async input=>{window.__actions.push({type:'ai-save',input});window.__storedConfig={...config,...input,image:{...config.image,mode:input.imageMode,provider:input.imageProvider,model:input.imageModel,endpoint:input.imageEndpoint,reasoningEffort:input.imageReasoningEffort,reasoningMode:input.imageReasoningMode}};return window.__storedConfig;},
  seoOverview:async()=>seo,seoBatchStatus:async()=>({rows:[],counts:{queued:0,running:0,done:0,failed:0,skipped:0},running:false,paused:true}),
  seoSave:async input=>{if(window.__failSeoOnce){window.__failSeoOnce=false;window.__actions.push({type:'seo-save-error',input});throw Error('SEO geçici kayıt hatası');}window.__actions.push({type:'seo-save',input});if(input.kind==='site')Object.assign(seo.sites[input.language],input);else{const r=seo.rows.find(r=>r.id===input.id&&r.language===input.language);Object.assign(r,input);r.needsReview=!input.approved;}return structuredClone(seo);},
@@ -37,4 +37,5 @@ window.channelFoundryStudio={
  universeMaintenanceStatus:async()=>({confirmation:'EVRENİ SIFIRLA',reset:{universe_workspace_nodes:457,universe_workspace_relations:922,universe_ingest_sources:50},preserved:{source_ai_analyses:50,ai_analysis_editorial_reviews:50},resetCount:457,active:false,narratorLinks:1,activeRunId:null,blockedReason:''}),
  analyticsSummary:async()=>({ok:true,anonymous:true,days:30,visits:3,activeSeconds:212,areas:[{area:'evren',seconds:190,opens:2}],daily:[],contents:[]}),universeWorkspaceList:async()=>[],onDataChanged:()=>()=>{},
 };
-window.__mountSettings=()=>{createRoot(document.getElementById('root')).render(<Settings databaseInfo={{file:'/tmp/test.sqlite',itemCount:5}} catalog={{imported:0,total:5,pendingImport:0,transcripts:0}} workspaceStatus={{counts:{total:457}}}/>);};
+let settingsRoot;
+window.__mountSettings=()=>{settingsRoot?.unmount();settingsRoot=createRoot(document.getElementById('root'));settingsRoot.render(<Settings databaseInfo={{file:'/tmp/test.sqlite',itemCount:5}} catalog={{imported:0,total:5,pendingImport:0,transcripts:0}} workspaceStatus={{counts:{total:457}}}/>);};

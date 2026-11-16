@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const narrativeStore = require("./narrative-store.cjs");
 const narrativeOutline = require("./narrative-outline.cjs");
+const invitationNumbers = require("./narrative-invitation-numbers.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
 const visualCompletion = require("./visual-completion-store.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
@@ -173,6 +174,7 @@ function mediaEntry(value) {
 
 function journalData(db, archive, assetMap, assetSourceMap) {
   const memory = narrativeStore.narrativeMemory(db);
+  const invitationBySection = new Map(invitationNumbers.get(db).map(entry => [entry.sectionKey, entry.number]));
   const visualStatus = visualCompletion.status(db);
   const sceneByRevision = new Map(visualStatus.sections.map((scene) => [Number(scene.revisionId), scene]));
   const archiveIds = new Set(archive.entities.map((entity) => entity.entityId));
@@ -224,6 +226,7 @@ function journalData(db, archive, assetMap, assetSourceMap) {
     }
     return {
       sectionId: section.sectionKey,
+      invitationNumber: invitationBySection.get(section.sectionKey) ?? null,
       revision: section.revisionNo,
       order: section.position,
       title: section.title,

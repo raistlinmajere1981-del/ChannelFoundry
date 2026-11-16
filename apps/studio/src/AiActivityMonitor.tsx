@@ -79,7 +79,7 @@ export default function AiActivityMonitor({ pipelineError, summary }: Props) {
         const [videos, stats, universe, config, activity] = await Promise.all([
           bridge.aiAnalysisList(),
           bridge.aiAnalysisStats(),
-          bridge.universeMergeStatus(),
+          bridge.universeMergeProgress ? bridge.universeMergeProgress() : bridge.universeMergeStatus(),
           bridge.aiConfig(),
           bridge.aiActivitySnapshot(),
         ]);

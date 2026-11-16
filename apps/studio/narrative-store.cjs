@@ -274,9 +274,20 @@ function narrativeMemory(db) {
   `).all().map((row) => hydrateSectionRevision(row, db));
 }
 
+// Source-delta baseline must ignore scoped editorial imports: they add chapters
+// without consuming the existing pending Universe node/relation changes.
+function latestSourceBaselineRun(db) {
+  ensureSchema(db);
+  const row = db.prepare(`SELECT id, baseline_run_id AS baselineRunId,
+    universe_fingerprint AS universeFingerprint, input_fingerprint AS inputFingerprint,
+    input_json AS inputJson, model, created_at AS createdAt, applied_at AS appliedAt
+    FROM narrative_runs WHERE state='applied'
+      AND model NOT LIKE 'invitation-editorial:%' ORDER BY id DESC LIMIT 1`).get();
+  return row ? hydrateRun(row,'applied') : null;
+}
 function buildInput(db) {
   ensureSchema(db);
-  const baseline = latestAppliedRun(db);
+  const baseline = latestSourceBaselineRun(db);
   const baselineMap = baselineSourceMap(db, baseline?.id);
   const current = currentUniverseSources(db);
   const currentMap = new Map(current.map((source) => [sourceId(source), source]));

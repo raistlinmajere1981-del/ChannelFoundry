@@ -27,7 +27,16 @@ function defaultStudioDataRoot() {
 }
 
 function dataRoot(db) {
-  return dataRootByDatabase.get(db) ?? defaultStudioDataRoot();
+  const explicitlyConfigured = dataRootByDatabase.get(db);
+  if (explicitlyConfigured) return explicitlyConfigured;
+  // The database and visual-assets directory are co-located for every Studio
+  // channel. CLI publication builds must resolve the owning channel's directory,
+  // not the fallback project-wide local-data folder.
+  try {
+    const main = db.prepare("PRAGMA database_list").all().find(row => row.name === "main");
+    if (main?.file && path.isAbsolute(main.file)) return path.dirname(main.file);
+  } catch {}
+  return defaultStudioDataRoot();
 }
 
 function portablePath(value) {

@@ -1,5 +1,5 @@
 const universeMerge = require("./universe-merge.cjs");
-const { clean, ensureSchema, nodeIndex, nodeRows, normalizedName, relationKey, textArray } = require("./universe-workspace-core.cjs");
+const { clean, ensureSchema, nodeIndex, resolveNodeRows, normalizedName, relationKey, textArray } = require("./universe-workspace-core.cjs");
 const { status } = require("./universe-workspace-store.cjs");
 
 function applyRun(db, requestedRunId = null) {
@@ -7,7 +7,7 @@ function applyRun(db, requestedRunId = null) {
   const result = universeMerge.latestResult(db, requestedRunId);
   if (!result || result.state !== "done") throw new Error("Çalışma alanına uygulanabilecek tamamlanmış bir Evrene İşleme sonucu yok.");
   if (!result.complete) throw new Error(`Eksik Evrene İşleme sonucu çalışma alanına uygulanamaz: ${result.sourceCoverage.actual}/${result.sourceCoverage.expected} kaynak video korunmuş.`);
-  const rows = nodeRows(result.universe);
+  const rows = resolveNodeRows(db, result.universe);
   const index = nodeIndex(rows);
   const insertNode = db.prepare(`INSERT INTO universe_workspace_nodes (key,run_id,kind,name,summary,aliases_json,source_video_ids_json,payload_json,state) VALUES (?,?,?,?,?,?,?,?,'draft') ON CONFLICT(key) DO NOTHING`);
   const updateDraftNode = db.prepare(`UPDATE universe_workspace_nodes SET run_id=?,name=?,summary=?,aliases_json=?,source_video_ids_json=?,payload_json=?,updated_at=CURRENT_TIMESTAMP WHERE key=? AND state='draft'`);

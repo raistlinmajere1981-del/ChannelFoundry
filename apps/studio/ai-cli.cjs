@@ -469,6 +469,7 @@ function runImageAppServer(options = {}) {
   const reasoningEffort = validatedCodexReasoningEffort(options.reasoningEffort);
   const cwd = String(options.cwd ?? "").trim();
   const prompt = String(options.prompt ?? "");
+  const referenceImagePath = String(options.referenceImagePath ?? "").trim();
   if (!command) return Promise.reject(processFailure("Codex CLI bulunamadı. Önce Codex CLI'yi kurup `codex login` ile oturum aç.", "AI_CLI_UNAVAILABLE"));
   if (!cwd || !path.isAbsolute(cwd)) return Promise.reject(processFailure("Codex CLI görsel çalışma klasörü geçersiz.", "AI_CLI_IMAGE_WORKSPACE"));
   if (signal?.aborted) return Promise.reject(requestCanceledError());
@@ -568,7 +569,8 @@ function runImageAppServer(options = {}) {
           id: 3,
           params: {
             threadId,
-            input: [{ type: "text", text: prompt }],
+            input: [{ type: "text", text: prompt },
+              ...(referenceImagePath ? [{ type: "localImage", path: referenceImagePath }] : [])],
             ...(reasoningEffort ? { effort: reasoningEffort } : {}),
           },
         });
@@ -710,8 +712,22 @@ async function requestImageGeneration(config, prompt, options = {}) {
   if (!command) throw processFailure("Codex CLI bulunamadı. Önce Codex CLI'yi kurup `codex login` ile oturum aç.", "AI_CLI_UNAVAILABLE");
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "channel-foundry-codex-image-"));
   const sessionRunner = options.sessionRunner ?? runImageAppServer;
+  let referenceImagePath = "";
   const controllerModel = validatedCodexModel(config?.imageModel ?? config?.model);
   try {
+    if (options.referenceImagePath) {
+      const source = path.resolve(String(options.referenceImagePath));
+      const extension = path.extname(source).toLowerCase();
+      if (![".png", ".jpg", ".jpeg", ".webp"].includes(extension)) {
+        throw processFailure("Referans kare geçerli bir görsel dosyası değil.", "AI_CLI_REFERENCE_INVALID");
+      }
+      const info = fs.lstatSync(source);
+      if (!info.isFile() || info.size > 30 * 1024 * 1024) {
+        throw processFailure("Referans kare dosyası geçersiz veya çok büyük.", "AI_CLI_REFERENCE_INVALID");
+      }
+      referenceImagePath = path.join(temporaryDirectory, "reference-frame" + extension);
+      fs.copyFileSync(source, referenceImagePath);
+    }
     const response = await sessionRunner({
       command,
       args: codexImageArgs(),
@@ -719,6 +735,7 @@ async function requestImageGeneration(config, prompt, options = {}) {
       model: controllerModel,
       reasoningEffort: validatedCodexReasoningEffort(config?.imageReasoningEffort),
       prompt: imageGenerationPrompt(prompt, options.size),
+      referenceImagePath,
       timeoutMs: Number(options.timeoutMs) || Math.max(30, Number(config?.timeoutSeconds) || 420) * 1000,
       signal: options.signal,
     });

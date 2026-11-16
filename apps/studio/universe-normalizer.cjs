@@ -133,7 +133,7 @@ function normalizeRelations(value, allowed) {
     const toName = cleanText(entry.toName, 220);
     if (!allowedTypes.has(fromType) || !allowedTypes.has(toType) || !fromName || !toName) continue;
     result.push({ fromType, fromName, toType, toName, label: cleanText(entry.label || "bağlantılı", 160), sourceVideoIds: ids(entry.sourceVideoIds, allowed) });
-    if (result.length >= 200) break;
+    if (result.length >= 400) break;
   }
   return result;
 }

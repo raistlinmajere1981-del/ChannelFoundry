@@ -10,6 +10,8 @@ const universeMerge = require("./universe-merge.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
 const transcriptService = require("./transcript-service.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
+const visualPresets = require("./visual-presets.cjs");
+const visualReferences = require("./visual-references.cjs");
 const publicationV2 = require("./publication-v2.cjs");
 const seoWorkspace = require("./seo-workspace.cjs");
 const vefkStore = require("./vefk-store.cjs");
@@ -166,7 +168,11 @@ async function publishPublicExport(mode = "full") {
       throw new Error("Canlı yayın hazırlık sırasında değişti; güvenli güncelleme iptal edildi.");
     }
   }
-  const seo = seoWorkspace.manifest(app.getPath("userData"),snapshot,project.webUrl || "");
+  // During incremental portrait/content updates, leave the already deployed
+  // SEO sidecar unchanged. SEO editorial approval is a separate later stage.
+  const seo = mode === "full"
+    ? seoWorkspace.manifest(app.getPath("userData"),snapshot,project.webUrl || "")
+    : null;
   const live = await communityAdmin.publishPublication(snapshot,seo);
   writeSnapshotFile(liveBaselineFile(),snapshot);
   return {...local,uploadedAssets,live};
@@ -370,6 +376,21 @@ async function pickVisualImage(input) {
   return { canceled: false, profile, optimization };
 }
 
+async function pickVisualReference(input) {
+  const options = { title: "Videodan alınmış referans kareyi seç", properties: ["openFile"],
+    filters: [{ name: "Görseller", extensions: ["png", "jpg", "jpeg", "webp"] }] };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths[0]) return { canceled: true };
+  const userDataPath = app.getPath("userData");
+  const target = visualProfiles.targetFile(userDataPath, input?.entityKey, ".webp");
+  const optimization = await require("./visual-image-optimizer.cjs").optimizeImage(result.filePaths[0], target);
+  try {
+    const reference = visualReferences.attach(database(), userDataPath, input?.entityKey, target, input?.sourceVideoId);
+    return { canceled: false, reference, optimization };
+  } catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
+}
+
 async function generateVisualImage(input) {
   const profile = visualProfiles.save(database(), {
     entityKey: input?.entityKey,
@@ -386,6 +407,11 @@ async function generateVisualImage(input) {
   const provider = config.image?.provider || config.provider;
   const configuredModel = config.image?.model || config.model || (provider === "codex-cli" ? "Codex CLI · varsayılan" : "");
   const size = String(input?.size ?? "1024x1024");
+  const visualInput = visualPresets.compose(database(), input?.presetId, profile.prompt, profile.negativePrompt);
+  const reference = input?.useReference === false ? null :
+    visualReferences.get(database(), app.getPath("userData"), profile.entityKey, false);
+  if (reference && provider !== "codex-cli") throw new Error("Referans kareyle üretim şu anda yalnız Codex CLI ile destekleniyor.");
+
   const activitySession = aiActivity.startSession({
     kind: "visual",
     key: `visual:${profile.entityKey}:${Date.now()}`,
@@ -395,7 +421,7 @@ async function generateVisualImage(input) {
     configuredModel,
     stage: "Görsel hazırlanıyor",
     message: `“${subject}” için görsel üretim isteği hazırlandı.`,
-    context: { entityKey: profile.entityKey, entityType: profile.entityType, size },
+    context: { entityKey: profile.entityKey, entityType: profile.entityType, size, presetId: visualInput.presetId, referenceUsed: Boolean(reference) },
   });
   const request = aiActivity.beginRequest({
     sessionId: activitySession.id,
@@ -406,9 +432,7 @@ async function generateVisualImage(input) {
     model: configuredModel,
     messages: [{
       role: "user",
-      content: profile.negativePrompt
-        ? `${profile.prompt}\n\nKaçınılacak özellikler: ${profile.negativePrompt}`
-        : profile.prompt,
+      content: visualInput.negativePrompt ? visualInput.prompt + "\n\nKaçınılacak özellikler: " + visualInput.negativePrompt : visualInput.prompt,
     }],
     reasoningEffort: config.reasoningEffort || "",
   });
@@ -416,8 +440,9 @@ async function generateVisualImage(input) {
   try {
     const generated = await aiService.generateImage(app.getPath("userData"), {
       entityKey: profile.entityKey,
-      prompt: profile.prompt,
-      negativePrompt: profile.negativePrompt,
+      prompt: visualInput.prompt,
+      negativePrompt: visualInput.negativePrompt,
+      referenceImagePath: reference?.imagePath || "",
       size: input?.size,
     });
     const optimizedFile = visualProfiles.targetFile(app.getPath("userData"), profile.entityKey, ".webp");
@@ -466,6 +491,7 @@ module.exports = {
   navigateMainWindow,
   notifyYtDlpChanged,
   pickVisualImage,
+  pickVisualReference,
   pickVefkSource,
   vefkUserDataPath: () => app.getPath("userData"),
   processAnalysisQueue,

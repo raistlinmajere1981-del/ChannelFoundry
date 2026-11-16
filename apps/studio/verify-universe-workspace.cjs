@@ -170,4 +170,18 @@ assert.equal(
   "Yeni çalışma hata verdiğinde son tamamlanan birleşim liste görünümünde kalmalı",
 );
 
+// An editor-renamed character keeps its original DB key; a new merge must reuse it.
+const renamedUniverse = JSON.parse(JSON.stringify(firstUniverse));
+renamedUniverse.characters[0].name = "65. Davetli / Rehber";
+renamedUniverse.relations[0].toName = "65. Davetli / Rehber";
+insertRun(5, renamedUniverse);
+const renamedImport = workspace.applyRun(db, 5);
+assert.equal(renamedImport.created, 0, "Editörde adı değişen karakter ikinci kez açılmamalı");
+assert.equal(renamedImport.approvedProtected, 2, "Eski onaylı kimlik korunmalı");
+assert.equal(workspace.status(db).counts.total, 3, "İsim düzeltmesi yeni düğüm üretmemeli");
+assert.equal(workspace.listRelations(db).length, 1, "Eski ilişkinin anahtarı yeniden kullanılmalı");
+const renameRevisions = workspace.listRevisions(db, { state: "pending" }).filter((revision) => revision.runId === 5);
+assert.equal(renameRevisions.length, 1, "Adı düzeltilmiş karaktere tek yeni revizyon önerilmeli");
+assert.equal(renameRevisions[0].nodeKey, character.key);
+
 console.log("Universe workspace approval, editing, public filtering, relation gating and approved-record protection ready");

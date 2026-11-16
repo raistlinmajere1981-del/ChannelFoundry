@@ -150,6 +150,7 @@ type StudioNarratorSourceEntity = { sourceKey: string; name: string };
 type StudioNarrativeSeries = { key: string; title: string; description: string; position: number };
 type StudioNarrativeChapter = { key: string; seriesKey: string; title: string; numberLabel: string; position: number };
 type StudioNarrativePlacement = { sectionKey: string; chapterKey: string; position: number };
+type StudioNarrativeInvitationNumber = { sectionKey: string; seriesKey: string; number: number; sourceVideoId: string };
 type StudioNarrativeOutlineSuggestion = {
   key: string; seriesKey: string | null; seriesTitle: string; chapterKey: string | null;
   chapterTitle: string; numberLabel: string; videos: { videoId: string; title: string }[];
@@ -160,6 +161,24 @@ type StudioNarrativeOutlineStatus = {
   chapters: StudioNarrativeChapter[];
   assignments: StudioNarrativePlacement[];
   independentOrder: string[];
+  invitationNumbers: StudioNarrativeInvitationNumber[];
+  videoTitles: Record<string,string>;
+};
+
+type StudioInvitationDraft = {
+  number: number; sourceVideoId: string; sourceHash: string; title: string; body: string;
+  state: "generated" | "edited"; model: string; reviewNotes: string[]; reviewed: boolean;
+  reviewedAt: string; createdAt: string; updatedAt: string;
+};
+type StudioInvitationDraftItem = {
+  number: number; videoId: string; analysisTitle: string; publishedAt: string;
+  state: "unstarted" | "generated" | "edited" | "stale" | "reviewed" | "imported" | "missing"; editedAt: string; model: string;
+};
+type StudioInvitationDraftDetail = {
+  number: number; videoId: string; publishedAt: string; title: string; summary: string;
+  storyBeats: string[]; storyHints: string[]; originalSubtitle: string;
+  sourceHash: string; sourceVideoIds: string[]; sourceLanguages: string[];
+  draft: StudioInvitationDraft | null; stale: boolean; imported: boolean;
 };
 
 type StudioNarrativeBridge = {
@@ -173,6 +192,13 @@ type StudioNarrativeBridge = {
   narrativeDiscard(runId: number): Promise<{ run: StudioNarrativeRun; status: StudioNarrativeStatus }>;
   narrativeOutlineSuggestions(): Promise<StudioNarrativeOutlineSuggestion[]>;
   narrativeOutlineStatus(): Promise<StudioNarrativeOutlineStatus>;
+  narrativeInvitationSave(input: { sectionKey: string; seriesKey?: string; number: number | null; sourceVideoId?: string }): Promise<StudioNarrativeInvitationNumber | { sectionKey: string; number: null }>;
+  invitationDraftsList(): Promise<StudioInvitationDraftItem[]>;
+  invitationDraftsDetail(number: number): Promise<StudioInvitationDraftDetail>;
+  invitationDraftsGenerate(number: number): Promise<{ draft: StudioInvitationDraft; reviewNotes: string[] }>;
+  invitationDraftsUpdate(input: { number: number; title: string; body: string }): Promise<StudioInvitationDraft>;
+  invitationDraftsReview(input: { number: number; reviewed: boolean }): Promise<StudioInvitationDraft>;
+
   narrativeOutlineSaveSeries(input: Partial<StudioNarrativeSeries> & { title: string }): Promise<StudioNarrativeSeries>;
   narrativeOutlineSaveChapter(input: Partial<StudioNarrativeChapter> & { title: string; seriesKey: string }): Promise<StudioNarrativeChapter>;
   narrativeOutlinePlaceSection(input: { sectionKey: string; chapterKey: string | null; position?: number }): Promise<{ sectionKey: string; chapterKey: string | null; position?: number }>;
