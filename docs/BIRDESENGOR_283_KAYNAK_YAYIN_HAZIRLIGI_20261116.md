@@ -48,7 +48,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
-**Aşama 4 — Kontrol ve kitaba aktarım.** Her paket önce geçici SQLite kopyasında; eski 105 bölümün hash eşitliği ve genel kaynak baseline/3.930 farkın kaybolmaması kontrol edilir. Yedek ve tek işlemle yalnız denetlenmiş bölüm revizyonları eklenir. Kaynak/ilişki otomatik çoğaltılmaz. Yayın kapsamına alacağımız bölümlerin konu sırası gerçek kaynak bağlamından belirlenir.
+**Aşama 4 — Kontrol ve kitaba aktarım (17 Kasım'da yalınlaştırıldı).** Rutin işlemde geçici SQLite kopyası üretme. Tek gerçek Studio veritabanı üzerinde önce otomatik bütünlük kontrollü yedek al, sonra tek transaction ile yalnız kaynakça onaylı bölümleri ekle. Önceden onaylı bölümlerin birebir eşitliğini, genel kaynak baseline/3.930 farkını ve yabancı anahtar bütünlüğünü aynı işlemde denetle; hata varsa rollback et. Geçici kopya yalnız istisnai, yapısal/destrüktif şema geçişlerinde kullanılabilir.
 
 **Aşama 5 — TR/EN ve son kalite.** Önce onaylanmış TR bölümlerinden EN üretilir; son iki dil metni, kaynak kimlikleri, linkler, folio ve konu ağacıyla birlikte sınanır. Doğrudan bağlanan 45 eksik EN Evren varlığı açıklaması da tamamlanır; diğer arşiv EN açığı ayrı kapsamda değerlendirilir.
 
@@ -191,3 +191,21 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Kaynak/dil/AI log arşivi: `completed-batches/batch-04-20261117/`. Raporda kaynak editörlüğü ve mevcut token metriklerinin sınırları açıklanıyor.
 - İngilizce tercümeler, görseller, SEO, site şifresi, canlı yayın ve push kapsam dışında.
 - Detay: `docs/BIRDESENGOR_283_BATCH04_EDITORIAL_APPROVAL_20261117.md`.
+
+## 17 Kasım — Codex kotasını koruyan yalın iş akışı
+
+- Bir önceki onluk paketin **2.388.543** raporlanan son çağrı tokenının **924.599'u (%38,7)** kaynak denetimiydi; ek yeniden denetimlerin tamamı bu sayıya dahil değildi.
+- Artık Codex'e yalnız gerekli ilk anlatı taslağını veriyoruz. Prompt **tek videonun orijinal altyazısını doğrudan** taşıyor; on videoluk kaynak paketini, analiz ve Evren düğümlerini tekrar okutma kaldırıldı. Native subagent kapalı, yeni oturum kalıcı geçmiş bırakmıyor; token metrikleri otomatik açılıyor.
+- Kaynak/konuşmacı/zaman kipi/yerleşim/izlenebilirlik kontrolünü asistan üstlenecek. Manual denetim, her paragrafın incelendiği kayıt, ilk-orta-son kaynaktan 5+ karşılaştırma kanıtı, taslak ve kaynak SHA-256 mühürleri olmadan `pass` olamaz. Codex ile yeniden denetleme varsayılan olarak engellendi.
+- Veritabanında **tek aktif Studio SQLite** var. Önceki `/tmp` kopyaları yalnız prova amaçlıydı; rutin akıştan çıkarıldı ve bu geçici klonlar temizlendi. Uygulamanın gerçek `backups/` güvenlik yedekleri korundu.
+- `--apply --live --backup-auto` önce SQLite online backup API ile doğrulanan yeni yedek üretir, ardından tek transaction'da asıl veritabanına yazar. Otomatik öncesi/sonrası kontroller korunuyor.
+- Güncel kural: görsel, çeviri, SEO, canlı deploy, push yok; **283/283 kaynak** hedefi sürüyor.
+- Uygulama ve kullanım ayrıntısı: `docs/BIRDESENGOR_283_YALIN_KAYNAK_AKISI_20261117.md`.
+
+
+### 17 Kasım — Yalın yöntemle ilk gerçek kaynak denemesi
+
+- Beşinci partide `W2CCtGv2trE` tek-altyazı promptuyla ilk taslağını aldı: **35.578 raporlanan token**, cache 0, **132 sn**. Yeni prompt öncekinden daha küçük kaynak kapsamına sahip.
+- **35 paragraf ve 11 kaynak kanıtıyla asistanın doğrudan incelemesi** tamamlandı, üç düzeltme yapıldı; ikinci Codex çağrısı yapılmadan kaynak incelemesi `audited_pass` oldu.
+- Yeni manuel kanıt SHA mührü tek Studio DB aktarım aracının salt-okunur `IMPORT_READY` doğrulamasından geçti. **Gerçek kitaba aktarılmadı**, dokuz yeni kaynak henüz başlanmadı.
+- Üretim modellerinin toplam token düşüşü cache etkisinden ayrılmadan kota/ücret tasarrufu ilan edilmiyor.

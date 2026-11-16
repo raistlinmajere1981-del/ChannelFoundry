@@ -5,8 +5,10 @@
  * - no changes to Universe nodes/relations or general narrative baseline;
  * - all draft/audit/source fingerprints must be current;
  * - one SQLite transaction + full integrity and provenance checks;
- * - by default does not change any DB. --apply needs an explicit /tmp copy.
- *   --live requires an explicit verified backup argument.
+ * - by default does not change any DB.
+ * - routine local commit uses ONLY the canonical Studio DB with automatic,
+ *   integrity-verified pre-import backup + transactional import/rollback.
+ * - optional /tmp copy support remains for exceptional migration investigations.
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -39,6 +41,8 @@ function argumentsFromCli() {
   const givenDb = get("--db");
   const dbFile = path.resolve(givenDb || liveDb);
   const backup = get("--backup");
+  const autoBackup = process.argv.includes("--backup-auto");
+  assert(!(autoBackup && backup), "Choose --backup-auto or --backup, not both");
   const planFile = path.resolve(get("--plan") || "__missing_plan__");
   const packetFile = path.resolve(get("--packet") || "__missing_packet__");
   const draftDir = path.resolve(get("--draft-dir") || path.join(coverage, "drafts"));
@@ -51,12 +55,12 @@ function argumentsFromCli() {
   assert(!live || dbFile === liveDb, "--live is only valid for the real Studio SQLite");
   if (apply && dbFile === liveDb) {
     assert(live, "Canonical database is protected; --live required");
-    assert(backup && fs.existsSync(backup) && fs.statSync(backup).size > 1000000,
-      "Verified backup file is required for --live");
-    assert(path.resolve(backup) !== dbFile, "Backup cannot be live database");
+    assert(autoBackup || (backup && fs.existsSync(backup) && fs.statSync(backup).size > 1000000),
+      "Use --backup-auto for live import or supply a fresh verified --backup");
+    if (backup) assert(path.resolve(backup) !== dbFile, "Backup cannot be live database");
   }
   if (apply && dbFile !== liveDb) assert(dbFile.startsWith("/tmp/"), "--apply is only allowed on /tmp copies");
-  return { apply, live, dbFile, planFile, packetFile, draftDir };
+  return { apply, live, dbFile, planFile, packetFile, draftDir, backup, autoBackup };
 }
 
 function candidateBlocks(body, sources) {
@@ -181,6 +185,14 @@ function validateSourceFiles(args) {
     assert.equal(audit.videoId, vid);
     assert.equal(audit.verdict, "pass");
     assert.deepEqual(audit.issues, []);
+    if (audit.reviewMethod === "assistant-source-review") {
+      const evidence = path.join(folder, vid + ".review.evidence.json");
+      assert(fs.existsSync(evidence), "Missing assistant source-review evidence for " + vid);
+      const evidenceHash = sha(fs.readFileSync(evidence));
+      assert.equal(audit.reviewEvidenceSha256, evidenceHash, "Assistant source review evidence stale");
+      assert.equal(seal.reviewEvidenceSha256, evidenceHash, "Assistant evidence seal stale");
+      assert.equal(seal.reviewMethod, "assistant-source-review");
+    }
     assert(draft.body.length >= 600 && draft.body.length <= 22000);
     assert(draft.title.length >= 6 && draft.title.length <= 190);
     assert(draft.sourceAnchors.length >= 3 && draft.sourceAnchors.length <= 12);
@@ -394,13 +406,44 @@ function apply(db, items, pre) {
   }
 }
 
+function liveBackup(args, expectedSections, db) {
+  const version = db.prepare("PRAGMA data_version").get().data_version;
+  let backupPath = path.resolve(args.backup || "");
+  if (args.autoBackup) {
+    const stamp = new Date().toISOString().replace(/[.:]/g, "-");
+    backupPath = path.join(data, "backups", "before-book-import-" + stamp + ".sqlite");
+    const output = execFileSync("python3", [
+      "-B", "apps/studio/birdesengor_book_sqlite_backup.py",
+      "--out", backupPath, "--expected-sections", String(expectedSections),
+    ], { cwd: root, encoding: "utf8", timeout: 90000 });
+    console.log(output.trim());
+  } else {
+    assert(fs.statSync(backupPath).mtimeMs > Date.now() - 15 * 60 * 1000,
+      "Existing backup must be freshly created (within 15 minutes); prefer --backup-auto");
+    const verification = execFileSync("python3", [
+      "-B", "apps/studio/birdesengor_book_sqlite_backup.py",
+      "--verify-existing", backupPath,
+      "--expected-sections", String(expectedSections),
+    ], { cwd: root, encoding: "utf8", timeout: 90000 });
+    console.log(verification.trim());
+  }
+  assert(db.prepare("PRAGMA data_version").get().data_version === version,
+    "Studio changed while backup was being created; refuse to apply stale snapshot");
+  console.log("LIVE_IMPORT_PROTECTED", JSON.stringify({ singleWorkingDatabase: args.dbFile, backupPath }));
+}
+
 function main() {
   const args = argumentsFromCli();
   const { items, plan } = validateSourceFiles(args);
-  const db = new DatabaseSync(args.dbFile);
+  // A dry run is a real read-only connection: even a future migration in
+  // ensureSchema() cannot accidentally mutate the canonical working copy.
+  const db = new DatabaseSync(args.dbFile, { readOnly: !args.apply });
   db.exec("PRAGMA foreign_keys=ON");
   db.exec("PRAGMA busy_timeout=10000");
   try {
+    // Protect the original DB BEFORE any ensureSchema() or other preparation
+    // code can potentially perform an implicit schema migration.
+    if (args.apply && args.live) liveBackup(args, plan.expectedBefore, db);
     const pre = prepare(db, items, plan);
     console.log("IMPORT_READY", JSON.stringify({
       db: args.dbFile, apply: args.apply, live: args.live,
@@ -412,7 +455,9 @@ function main() {
       pendingUniverseChanges: pre.pending.changes.length,
       matchedSourceNodeCounts: items.map(x => [x.vid,x.sources.length]),
     }));
-    if (args.apply) console.log("IMPORT_RESULT", JSON.stringify(apply(db, items, pre)));
+    if (args.apply) {
+      console.log("IMPORT_RESULT", JSON.stringify(apply(db, items, pre)));
+    }
   } finally {
     db.close();
   }

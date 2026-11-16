@@ -256,7 +256,7 @@ def markdown_report(rows, batches, chapters):
         "2. Her eksik video için özgün altyazı ve çözümlemeden kaynak dosyası hazırla; önerilen olay bağlarını bağımsız doğrula.",
         "3. Onaylı hikâye/olay kaynağı olan partilerden başla; yalnız taslak kaydı olan 43 kaynak için ayrıca kimlik/onay incelemesi yap.",
         "4. Aynı olay zincirini anlatan videoları kaynağa uygun biçimde bir bölümde topla veya ayrı bölümlere ayır.",
-        "5. Yeni TR taslaklarını kanıt ve bağımsız altyazı denetiminden geçir; SQLite kopyasında aktarımı sınayıp sonra yedekli kabul işlemi yap.",
+        "5. Yeni TR taslaklarını kaynakla paragraf bazında karşılaştır, kanıtlı manuel denetim mührü oluştur; tek Studio SQLite üzerinde otomatik doğrulanmış yedek ve tek transaction ile kabul et.",
         "6. Onaylı TR metinlerinden EN sürümlerini üretip doğrula; sahne ve kitap regresyonunu çalıştır.",
         "7. Kitabın doğrudan kaynak kimlikleriyle **283/283** kapsaması yanında, her videonun içeriğinin gerçekten anlatıldığını da kontrol et.",
         "",
