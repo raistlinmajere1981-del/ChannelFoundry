@@ -66,3 +66,17 @@ Doğrulama: `publication-languages.validateVariant` tüm 115 bölüm için her i
 ## Çift dilli yayın paketi için kuru deneme
 
 Güncel yerel SQLite'ın "/tmp/birdesengor-batch01-bilingual-export-check.sqlite" kopyasında tam `buildPublicationV2` (salt-okunur çıktı denetimi, canlı export/deploy değil) PASS: **115 bölüm, 115 onaylı TR, 115 onaylı EN, 122 benzersiz video kimliği, 1.663 arşiv varlığı, 3.619 ilişki**, foreign key hatası 0. Kaynak görselleri işin bu aşamasında tamamlanmadığı için paket hazır varlık sayısının sıfır olabilmesi yayın önkoşulu sayılmaz. Kuru denemenin geçmesi otomatik site açılışı veya eksik 161 videonun hazır olması demek değildir.
+
+## Tarayıcı regresyonları ve tasarım uyumu
+
+- Studio production build PASS; web birim testleri ve production build PASS (ilk genel doğrulama çalışmasında).
+- Web açılış `foundation-e2e` PASS: 1920×1080, 1366×768, 390×844 normal ve azaltılmış hareket; 4 aktif hedef, 15 pasif tıklama, tarayıcı hatası yok.
+- `journal-contents-e2e` PASS: 1920, 1366 ve 390; gruplu İçindekiler açılıp numaralı davet satırına erişim.
+- `journal-layout-e2e` PASS: 1920, 1366 ve 390; uzun metin, tüm İçindekiler bağlantıları, folio, uzun görsel, kaydırma ve reduced-motion.
+- `contents-search-e2e` PASS: 1920, 1366, 390 normal/azaltılmış hareket; TR/EN, kaydırma, ayraçlar.
+- `contents-view-e2e` PASS: 1920 ve 390; listeleme ve görünüm kontrolleri.
+- `book-illustrations-e2e` PASS ve `book-scroll-spine-e2e` PASS (masaüstü/mobil kaydırma/omurga).
+- `foundation-e2e` testinde gerçek sahne tarafından gizlenmiş taş ve sandık artık yanlışlıkla görünür varsayılmıyor. Açılışta DOM'a eklenmiş, ancak tamamen gizli kitap-hover kanvasları etkin efekt sayılmıyor. Sadece test beklentisi değiştirildi; yayın sahnesi değişmedi.
+- `journal-contents-e2e` ve `journal-layout-e2e` testleri yeni varsayılan **kapalı** İçindekiler gruplarını önce açarak devam ediyor; kullanıcı görünümü değişmedi.
+- Genel `npm --prefix channels/birdesengor/web run verify` tüm testleri kapsayacak biçimde son düzeltmeden sonra tekrar **başarıyla bitirilmedi**: önceki çalışmada eski `journal-layout` beklentisinde durdu; bu test sonradan tek başına başarılı oldu. Geri kalan topluluk/kamera/vefk gibi E2E testleri sonraki genel kapanışta tekrar koşulmalı. Bunlar bu raporda PASS olarak gösterilmiyor.
+- Web alt-reposunun test değişiklikleri, kullanıcıya ait kaftan/kılıç/efekt düzenlemelerinden ayrı commit edildi. Sahne objelerinin asıl `visible` değerleri değiştirilmedi.
