@@ -20,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "channels/birdesengor/.local-data/studio/book-coverage"
 STUDIO_DB = ROOT / "channels/birdesengor/.local-data/studio/channel-foundry-studio.sqlite"
-FILES = (".json", ".audit.json", ".audit.seal.json", ".codex.log", ".audit.codex.log")
+FILES = (".json", ".audit.json", ".audit.seal.json", ".codex.log", ".audit.codex.log",
+         ".metrics.json", ".audit.metrics.json")
 
 
 def sha(file):

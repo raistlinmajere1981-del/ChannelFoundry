@@ -112,6 +112,16 @@ function validateSourceFiles(args) {
     assert(plan.decisions.some(d => d.targetChapterKey === key),
       "Prepend chapter must be represented in the source batch");
   }
+  const insertBefore = plan.insertBeforeSections || {};
+  assert(insertBefore && typeof insertBefore === "object" && !Array.isArray(insertBefore));
+  assert(Object.keys(insertBefore).length <= 3, "Too many insertion anchors");
+  for (const [chapter, section] of Object.entries(insertBefore)) {
+    assert(/^topic-chapter-[a-z0-9-]+$/.test(chapter), "Invalid anchored chapter");
+    assert(typeof section === "string" && section.length > 8, "Invalid anchor section key");
+    assert(!prepend.includes(chapter), "Cannot prepend and insert-before in the same chapter");
+    assert(plan.decisions.some(d => d.targetChapterKey === chapter),
+      "Insertion anchor must have at least one new source for chapter");
+  }
   const newSeries = Array.isArray(plan.newSeries) ? plan.newSeries : [];
   assert(newSeries.length <= 3, "An editorial batch may introduce at most 3 new series");
   const seriesKeys = new Set();
@@ -233,6 +243,17 @@ function prepare(db, items, plan) {
     item.sources = sources;
   }
   const positions = new Map();
+  const insertBeforeGroups = new Map();
+  for (const [chapter, section] of Object.entries(plan.insertBeforeSections || {})) {
+    const row = db.prepare(
+      "SELECT position FROM narrative_section_chapters WHERE chapter_key=? AND section_key=?"
+    ).get(chapter, section);
+    assert(row && Number.isInteger(row.position),
+      "Target insertion anchor not found in its chapter: " + section);
+    const shift = items.filter(item => item.decision.targetChapterKey === chapter).length;
+    assert(shift > 0);
+    insertBeforeGroups.set(chapter, { shift, position: row.position, section });
+  }
   const prependGroups = new Map();
   for (const key of plan.prependChapterKeys || []) {
     prependGroups.set(key, items.filter(item => item.decision.targetChapterKey === key).length);
@@ -243,9 +264,11 @@ function prepare(db, items, plan) {
       : "SELECT COALESCE(MAX(position),-1) AS m FROM narrative_independent_order";
     positions.set(target, prependGroups.has(target)
       ? -1
-      : db.prepare(sql).get(...(target ? [target] : [])).m);
+      : insertBeforeGroups.has(target)
+        ? insertBeforeGroups.get(target).position - 1
+        : db.prepare(sql).get(...(target ? [target] : [])).m);
   }
-  return { before, general, pending, positions, prependGroups, newSeries };
+  return { before, general, pending, positions, prependGroups, insertBeforeGroups, newSeries };
 }
 
 function apply(db, items, pre) {
@@ -277,6 +300,10 @@ function apply(db, items, pre) {
       assert(shift > 0);
       db.prepare("UPDATE narrative_section_chapters SET position=position+? WHERE chapter_key=?")
         .run(shift, chapter);
+    }
+    for (const [chapter, anchor] of pre.insertBeforeGroups) {
+      db.prepare("UPDATE narrative_section_chapters SET position=position+? WHERE chapter_key=? AND position>=?")
+        .run(anchor.shift, chapter, anchor.position);
     }
     const runId = Number(db.prepare(
       "INSERT INTO narrative_runs(state,baseline_run_id,universe_fingerprint,input_fingerprint,input_json,model,applied_at) VALUES('applied',?,?,?,?,?,CURRENT_TIMESTAMP)"

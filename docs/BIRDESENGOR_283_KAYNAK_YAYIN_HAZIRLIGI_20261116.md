@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 98 onaylı hikâye/olay kaynaklı video (üçüncü parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 88 onaylı hikâye/olay kaynaklı video (dördüncü parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -180,3 +180,14 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Native çalışma artık `--allow-expensive-native` açık onayını gerektiriyor; başarısız / hatalı taslaklar başka kaynaklarla karıştırılmadan saklandı.
 - Deneme **Studio kitabına aktarım yapmadı**; güncel durum **135 TR, 115 EN, 142/283 kaynak, 141 bekleyen video**. Sıradaki onluk partinin statüsü hâlâ `not_started:10`.
 - Ayrıntılı kaynak hata ve token raporu: `docs/BIRDESENGOR_283_CODEX_AB_RESULTS_20261116.md`.
+
+## 17 Kasım — Dördüncü 10'luk paketin kapanışı
+
+- **10/10 kaynak-denetimli Türkçe anlatı** yerel Studio kitabına eklendi. Kaynak denetimi Sol/High, üretim Sol/Medium; Terra pilot taslakları içeri aktarılmadı.
+- Yeni durum: **145 onaylı TR / 115 onaylı EN / 152/283 doğrudan video / 131 bekleyen / 14 parti**. Bunların 88'i onaylı, 43'ü yalnız taslak hikâye/olay düğümlü video.
+- Yeni `Büyük Meclisler → Kayıtlar` dizisinde 7 bölüm; Kapsız Kitap'a iki 2025 kaynaklı bölüm, bir İznik Bazilikası bağımsız anısı. Mevcut Kapsız kitabındaki 2026 kaydının yalnız okuma sırası 8 → 10 değişti.
+- Önceki 135 anlatı, 135 revizyon, 135 dil kaynağı, 250 TR/EN varyantı, 4 dizi ve 5 bölüm metadata'sı korundu. **3.930 genel Evren farkı** hâlâ bekliyor.
+- Yedekli yerel aktarım, arşivden geri oynatma, SQLite, Düğümlü/Anlatı/Yayın testleri, Studio build, web 289/289 birim testi ve web build PASS. Tam tarayıcı E2E yapılmadı.
+- Kaynak/dil/AI log arşivi: `completed-batches/batch-04-20261117/`. Raporda kaynak editörlüğü ve mevcut token metriklerinin sınırları açıklanıyor.
+- İngilizce tercümeler, görseller, SEO, site şifresi, canlı yayın ve push kapsam dışında.
+- Detay: `docs/BIRDESENGOR_283_BATCH04_EDITORIAL_APPROVAL_20261117.md`.
