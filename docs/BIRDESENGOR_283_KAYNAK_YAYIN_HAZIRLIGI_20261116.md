@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 118 onaylı hikâye/olay kaynaklı video.** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 108 onaylı hikâye/olay kaynaklı video (ikinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -125,3 +125,17 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Geçmiş ilk kaynak/denetim/yerleşim dosyaları: `channels/birdesengor/.local-data/studio/book-coverage/completed-batches/batch-01-20261116/`.
 - Güncel yeni başlangıç çizgisi: **283 işlenmiş / 122 kitapta / 161 kalan / 17 parti**; bunun **118** kaynağında onaylı olay-hikâye, **43** kaynağında yalnız taslak olay-hikâye var.
 - Canlı site, şifre, SEO ve görsellerin yayını değiştirilmedi. Ayrıntılı rapor: `docs/BIRDESENGOR_283_BATCH01_EDITORIAL_APPROVAL_20261116.md`.
+
+
+## 16 Kasım — İkinci kaynak partisinin kapanışı ve çeviri kararı
+
+- **10/10 taslak + bağımsız kaynak denetimi PASS**, iki anlam/özne düzeltmesi ve bir geçersiz alıntı kaydı temizlendi.
+- Yeni yerel kitap kapsamı: **125 onaylı TR anlatı**, **132/283 doğrudan video bağlantısı**, **151 video ve 16 parti bekliyor**.
+- İkinci paket yedi Düğümlü/Ara Kayıtlar ve üç bağımsız anı olarak konumlandırıldı. Yeni metin içi varlık bağlantısı 20; önceki 115 anlatı, 230 TR/EN varyant ve 3.930 genel Evren farkı değişmedi.
+- Yerel aktarım SQLite yedeği ve geçici kopya testi sonrası tek transaction ile yapıldı; veritabanı `quick_check=ok`, yabancı anahtar hatası 0.
+- İlk iki kaynak partisi, taslakları ve denetim mühürleriyle `channels/birdesengor/.local-data/studio/book-coverage/completed-batches/` altında ayrı arşivlerde. Aynı veriyi ikinci parti yedeğinden tekrar aktarma testi PASS.
+- **Çeviri kararı:** Yeni her partinin EN tercümesi yapılmayacak. Önce **283 kaynağın tamamı Türkçe kitapta bitirilecek**, son Türkçe sürümler sabitlenip kaynak kontrolleri tamamlanınca **toplu EN** üretimi yapılacak. Mevcut 115 güncel EN metni korunacak.
+- Tekrar kullanılabilir araçlar: `apps/studio/birdesengor_book_batch.py` (taslak ve denetim), `import-audited-video-batch.cjs` (yerleşim, yedekli yerel aktarım), `birdesengor_book_archive.py` (kanıt arşivi).
+- Studio build PASS, web 289/289 unit PASS ve web build PASS; web tam E2E zinciri bu partide tekrar yürütülmedi.
+- Ayrıntılar: `docs/BIRDESENGOR_283_BATCH02_EDITORIAL_APPROVAL_20261116.md`.
+- Canlı site/SEO/parola/görsel/deploy işlemleri değiştirilmedi.
