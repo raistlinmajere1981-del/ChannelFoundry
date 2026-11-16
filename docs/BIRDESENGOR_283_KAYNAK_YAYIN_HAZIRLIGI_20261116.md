@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 108 onaylı hikâye/olay kaynaklı video (ikinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 98 onaylı hikâye/olay kaynaklı video (üçüncü parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -139,3 +139,13 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Studio build PASS, web 289/289 unit PASS ve web build PASS; web tam E2E zinciri bu partide tekrar yürütülmedi.
 - Ayrıntılar: `docs/BIRDESENGOR_283_BATCH02_EDITORIAL_APPROVAL_20261116.md`.
 - Canlı site/SEO/parola/görsel/deploy işlemleri değiştirilmedi.
+
+## 16 Kasım — Üçüncü kaynak partisinin kapanışı
+
+- **10/10 kaynak-denetimli Türkçe anlatı kabul edildi**; **135 onaylı TR bölüm, 142/283 video kapsaması, 141 kaynak ve 15 parti kaldı**.
+- Yeni kayıtların sekizi Kapsız Kitap'a, Yedikule ve İbni Kâruf kaydı bağımsız anılara yerleştirildi; mevcut Kapsız dizisi ilk kayıtların arkasına taşındı, gövdesi değiştirilmedi.
+- Eski 125 metin/revizyon/dil kaynağı ve 240 dil varyantı korundu; 3.930 genel Evren farkı değişmedi.
+- Güncel **115 İngilizce** onay korundu; bütün 283 kaynak tamamlanmadan yeni EN üretimi yok.
+- Yedekli geçici ve gerçek yerel SQLite aktarımı, kanıt arşivinden yeniden oynatma, Studio derlemesi, web **289/289** birim testi ve web derlemesi PASS.
+- Arşiv: `completed-batches/batch-03-20261116/`; rapor: `docs/BIRDESENGOR_283_BATCH03_EDITORIAL_APPROVAL_20261116.md`.
+- Canlı yayın, şifre, SEO, görseller, deploy ve push kapsam dışında kaldı.

@@ -104,6 +104,14 @@ function validateSourceFiles(args) {
   assert.equal(packet.batch.index, plan.batch);
   assert(Number.isInteger(plan.expectedBefore) && plan.expectedBefore >= 105);
   assert(Number.isInteger(plan.expectedUniverseChanges) && plan.expectedUniverseChanges >= 0);
+  const prepend = plan.prependChapterKeys || [];
+  assert(Array.isArray(prepend), "prependChapterKeys must be an array");
+  assert.equal(new Set(prepend).size, prepend.length, "Duplicate prepend chapter");
+  for (const key of prepend) {
+    assert(typeof key === "string" && key.length > 0, "Invalid prepend chapter key");
+    assert(plan.decisions.some(d => d.targetChapterKey === key),
+      "Prepend chapter must be represented in the source batch");
+  }
   const seen = new Set();
   const items = [];
   for (let n = 0; n < plan.sourceCount; n++) {
@@ -183,13 +191,19 @@ function prepare(db, items, plan) {
     item.sources = sources;
   }
   const positions = new Map();
+  const prependGroups = new Map();
+  for (const key of plan.prependChapterKeys || []) {
+    prependGroups.set(key, items.filter(item => item.decision.targetChapterKey === key).length);
+  }
   for (const target of new Set(items.map(x => x.decision.targetChapterKey))) {
     const sql = target
       ? "SELECT COALESCE(MAX(position),-1) AS m FROM narrative_section_chapters WHERE chapter_key=?"
       : "SELECT COALESCE(MAX(position),-1) AS m FROM narrative_independent_order";
-    positions.set(target, db.prepare(sql).get(...(target ? [target] : [])).m);
+    positions.set(target, prependGroups.has(target)
+      ? -1
+      : db.prepare(sql).get(...(target ? [target] : [])).m);
   }
-  return { before, general, pending, positions };
+  return { before, general, pending, positions, prependGroups };
 }
 
 function apply(db, items, pre) {
@@ -207,6 +221,13 @@ function apply(db, items, pre) {
   const insertIndependent = db.prepare("INSERT INTO narrative_independent_order(section_key,position) VALUES(?,?)");
   db.exec("BEGIN IMMEDIATE");
   try {
+    // Shift only a reviewed book series' placement positions. Existing
+    // narrative text and source records remain untouched.
+    for (const [chapter, shift] of pre.prependGroups) {
+      assert(shift > 0);
+      db.prepare("UPDATE narrative_section_chapters SET position=position+? WHERE chapter_key=?")
+        .run(shift, chapter);
+    }
     const runId = Number(db.prepare(
       "INSERT INTO narrative_runs(state,baseline_run_id,universe_fingerprint,input_fingerprint,input_json,model,applied_at) VALUES('applied',?,?,?,?,?,CURRENT_TIMESTAMP)"
     ).run(pre.general.id, pre.pending.universeFingerprint, fingerprint, JSON.stringify({
@@ -305,6 +326,7 @@ function main() {
       selectedVideoCount: items.length,
       originalChapters: pre.before.bookCount,
       plannedPlacements: items.map(x => [x.vid, x.decision.targetChapterKey]),
+      prependChapterKeys: [...pre.prependGroups.keys()],
       pendingUniverseChanges: pre.pending.changes.length,
       matchedSourceNodeCounts: items.map(x => [x.vid,x.sources.length]),
     }));
