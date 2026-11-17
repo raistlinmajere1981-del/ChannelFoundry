@@ -42,7 +42,9 @@ try{
  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(),[]);
  assert.equal(db.prepare("PRAGMA quick_check").get().quick_check,"ok");
  const input=narrative.buildInput(db);
- assert.equal(input.changes.length,3930,"Existing global Universe backlog must remain unconsumed");
+ // Historical baseline 3930 + 43 explicitly approved missing-video sources + 103 related links.
+ // The scoped book imports must leave that updated general backlog unconsumed.
+ assert.equal(input.changes.length,3930+43+103,"Existing general Universe backlog must remain unconsumed");
  console.log("PASS Düğümlü final readiness",JSON.stringify({
   numberedDirect:records.length,missingDirect:[25,56,66],dualVideoChapters:dual,
   enSubtitleNumber:52,approvedNarratives:approved,approvedTurkish:tr,

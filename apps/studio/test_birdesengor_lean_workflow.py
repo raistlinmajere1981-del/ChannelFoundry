@@ -48,7 +48,7 @@ def fixture():
 
 class LeanWorkflowTests(unittest.TestCase):
     def test_generation_context_is_one_transcript_not_ten_video_packet(self):
-        next_job = job_data(DEFAULT_OUT)[0]
+        next_job = fixture()[0]
         prompt = prompt_generate(next_job)
         payload = prompt.split("<untrusted_source_json>")[1].split("</untrusted_source_json>")[0].strip()
         source = json.loads(payload)
