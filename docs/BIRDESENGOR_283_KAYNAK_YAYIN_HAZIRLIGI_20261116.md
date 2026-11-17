@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 28 onaylı hikâye/olay kaynaklı video (onuncu parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 18 onaylı hikâye/olay kaynaklı video (on birinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -277,3 +277,14 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Derlemeler: Studio PASS, web testleri **289/289 PASS**, web build PASS; Düğümlü, anlatı ve yayın V2 PASS. Tam tarayıcı E2E bu partide tekrarlanmadı.
 - **71 video / 8 parti** kaldı; 28 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü. İngilizce, görsel, SEO, şifre açma, deploy ve push ertelendi.
 - Rapor: docs/BIRDESENGOR_283_BATCH10_EDITORIAL_APPROVAL_20261117.md.
+
+
+## 17 Kasım — On birinci 10’luk kaynak paketi
+
+- **10/10** kaynak altyazı karşılaştırması ve assistant-source-review PASS, ikinci Codex denetçisi yok. İki taslakta kaynak alıntısı düzeltildi; metin gövdeleri korunarak önceki denemeler arşivlendi.
+- Hezmina ve mavi tünel; bilgin ve zaman atlaması; Düğümlü 54/56/60/61/63 çevresindeki engellenmeler; İbn Karufun özel Mezna toplantısı, Zamanı Büken Heyet, Raufun mahzen haberi, Karonun divitli defter planı, Antomun kapısında Babil şifreleri ve Rezon görüşmesi işlendi. Numaralı Düğümlü bölümlerine dokunulmadı.
+- **Studio TR 205 → 215**, kapsanan kaynak **212 → 222/283**, onaylı EN **115** korundu. Düğümlü Ara Kayıtlar **25 → 29**, Büyük Meclisler **15 → 17**, İstihbarat Davetleri **42 → 46**. Genel kaynak farkı **3930** değişmedi. **Import run #31**, 23 inline bağlantı.
+- Önceki **205 anlatı, 205 revizyon, 205 dil kaynağı, 320 varyant** ve eski kitap konumları birebir korundu. Arşiv **batch-11-20261117 (72 dosya)**; içerik düzeyinde yeniden aktarım eşitliği PASS (yeni işlem damgaları hariç).
+- İlk üretim **341.756 raporlanan Codex token**; kaynak denetçisi için ikinci model çağrısı sıfır. Studio build PASS, web test **289/289**, web build PASS, Düğümlü/anlatı/yayın V2 PASS; tam tarayıcı E2E tekrarlanmadı.
+- **61 video / 7 parti** kaldı: 18 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü. EN, resimler, SEO, site şifresi, deploy ve push hâlâ beklemede.
+- Ayrıntılı rapor: docs/BIRDESENGOR_283_BATCH11_EDITORIAL_APPROVAL_20261117.md.
