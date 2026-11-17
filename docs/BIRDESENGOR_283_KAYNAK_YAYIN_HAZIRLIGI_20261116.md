@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 48 onaylı hikâye/olay kaynaklı video (sekizinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 38 onaylı hikâye/olay kaynaklı video (dokuzuncu parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -254,3 +254,14 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - İlk yedi Codex çağrısında ölçülebilen **249.447 token**; kota sınırına takılan üretim ve yenilenme sonrası üç Codex yeniden üretimi için toplam kullanım bu sayıya dahil değil.
 - Studio build, **289/289 web testi**, web build ve Düğümlü/anlatı/yayın kontrolleri PASS. İngilizce/görsel/SEO/şifre/deploy/push yapılmadı.
 - **91 video / 10 parti** kaldı: **48 onaylı düğümlü**, **43 yalnız taslak düğümlü**. Detay: docs/BIRDESENGOR_283_BATCH08_EDITORIAL_APPROVAL_20261117.md.
+
+
+## 17 Kasım — Dokuzuncu 10’luk kaynak paketi
+
+- **10/10** özgün altyazıdan Türkçe kaynak anlatısı üretildi, asistan doğrudan bütün kaynak ve paragrafları denetleyerek \`audited_pass\` mührü oluşturdu; ikinci AI denetçisi çalıştırılmadı.
+- İbn Zenhur ve beşinci boyut, Derinkuyu toplantısı, Antarktika bilgin daveti, Karuf Meclisi elçisi, yeni rehber haberleri, Atlantis/deniz kızları, Meznuri zinciri, 47 dakika hafıza iddiası, Nevşehir büyü paketi ve mavi enerji anlatıları birbirine karıştırılmadan işlendi.
+- **Tek Studio SQLite** ile otomatik doğrulanmış yedek ve tek transaction: **185 → 195 TR anlatı**, **192 → 202 / 283 doğrudan kaynak**, **115 EN** korundu; **3.930 genel Evren farkı** sabit. **Import run #29**.
+- Önceki 185 anlatı, 185 revizyon, 185 dil kaynağı, 300 dil varyantı, eski seri/bölüm sıraları yedekle birebir eşitti. Arşivde kaynak mühürleri ve düzeltilmiş eski taslaklar saklandı.
+- On ilk taslak Codex (gpt-6.1-sol / medium) raporu **356.803 token**, ikinci model QA **0**. İlgili derleme ve test sonuçları paket raporunda.
+- **81 video / 9 paket** kaldı: 38 onaylı, 43 yalnız taslak hikâye/olay düğümlü. **İngilizce, resim, SEO, şifre açma, deploy, push** ertelendi.
+- Rapor: docs/BIRDESENGOR_283_BATCH09_EDITORIAL_APPROVAL_20261117.md.
