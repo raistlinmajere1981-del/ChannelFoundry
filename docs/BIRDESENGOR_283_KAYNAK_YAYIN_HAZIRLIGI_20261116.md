@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 38 onaylı hikâye/olay kaynaklı video (dokuzuncu parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 — Kalan 28 onaylı hikâye/olay kaynaklı video (onuncu parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -265,3 +265,15 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - On ilk taslak Codex (gpt-6.1-sol / medium) raporu **356.803 token**, ikinci model QA **0**. İlgili derleme ve test sonuçları paket raporunda.
 - **81 video / 9 paket** kaldı: 38 onaylı, 43 yalnız taslak hikâye/olay düğümlü. **İngilizce, resim, SEO, şifre açma, deploy, push** ertelendi.
 - Rapor: docs/BIRDESENGOR_283_BATCH09_EDITORIAL_APPROVAL_20261117.md.
+
+
+## 17 Kasım — Onuncu 10’luk kaynak paketi
+
+- **10/10** Ömer anlatısı kaynak altyazılarıyla paragraf paragraf karşılaştırılarak assistant-source-review mührüyle onaylandı; ikinci Codex denetçisi çalıştırılmadı.
+- Beynin ikinci bölümü; Poyrazın Sarnıç levhası çizimi ve görevli; Hetna/Fakarin; Nisan yıldızları; **Haniş Adası Büyük Meclisi**; Zakkum Kapısının açılma haberi; Şimonun bağlanması ve sonradan bırakılması; komut/dalga ve rüya kapıları işlendi.
+- **Tek Studio SQLite**: onaylı TR **195 → 205**, doğrudan video kapsamı **202 → 212 / 283**, önceki **115 EN** korundu. Genel Evren kaynağı **3.930** fark aynı kaldı; **import run #30**.
+- Önceki **195 anlatı, 195 revizyon, 195 dil kaynağı, 310 dil varyantı** ve eski sıralar yedekle birebir aynı. İlk taslaklardaki iki yanlış birebir kaynak alıntısı çıkarıldı; eski sürümler saklandı.
+- On Codex ilk üretim toplam **352.544 raporlanan token** (60.288 çıkış), ikinci model denetçisi sıfır. Arşiv: batch-10-20261117; snapshot SHA **24b6e0bde34679ac801da77b8d9541b9bf5bbe70782d8fbe95962291da157b0e**.
+- Derlemeler: Studio PASS, web testleri **289/289 PASS**, web build PASS; Düğümlü, anlatı ve yayın V2 PASS. Tam tarayıcı E2E bu partide tekrarlanmadı.
+- **71 video / 8 parti** kaldı; 28 onaylı hikâye/olay düğümlü, 43 yalnız taslak düğümlü. İngilizce, görsel, SEO, şifre açma, deploy ve push ertelendi.
+- Rapor: docs/BIRDESENGOR_283_BATCH10_EDITORIAL_APPROVAL_20261117.md.
