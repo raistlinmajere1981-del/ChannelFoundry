@@ -44,7 +44,7 @@ Kaynak paketleri altyazının tamamını, analiz özetlerini, olay sırası ipu�
 
 **Aşama 1 — İlk 10 kaynak için yöntem sınaması (tamamlandı, TR/EN onaylı ve yerel kitapta).** Öncelik, onaylı olay/hikâye düğümü bulunan ilk pakete. Özgün altyazıdan kaynak-sınırlı taslak, başka model/kontrol turuyla kaynak denetimi, alternatif olarak mevcut bir bölümde yer alma kararı. Çalışma sadece özel taslak dosyalarına yazacak.
 
-**Aşama 2 — Kalan 8 onaylı hikâye/olay kaynaklı video (on ikinci parti tamamlandı).** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
+**Aşama 2 tamamlandı — Onaylı hikâye/olay kaynaklı son sekiz video on üçüncü pakette işlendi.** En fazla 10 videoluk partiler. Her video: bağımsız altyazı denetimi, doğal olay sınırları, mevcut kitap bağları, birleştirme/ayırma kararı, TR anlatı taslağı. Model tarafından önerilen belirsiz isimler doğrulanmış kimlik olarak otomatik yazılmaz. Taslaklar yayınlanmaz.
 
 **Aşama 3 — 43 yalnız taslak kaynaklı video.** Onaylı olay düğümü yokluğu, video dışlanmış veya öyküsüz demek değil. Altyazıdan gerçek anlatı kapsamı denetlenir. Taslak varlıkları onaylamak gerekiyorsa kaynak bazında ve ayrıca; genel toplu onay yapılmaz. Anlatı kaynağı doğrudan video olabilir.
 
@@ -298,3 +298,13 @@ Parti yöneticisindeki `audited_pass` yalnız **otomatik kaynak karşılaştırm
 - Studio build PASS, web 289/289 test PASS, web build PASS, narrative-store/publication-v2/Düğümlü PASS. CLI raporlanan 387.521 üretim + 3.466.239 audit = 3.853.760 token (audit için 2.494.592 önbellekli giriş).
 - **51 video / 6 parti** kaldı: 8 onaylı hikâye/olay kaynağı, 43 yalnız taslak. EN, görsel, SEO, şifre açma, deploy ve push yok.
 - Ayrıntı: docs/BIRDESENGOR_283_BATCH12_EDITORIAL_APPROVAL_20261117.md.
+
+
+## 17 Kasım — On üçüncü kaynak paketi ve hazır kohort kapanışı
+
+- **8/8 bağımsız kaynak denetimi PASS**, Sol medium üretim ve denetim. Denetim artık yalnız tek özgün altyazı + taslak gövdesiyle çalışıyor; 10 video paketini ve diğer çalışma dosyalarını yeniden okumuyor. Tüm önceki denemeler arşivlendi.
+- **Studio TR 225 → 233**, video kapsamı **232 → 240/283**, EN **115** korundu. İstihbarat kayıtları 50 → 57, bağımsız kayıtlar 34 → 35. Numaralı Düğümlü 65. Import run #33 ve 10 inline referans. Genel Evren kaynak farkı 3930 değişmedi.
+- Önceki 225 anlatı, 225 revizyon, 225 dil kaynağı, 340 dil varyantı ve eski sıralar birebir korundu. 105 dosyalık batch-13-20261117 arşivinden yeniden aktarımda içerik eşitliği PASS. Tek aktif Studio DB, yedekli import.
+- Studio build PASS, web **289/289** test PASS, web build PASS, Düğümlü/anlatı/yayın V2 PASS. Codex kullanım raporu 294574 üretim + 628009 denetim = **922583 token**, önceki pakete göre video başına yaklaşık yüzde 70 daha düşük.
+- **43 video / 5 paket** kaldı. Hazır/onaylı hikâye-olay kaynaklı video kalmadı; tümü yalnız taslak düğümlü. Son 43 için özgün altyazı ve ayrı editoryal kaynak incelemesi gerekiyor. EN, görseller, SEO, şifre açma, deploy ve push bekliyor.
+- Ayrıntı: docs/BIRDESENGOR_283_BATCH13_EDITORIAL_APPROVAL_20261117.md.
