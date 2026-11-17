@@ -416,7 +416,7 @@ export default function VefkWorkshop() {
       await refreshList();
       setPackageReady(true);
       setPackageReadiness(info.readiness?.readyForTheme ? "Yayınlama modülünden canlıya gönderilebilir."
-        : "Yayınlama: anlatı / görsel tamamlama koşulları bekleniyor.");
+        : "Yayınlama: onaylı anlatı bekleniyor (görsel isteğe bağlı).");
       setNotice("✓ Yerel yayın paketi hazır · " + catalogSelections.length + " vefk. Canlı yayın için Yayınlama modülünü kullan.");
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }

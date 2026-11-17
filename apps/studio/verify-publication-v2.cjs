@@ -272,7 +272,7 @@ try {
   workspace.updateNode(db, { key: "object-stone", summary: "Publication exportundan sonra değişen onaylı Evren kaydı." });
   const pending = publicationV2.buildPublicationV2(db, { generatedAt: "2026-08-14T21:00:00.000Z" });
   assert.equal(pending.readiness.narrativeChangesPending, true);
-  assert.equal(pending.readiness.readyForTheme, false, "Onaylı Evren anlatının önüne geçtiyse tema publish readiness kapanmalı");
+  assert.equal(pending.readiness.readyForTheme, true, "Bekleyen Evren değişiklikleri onaylı anlatı yayınını engellememeli");
 
   console.log("Publication v2 exports stable sections, explicit archive references, revision-bound semantic visuals, content-addressed assets and readiness without physical pagination");
 } finally {

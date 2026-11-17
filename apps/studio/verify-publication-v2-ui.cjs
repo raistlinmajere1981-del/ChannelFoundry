@@ -30,7 +30,8 @@ assert.match(center,/Mevcut kayıt ve görseller yayınlanabilir/,
 assert.match(center, /Tam yayını başlat/, "Tam yayın, aynı yayın eyleminden başlatılmalı");
 assert.match(center, /Durumu yenile/, "Dışarıdan yapılan FTPS yayını Studio ekranında yeniden okunabilmeli");
 assert.doesNotMatch(center, /Yerel approved içerik canlı publication.dan farklı/, "Fark bildirimi hata gibi sunulmamalı");
-assert.match(center, /latest\.readiness\.readyForTheme/, "Canlı yayın 05/06 readiness kapısını zorunlu tutmalı");
+assert.match(center, /latest\.readiness\.narrativeSections/, "Tam yayın en az bir onaylı anlatı gerektirmeli");
+assert.doesNotMatch(center, /Görsel tamamlama kararları bekliyor/, "Görsel eksikliği yayın engeli olmamalı");
 assert.doesNotMatch(center, /exportPublicSnapshot\(/, "Paket hazırlama kullanıcının ayrı aşaması olmamalı");
 assert.match(center, /publishPublicSnapshot\(actualMode\)/, "Otomatik veya elle seçilen yayın yöntemi IPC üzerinden uygulanmalı");
 assert.match(center, /!project\?\.deploymentEnabled/, "Yerel tasarımda canlı yayın düğmesi pasif olmalı");
@@ -46,7 +47,7 @@ assert.match(model, /assetCount/, "Yayın modeli publication asset sayısını t
 
 assert.match(runtime, /uploadPublicationAsset/, "Studio canlı yayından önce publication asset'lerini yüklemeli");
 assert.match(runtime, /publishPublication\(snapshot,\s*seo\)/, "Studio asset yüklemesinden sonra publication.json dosyasını etkinleştirmeli");
-assert.match(runtime, /mode === "full" && !local.readiness\?\.readyForTheme/, "Runtime tam yayının 05/06 kapısını korumalı");
+assert.match(runtime, /mode === "full" && !local.readiness\?\.narrativeSections/, "Runtime onaylı anlatı kontrolünü korumalı");
 assert.match(runtime, /publicationUpdates\.buildUpdatePublication/, "Runtime mevcut yayını güvenle güncellemeli");
 assert.match(runtime,/mode === "full"[\s\S]*seoWorkspace\.manifest\([\s\S]*: null;/,
   "Güvenli görsel güncellemesi SEO dosyalarını değiştirmemeli");

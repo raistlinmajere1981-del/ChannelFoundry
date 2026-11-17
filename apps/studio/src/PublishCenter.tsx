@@ -9,8 +9,8 @@ type Publisher = Omit<NonNullable<typeof window.channelFoundryStudio>,"publishPu
 };
 type Mode='auto'|'full'|'update';
 // A partial, verified update is the safe default when a live baseline exists.
-// Unfinished translation/visual work and unrelated new records must not turn a
-// portrait update into an impossible full release. Full remains an explicit choice.
+// Missing translations and optional visuals never block a full publication.
+// Partial updates remain the safe default where possible; full is explicit.
 const modeFor=(preview:PublicationPreview|null,selection:Mode):'full'|'update'=>
   selection!=='auto'?selection:preview?.baselineAvailable&&preview?.update?.ready?'update':'full';
 const newCount=(value?:number)=>Number(value||0).toLocaleString('tr-TR');
@@ -53,8 +53,7 @@ export default function PublishCenter(){
  if(!communityConnected)reasons.push('Topluluk yönetici bağlantısı gerekli.');
  if(!full&&preview?.coverage?.requiresFull)reasons.push('Yeni bölüm/seri veya diğer tam yayın değişiklikleri bu güvenli güncellemeye dahil edilmeyecek. Mevcut kayıt ve görseller yayınlanabilir.');
  if(full&&preview?.readiness?.narrativeSections===0)reasons.push('Onaylı anlatı bölümü bulunamadı.');
- if(full&&preview?.readiness?.narrativeChangesPending)reasons.push('Onaylı evren değişiklikleri anlatıya henüz işlenmemiş.');
- if(full&&preview?.readiness&&!preview.readiness.visualComplete)reasons.push('Görsel tamamlama kararları bekliyor.');
+ // Pending source changes and incomplete illustrations are informational, not blockers.
  if(!full&&!preview?.update?.ready)reasons.push('Mevcut canlı kayıtlarda güncellenebilir değişiklik yok.');
  if(strictBilingual&&!languageReady)reasons.push('TR ve EN onayı eksik kayıtlar var.');
  if(preview&&!preview.changed)reasons.push('Yerel içerik ve canlı yayın eşleşiyor.');
@@ -67,7 +66,7 @@ export default function PublishCenter(){
    const actualMode=modeFor(latest,modeOverride);
    if(!session.connected)throw new Error('Topluluk yönetici bağlantısı kapalı.');
    if(!latest.changed)throw new Error('Yayınlanacak değişiklik bulunmuyor.');
-   if(actualMode==='full'&&!latest.readiness.readyForTheme)throw new Error('Tam yayın hazırlığı tamamlanmadan canlı yayın yapılamaz.');
+   if(actualMode==='full'&&!latest.readiness.narrativeSections)throw new Error('Tam yayın için onaylı anlatı bulunmuyor.');
    if(actualMode==='update'&&!latest.update?.ready)throw new Error(latest.liveError||'Güvenli güncelleme için canlı karşılaştırması gerekli.');
    if(strictBilingual&&currentLanguages.counts.ready!==currentLanguages.rows.length)throw new Error('Her iki dilde onaylanmamış kayıtlar var.');
    if(actualMode==='update'&&latest.coverage?.requiresFull&&!window.confirm('Yeni kayıt, destek veya çizim değişiklikleri mevcut. Güncelleme modu bunları CANLIYA EKLEMEZ. Yalnız mevcut kayıtlar güncellensin mi?'))return;

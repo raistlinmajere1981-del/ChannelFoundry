@@ -24,15 +24,17 @@ export function materialGroundingStyle(id){
   };
 }
 export function materialToneForStudio(id,role='body'){
-  if(role==='motion')return id==='stone-specimen'
+  // The robe's fabric is its main material, so its moving layer shares the
+  // body grade rather than the generic darkening for secondary moving parts.
+  if(role==='motion'&&id!=='ceremonial-robe')return id==='stone-specimen'
     ?'brightness(calc(.78 * var(--scene-material-brightness,1))) saturate(.78)'
     :'brightness(calc(.7 * var(--scene-material-brightness,1))) saturate(.7)';
   const profiles={
     candle:[.86,.65],'incense-holder':[.83,.67],
     'water-basin':[.86,.86],
-    'guardian-sword-left':[.83,.77],'guardian-sword-right':[.83,.77],
+    'guardian-sword-left':[.62,.74],'guardian-sword-right':[.62,.74],
     'stone-specimen':[.86,.7],
-    'ceremonial-robe':[.82,.8],
+    'ceremonial-robe':[.62,.77],
     'ceremonial-dagger':[.78,.86],
     'archive-chest':[.73,.78],
   };

@@ -246,7 +246,7 @@ function journalData(db, archive, assetMap, assetSourceMap) {
       narrativeSections: sections.length,
       narrativeChangesPending: Boolean(next.hasChanges),
       visualComplete: Boolean(visualStatus.complete),
-      readyForTheme: sections.length > 0 && !next.hasChanges && Boolean(visualStatus.complete),
+      readyForTheme: sections.length > 0, // Visuals and pending source changes are informational, not publication blockers.
     },
   };
 }

@@ -15,7 +15,7 @@ import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../../
 import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../../../../packages/effect-engine/src/registry/effects.mjs';
 import {anchorScenePoint,effectScenePoint} from '../../../../packages/effect-engine/src/runtime/object-scene.mjs';
 import {bindObjectScene} from '../../../../packages/effect-engine/src/runtime/object-overlay.mjs';
-import {drawRefractedSilhouette} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
+import {drawRefractedSilhouette,drawRobeSilhouetteEdge} from '../../../../packages/effect-engine/src/runtime/robe-refraction.mjs';
 import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/effect-engine/src/model/visual-crop.mjs';
 import {SCENE_SCREEN_OPTIONS,sceneScreenProfile} from './scene-viewport-profiles.mjs';
 import {defaultLanguageSwitchLayout} from '../../../../packages/effect-engine/src/model/language-switch-layout.mjs';
@@ -1252,12 +1252,14 @@ function buildObject(item){
   }
   const artwork=previewObjects.get(item.id);
   if(artwork && item.id==='ceremonial-robe'){
-    const veil=item.veil;
     const lens=el('canvas',{class:'scene-robe-preview-refraction','aria-hidden':'true'});
     Object.assign(lens.style,{position:'absolute',inset:0,width:'100%',height:'100%',
-      pointerEvents:'none',opacity:previewRobeVeiled?'1':'0',
-      filter:'drop-shadow(0 0 1.2px rgba(177,207,207,'+veil.edgeOpacity+'))'});
+      pointerEvents:'none',opacity:previewRobeVeiled?'1':'0'});
     node.append(lens);
+    const edge=el('canvas',{class:'scene-robe-preview-edge','aria-hidden':'true'});
+    Object.assign(edge.style,{position:'absolute',inset:0,width:'100%',height:'100%',
+      pointerEvents:'none',opacity:previewRobeVeiled?'1':'0'});
+    node.append(edge);
   }
   if(artwork){
     const fixed=el('img',{src:replacementSource(artwork.asset,artwork.image),alt:'',class:'scene-motion-fixed'});
@@ -1384,13 +1386,17 @@ function refreshRobePreview(){
   if(!item)return;
   const node=objectElements.get(item.id);
   const canvas=node?.querySelector('.scene-robe-preview-refraction');
+  const edge=node?.querySelector('.scene-robe-preview-edge');
   const image=node?.querySelector('[data-effect-layer="fabric"] img');
   if(!node||!image)return;
   image.style.opacity=previewRobeVeiled?String(item.veil.residualOpacity):'1';
   if(!previewRobeVeiled||!canvas)return;
   const photo=$('#scene-photo');
   Promise.all([photo.decode(),image.decode()]).then(()=>{
-    if(canvas.isConnected)drawRefractedSilhouette(canvas,photo,image,item.pose,item.veil.distortionPx);
+    if(canvas.isConnected){
+      drawRefractedSilhouette(canvas,photo,image,item.pose,item.veil.distortionPx);
+      drawRobeSilhouetteEdge(edge,photo,image,item.pose,item.veil.edgeOpacity);
+    }
   }).catch(()=>{});
 }
 /** Source-aligned room composition. These pixels are read from the exact
@@ -1635,7 +1641,8 @@ function renderStage(){
       const shownHit=deviceStageHit(presentation,item.id,item.hitArea);
       const active=item.id===objectId;
       const area=el('span',{id:'scene-hit-'+item.id,
-        class:'scene-hit-area'+(active?' selected':''),
+        class:'scene-hit-area'+(active?' selected':'')+
+          (item.id==='ceremonial-robe'&&previewRobeVeiled?' robe-veil-preview':''),
         'data-hit-object':item.id,role:active?'button':'presentation',
         tabIndex:active&&editMode==='hit'?0:-1,
         'aria-label':item.name+' tıklama alanı'});

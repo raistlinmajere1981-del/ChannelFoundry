@@ -147,8 +147,8 @@ async function publishPublicExport(mode = "full") {
   }
   if (mode !== "full" && mode !== "update") throw new Error("Bilinmeyen yayın biçimi.");
   const local = await createPublicExport(mode);
-  if (mode === "full" && !local.readiness?.readyForTheme) {
-    throw new Error("Tam yayın için önce 05 · Hikâyeleştir ve 06 · Görsel Tamamlama kapılarını tamamla.");
+  if (mode === "full" && !local.readiness?.narrativeSections) {
+    throw new Error("Tam yayın için en az bir onaylı anlatı bulunmalı.");
   }
   const snapshot = JSON.parse(fs.readFileSync(local.file,"utf8"));
   let uploadedAssets = 0;
