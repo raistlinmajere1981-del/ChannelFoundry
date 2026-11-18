@@ -36,6 +36,68 @@ test("updates a published portrait without admitting new approved content", () =
   assert.deepEqual(out.snapshot.archive.entities[0].locales,baseline.archive.entities[0].locales);
   valid(out.snapshot);
 });
+test("approved attributes do not remove existing portraits missing locally", () => {
+  const baseline=snap(),current=structuredClone(baseline);
+  baseline.archive.entities[0].visual={assetId:"existing-portrait"};
+  baseline.assets.push({assetId:"existing-portrait",entityId:"e1",url:"assets/existing-portrait.png",sha256:"a".repeat(64),bytes:10});
+  current.archive.entities[0].attributes={rank:"Kral"};
+  current.archive.entities[0].visual={};
+  resign(baseline);resign(current);
+  const out=buildUpdatePublication(baseline,{snapshot:current,assetSources:[],readiness:{}});
+  assert.equal(out.changed,true);
+  assert.equal(out.changes.images,0);
+  assert.equal(out.assetSources.length,0);
+  assert.equal(out.snapshot.archive.entities[0].visual.assetId,"existing-portrait");
+  assert.equal(out.snapshot.assets.length,1);
+  assert.equal(out.snapshot.archive.entities[0].attributes.rank,"Kral");
+  valid(out.snapshot);
+});
+test("existing approved attributes travel through safe update without touching bilingual content", () => {
+  const baseline=snap(),current=structuredClone(baseline);
+  current.archive.entities[0].attributes={
+    side:"aydinlik",formerSide:"karanlik",age:"4200",rank:"Kral",
+  };
+  resign(current);
+  const out=buildUpdatePublication(baseline,{snapshot:current,assetSources:[],readiness:{}});
+  assert.equal(out.changed,true);
+  assert.equal(out.changes.updated,1);
+  assert.deepEqual(out.snapshot.archive.entities[0].attributes,current.archive.entities[0].attributes);
+  assert.deepEqual(out.snapshot.archive.entities[0].locales,baseline.archive.entities[0].locales);
+  assert.deepEqual(out.snapshot.archive.entities[0].visual,baseline.archive.entities[0].visual);
+  valid(out.snapshot);
+});
+test("attributes can update even when narrative language remains unapproved", () => {
+  const baseline=snap(), current=structuredClone(baseline);
+  current.archive.entities[0].locales.en.status="draft";
+  current.archive.entities[0].locales.tr.title="Yalnız TR taslak";
+  current.archive.entities[0].attributes={type:"Cin"};
+  resign(current);
+  const out=buildUpdatePublication(baseline,{snapshot:current,assetSources:[],readiness:{}});
+  assert.equal(out.changed,true);
+  assert.deepEqual(out.snapshot.archive.entities[0].attributes,{type:"Cin"});
+  assert.deepEqual(out.snapshot.archive.entities[0].locales,baseline.archive.entities[0].locales);
+  valid(out.snapshot);
+});
+test("cleared attributes are removed without changing other published fields", () => {
+  const baseline=snap(), current=structuredClone(baseline);
+  baseline.archive.entities[0].attributes={side:"karanlik",rank:"Elçi"};
+  resign(baseline);
+  resign(current);
+  const out=buildUpdatePublication(baseline,{snapshot:current,assetSources:[],readiness:{}});
+  assert.equal(out.changed,true);
+  assert.equal("attributes" in out.snapshot.archive.entities[0],false);
+  valid(out.snapshot);
+});
+test("new entities and their attributes are still excluded from safe updates", () => {
+  const baseline=snap(), current=structuredClone(baseline);
+  current.archive.entities.push({...current.archive.entities[0],entityId:"new",attributes:{age:"400"}});
+  resign(current);
+  const out=buildUpdatePublication(baseline,{snapshot:current,assetSources:[],readiness:{}});
+  assert.equal(out.changed,false);
+  assert.equal(out.snapshot.archive.entities.length,1);
+  valid(out.snapshot);
+});
+
 test("unapproved language edits cannot replace published bilingual text", () => {
   const baseline=snap(), current=structuredClone(baseline);
   current.archive.entities[0].locales.en.status="draft";

@@ -24,6 +24,8 @@ const aiClient = require("./ai-client.cjs");
   assert.match(settingsUi, /bridge\.aiProviders\(\)/, "Provider options must come from the backend");
   assert.match(settingsUi, /Modelleri getir/, "Model discovery must be explicit");
   assert.match(settingsUi, /Bağlantıyı dene/, "Connection check must be separate");
+  assert.match(settingsUi, /Sunucuyu algıla/, "OpenCode discovery must be visible");
+  assert.doesNotMatch(settingsUi, /Ortak servis/, "Legacy button must not be shown");
   assert.match(settingsUi, /Modeli dene/, "Selected model test must be separate");
   assert.doesNotMatch(settingsUi, /Model kimliğini elle gir|function ModelPicker/, "Manual model IDs removed");
   assert.equal(openCode.modelId("opencode/deepseek-v4.1-flash-free"), "opencode/deepseek-v4.1-flash-free");
@@ -49,14 +51,31 @@ const aiClient = require("./ai-client.cjs");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+  const publicServer = http.createServer((req,res)=>{
+    if(req.url==="/api/model"){
+      res.writeHead(200,{"content-type":"application/json"});
+      res.end(JSON.stringify({data:[{id:"opencode/example",name:"Example"}]}));
+    }else{res.writeHead(404);res.end();}
+  });
+  await new Promise(resolve=>publicServer.listen(0,"127.0.0.1",resolve));
+  try{
+    const endpoint="http://127.0.0.1:"+publicServer.address().port;
+    assert.deepEqual(await openCode.detectServer({endpoint}),
+      {endpoint,status:"ready",authRequired:false,modelCount:1});
+    assert.deepEqual(await openCode.testServer({endpoint}),
+      {endpoint,status:"ready",authRequired:false,modelCount:1});
+    assert.equal((await openCode.listModels({endpoint})).models.length,1);
+  }finally{
+    await new Promise(resolve=>publicServer.close(resolve));
+  }
   const seen = [];
   const sessionId = "ses_cf_testonly_1";
   let messagesRead = 0;
   const server = http.createServer((req, res) => {
     const expected = "Basic " + Buffer.from("opencode:test-local-secret").toString("base64");
     if (req.headers.authorization !== expected) {
-      res.writeHead(401, { "content-type": "application/json" });
-      res.end(JSON.stringify({ message: "Authentication required" }));
+      res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Secure Area"' });
+      res.end(JSON.stringify({ _tag:"UnauthorizedError", message: "Authentication required" }));
       return;
     }
     let body = "";
@@ -66,7 +85,7 @@ const aiClient = require("./ai-client.cjs");
       res.writeHead(200, { "content-type": "application/json" });
       if (req.url === "/api/model") {
         res.end(JSON.stringify({ data: [{ providerID: "opencode", id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash",
-          variants: { high: {}, ultra: {} } }] }));
+          variants: [{id:"high",settings:{reasoningEffort:"high"}},{id:"ultra",settings:{reasoningEffort:"ultra"}}] }] }));
       } else if (req.url === "/api/session" && req.method === "POST") {
         res.end(JSON.stringify({ data: { id: sessionId } }));
       } else if (req.url === "/api/session/" + sessionId + "/prompt") {
@@ -90,6 +109,13 @@ const aiClient = require("./ai-client.cjs");
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const endpoint = "http://127.0.0.1:" + server.address().port;
+    const detected = await openCode.detectServer({endpoint});
+    assert.deepEqual(detected, {endpoint,status:"password-required",authRequired:true,modelCount:0});
+    await assert.rejects(openCode.testServer({endpoint}), /parola gerekli/);
+    await assert.rejects(openCode.testServer({endpoint,apiKey:"wrong"}), /401/);
+    const connected = await openCode.testServer({endpoint,apiKey:"test-local-secret"});
+    assert.equal(connected.status,"ready");
+    assert.equal(connected.modelCount,1);
     await assert.rejects(openCode.listModels({ endpoint, apiKey: "wrong" }), /401/);
     const models = await openCode.listModels({ endpoint, apiKey: "test-local-secret" });
     assert.equal(models.models[0].id, "opencode/deepseek-v4.1-flash-free");

@@ -27,7 +27,7 @@
 .settings-v3-surface .channel-projects-actions{min-height:20px;}
 .settings-v3-surface .ai-provider-panel.ai-minimal{max-width:none;width:100%;padding:14px 16px;gap:13px;grid-template-columns:minmax(0,1fr);border:1px solid var(--border-soft);background:var(--surface-panel);}
 .settings-v3-surface .ai-minimal-form{grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;align-items:start;gap:12px 16px;}
-.settings-v3-surface .ai-minimal-form>label,.settings-v3-surface .ai-minimal-form>.ai-minimal-model-heading,.settings-v3-surface .ai-minimal-form>.ai-minimal-actions,.settings-v3-surface .ai-minimal-form>.ai-minimal-note,.settings-v3-surface .ai-minimal-form>.ai-minimal-result,.settings-v3-surface .ai-minimal-form>.ai-minimal-error,.settings-v3-surface .ai-minimal-form>.ai-minimal-saved-model{grid-column:1/-1;}
+.settings-v3-surface .ai-minimal-form>label,.settings-v3-surface .ai-minimal-form>.ai-opencode-connection,.settings-v3-surface .ai-minimal-form>.ai-minimal-model-heading,.settings-v3-surface .ai-minimal-form>.ai-minimal-actions,.settings-v3-surface .ai-minimal-form>.ai-minimal-note,.settings-v3-surface .ai-minimal-form>.ai-minimal-result,.settings-v3-surface .ai-minimal-form>.ai-minimal-error,.settings-v3-surface .ai-minimal-form>.ai-minimal-saved-model{grid-column:1/-1;}
 .settings-v3-surface .ai-minimal-tabs{width:min(520px,100%);}
 .settings-v3-surface .ai-minimal-form input,.settings-v3-surface .ai-minimal-form select{font-size:13px;min-height:39px;}
 .settings-v3-surface .community-connection-settings{max-width:none;border:1px solid var(--border-soft);padding:14px 16px;background:var(--surface-panel);}

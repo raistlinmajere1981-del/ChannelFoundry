@@ -493,6 +493,8 @@ interface Window {
     transcriptArchiveCancel(input: { archiveOperationId: string }): Promise<{ canceled: boolean }>;
     aiProviders(): Promise<Array<{ id: string; label: string; role: "text" | "image" | "both"; transport: "cli" | "api" | "local" | "none"; endpoint: string; secret: boolean }>>;
     aiOpenCodeService(): Promise<string>;
+    aiOpenCodeDetect(input?: {endpoint?:string}): Promise<{endpoint:string;status:"ready"|"password-required";authRequired:boolean;modelCount:number}>;
+    aiOpenCodeTest(input: {endpoint:string;apiKey?:string}): Promise<{endpoint:string;status:"ready";authRequired:boolean;modelCount:number}>;
     aiTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; reply: string; config: StudioAiConfig }>;
     aiImageTestCandidate(input: Record<string, unknown>): Promise<{ ok: true; model: string; bytes: number }>;
     aiConfig(): Promise<StudioAiConfig>;
@@ -521,6 +523,10 @@ interface Window {
     universeMergeStart(input?: { videoIds?: string[] }): Promise<StudioUniverseMergeStatus>;
     universeMergeResume(): Promise<{ running: boolean; reason?: string } & StudioUniverseMergeStatus>;
     universeMergeCancel(): Promise<{ running: boolean; canceled: number; runId: number | null } & StudioUniverseMergeStatus>;
+    universeAttributesList(): Promise<{profiles: Array<{entityKey:string;fields:Record<string,string>}>;proposals: Array<{entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>;analyses:Array<{entityKey:string;evaluatedAt:string;proposalCount:number}>;provenance:Array<{entityKey:string;field:string;reason:string;evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>}>;
+    universeAttributesSave(input:{edits:Array<{entityKey:string;field:string;value:string}>}):Promise<{changed:number}>;
+    universeAttributesReview(input:{action:"approve"|"reject";items:Array<{entityKey:string;field:string}>}):Promise<{reviewed:number;action:string}>;
+    universeAttributesSuggest(input:{keys:string[]}):Promise<{evaluated:number;proposed:number}>;
     universeWorkspaceStatus(): Promise<StudioUniverseWorkspaceStatus>;
     universeWorkspaceList(input?: { kind?: StudioUniverseWorkspaceNode["kind"]; state?: StudioUniverseWorkspaceState }): Promise<StudioUniverseWorkspaceNode[]>;
     universeWorkspaceApply(runId?: number): Promise<StudioUniverseWorkspaceApplyResult>;

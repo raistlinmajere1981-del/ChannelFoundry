@@ -19,7 +19,11 @@ test('V5 background photo is a first-class staged asset; 2:1 ratio and atomic so
   const site=siteSceneSource(scratch),before=await site.snapshot();
   const meta=site.backgroundInfo(before);
   assert.equal(meta.asset,ROOM_BACKGROUND_ASSET);
-  assert.deepEqual([meta.width,meta.height],[1774,887]);
+  // The scene uses the current optimized 2:1 image, not a legacy fixed size.
+  const backgroundFile=path.join(scratch,'public'+ROOM_BACKGROUND_ASSET);
+  const actualDimensions=webpDimensions(fs.readFileSync(backgroundFile));
+  assert.deepEqual([meta.width,meta.height],[actualDimensions.width,actualDimensions.height]);
+  assert.equal(actualDimensions.width,actualDimensions.height*2);
   assert.equal(meta.aspect,2);
   assert.match(meta.note,/kesilmez/);
   const replaced=fs.readFileSync(new URL('./fixtures/room-2x1.webp',import.meta.url));

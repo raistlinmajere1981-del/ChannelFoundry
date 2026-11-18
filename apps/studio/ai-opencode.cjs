@@ -17,18 +17,89 @@ const TEXT_ONLY_PERMISSIONS = Object.freeze([
 
 const MODEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:@+/-]*$/;
 
-function sharedService() {
-  return new Promise((resolve, reject) => {
+// Historical "shared service" queried only the OpenCode background daemon.
+// Users can also start an independent `opencode serve` on localhost.
+async function cliServiceAddress() {
+  return new Promise((resolve) => {
     execFile("opencode", ["service", "status"], {
-      shell: false, timeout: 5000, encoding: "utf8", maxBuffer: 4096,
+      shell: false, timeout: 3500, encoding: "utf8", maxBuffer: 4096,
     }, (error, stdout) => {
-      if (error) return reject(new Error("OpenCode ortak servisi bulunamadı."));
-      const match = String(stdout).match(/http[^\s]+/);
-      if (!match) return reject(new Error("OpenCode ortak servis adresi bulunamadı."));
-      try { resolve(serverEndpoint({ endpoint: match[0] })); }
-      catch { reject(new Error("OpenCode ortak servis adresi geçersiz.")); }
+      if (error) return resolve("");
+      const match = String(stdout).match(/https?:\/\/[^\s]+/);
+      if (!match) return resolve("");
+      try { resolve(serverEndpoint({endpoint:match[0]})); }
+      catch { resolve(""); }
     });
   });
+}
+
+async function probeServer(options = {}) {
+  const endpoint = serverEndpoint(options);
+  const password = String(options.apiKey || "").trim();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(endpoint + "/api/model", {
+      method: "GET", headers: serverHeaders({apiKey:password}), signal:controller.signal,
+    });
+    let body = null;
+    try { body = await response.json(); } catch {}
+    if (response.status === 401 &&
+      (body?._tag === "UnauthorizedError" || (
+        /basic/i.test(response.headers.get("www-authenticate") || "") &&
+        /auth|yetki|parola/i.test(String(body?.message || ""))
+      ))) {
+      if (password) throw new Error("OpenCode sunucu parolası hatalı veya yetkisiz (401).");
+      return {endpoint, status:"password-required", authRequired:true, modelCount:0};
+    }
+    if (!response.ok || !Array.isArray(body?.data)) {
+      throw new Error("Bu adreste geçerli bir OpenCode model API'si bulunamadı.");
+    }
+    return {endpoint, status:"ready", authRequired:password.length>0, modelCount:body.data.length};
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("OpenCode sunucusu yanıt vermedi (zaman aşımı).");
+    if (error instanceof TypeError && /fetch failed/i.test(String(error.message))) {
+      throw new Error("OpenCode sunucusuna ulaşılamadı: " + endpoint);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function detectServer(options = {}) {
+  const candidates = [];
+  const add = (value) => {
+    if (!value) return;
+    const endpoint = serverEndpoint({endpoint:value});
+    if (!candidates.includes(endpoint)) candidates.push(endpoint);
+  };
+  add(options.endpoint);
+  add("http://127.0.0.1:4096");
+  // The CLI service is only a fallback, never a prerequisite for detection.
+  let lastError = null;
+  for (const endpoint of candidates) {
+    try { return await probeServer({endpoint}); } catch (error) { lastError = error; }
+  }
+  const background = await cliServiceAddress();
+  if (background && !candidates.includes(background)) {
+    try { return await probeServer({endpoint:background}); } catch (error) { lastError = error; }
+  }
+  throw new Error("Çalışan OpenCode sunucusu bulunamadı. `opencode serve` açık mı? " +
+    String(lastError?.message || "").slice(0, 180));
+}
+
+async function testServer(options = {}) {
+  const status = await probeServer(options);
+  if (status.status === "password-required") {
+    throw new Error("OpenCode sunucusu bulundu ancak parola gerekli. Sunucu parolasını girip tekrar dene.");
+  }
+  return status;
+}
+
+// Retain the legacy helper for translation scripts and existing callers.
+async function sharedService() {
+  return (await detectServer()).endpoint;
 }
 function modelId(value) {
   const id = String(value || "").trim();
@@ -49,11 +120,10 @@ function serverEndpoint(options) {
 
 function serverHeaders(options) {
   const password = String(options?.apiKey || "").trim();
-  if (!password) throw new Error("OpenCode sunucu parolası gerekli.");
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    Authorization: "Basic " + Buffer.from("opencode:" + password).toString("base64"),
+    ...(password ? { Authorization: "Basic " + Buffer.from("opencode:" + password).toString("base64") } : {}),
   };
 }
 
@@ -202,4 +272,4 @@ async function complete(config, messages, options = {}) {
   }
 }
 
-module.exports = { listModels, complete, modelId, serverEndpoint, serverRequest, normalizeServerModels, readSessionOutput, sharedService, TEXT_ONLY_PERMISSIONS };
+module.exports = { listModels, complete, modelId, serverEndpoint, serverRequest, normalizeServerModels, readSessionOutput, sharedService, detectServer, testServer, TEXT_ONLY_PERMISSIONS };

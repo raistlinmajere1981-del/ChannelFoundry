@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./ai-minimal.css";
 import {useSettingsSection} from "./SettingsController";
 
@@ -9,6 +9,14 @@ type CatalogEntry = { id: string; label?: string; supportedReasoningEfforts?: Re
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method [\x27\x22][^\x27\x22]+[\x27\x22]: (?:Error: )?/, "").replace(/^Error: /, "");
 const isCompatible = (id: string) => id === "google-ai-studio" || id === "openai-compatible" || id === "ollama";
 const backendId = (id: string): StudioAiProvider => id === "google-ai-studio" ? "openai-compatible" : id as StudioAiProvider;
+// Labels are presentation-only: the options themselves always come from model metadata.
+const reasoningLabel = (value: string) => {
+  const labels: Record<string,string> = {
+    none:"Kapalı", minimal:"Asgari", low:"Düşük", medium:"Orta",
+    high:"Yüksek", xhigh:"Çok yüksek", max:"Maksimum", ultra:"Ultra",
+  };
+  return labels[value] ? `${labels[value]} (${value})` : value;
+};
 function inferText(config: StudioAiConfig) {
   return config.provider === "openai-compatible" && config.endpoint.includes("generativelanguage.googleapis.com")
     ? "google-ai-studio" : config.provider;
@@ -40,6 +48,10 @@ export default function AiProviderSettings() {
   const [error, setError] = useState("");
   const [textVerified, setTextVerified] = useState(false);
   const [imageVerified, setImageVerified] = useState(false);
+  const [serverFound, setServerFound] = useState<"ready" | "password-required" | "">("");
+  const [serverConnected, setServerConnected] = useState(false);
+  const [serverModelCount, setServerModelCount] = useState(0);
+  const serverDetectionVersion = useRef(0);
   const [initializing,setInitializing]=useState(true);
 
   useEffect(() => {
@@ -68,13 +80,17 @@ export default function AiProviderSettings() {
   const model = role === "text" ? textModel : imageModel;
   const models = role === "text" ? textModels : imageModels;
   const displayModels= model && !models.some(entry=>entry.id===model) ? [{id:model,label:model+" · Kayıtlı model"},...models] : models;
-  const canDiscover = Boolean(current && (current.transport === "cli" || endpoint.trim()) && (!current.secret || key.trim() || savedKey));
+  const isOpenCode = role === "text" && textProvider === "opencode-cli";
+  const canDiscover = Boolean(current && (current.transport === "cli" || endpoint.trim()) &&
+    (isOpenCode || !current.secret || key.trim() || savedKey));
   const setFeedback = () => { setResult(""); setError(""); };
   const chooseProvider = (id: string) => {
     const definition = provider(id);
     if (!definition) return;
     setFeedback();
     if (role === "text") {
+      serverDetectionVersion.current += 1;
+      setServerFound("");setServerConnected(false);setServerModelCount(0);
       setTextProvider(id); setTextEndpoint(definition.endpoint);
       setTextModel(""); setFallbackModel(""); setReasoning(""); setTextModels([]); setTextKey(""); setTextVerified(false);
     } else {
@@ -82,18 +98,47 @@ export default function AiProviderSettings() {
       setImageModel(""); setImageReasoning(""); setImageModels([]); setImageKey(""); setImageVerified(false);
     }
   };
-  const useSharedService = async () => {
-    if (!bridge || busy) return;
-    setBusy("service"); setFeedback();
+  const detectOpenCodeServer = async (automatic = false) => {
+    if (!bridge) return;
+    const requestVersion=++serverDetectionVersion.current;
+    setBusy("service");setServerConnected(false);setServerFound("");
+    if (!automatic) setFeedback();
     try {
-      const detected = await bridge.aiOpenCodeService();
-      if (detected !== textEndpoint) {
-        setTextEndpoint(detected); setTextKey(""); setTextModels([]);
-        setTextModel(""); setFallbackModel(""); setReasoning(""); setTextVerified(false);
+      const detected=await bridge.aiOpenCodeDetect({endpoint:textEndpoint.trim()});
+      if (requestVersion!==serverDetectionVersion.current) return;
+      if (detected.endpoint!==textEndpoint) {
+        setTextEndpoint(detected.endpoint);
+        setTextKey("");setTextModels([]);setTextModel("");setFallbackModel("");setReasoning("");setTextVerified(false);
       }
-      setResult("Ortak servis · " + detected);
-    } catch (reason) { setError(errorText(reason)); }
-    finally { setBusy(""); }
+      setServerFound(detected.status);
+      setResult(detected.status==="password-required"
+        ? "Sunucu bulundu · " + detected.endpoint + " · bağlantı için parola gerekiyor."
+        : "Sunucu bulundu · " + detected.endpoint + " · parola gerekmiyor.");
+    } catch (reason) {
+      if (requestVersion!==serverDetectionVersion.current) return;
+      setError(errorText(reason));
+    } finally {
+      if (requestVersion===serverDetectionVersion.current) setBusy("");
+    }
+  };
+  // Detect real `opencode serve` instances as well as the older background daemon.
+  useEffect(()=>{
+    if(initializing||textProvider!=="opencode-cli")return;
+    void detectOpenCodeServer(true);
+    // Running again when the provider changes is intentional, not on each input keystroke.
+  },[initializing,textProvider]);
+
+  const checkOpenCodeConnection = async () => {
+    if (!bridge || busy || !textEndpoint.trim()) return;
+    setBusy("server-test");setFeedback();setServerConnected(false);
+    try {
+      const result=await bridge.aiOpenCodeTest({
+        endpoint:textEndpoint.trim(),...(textKey.trim()?{apiKey:textKey.trim()}:{}),
+      });
+      setServerConnected(true);setServerFound("ready");setServerModelCount(result.modelCount);
+      setResult("Bağlantı başarılı · " + result.modelCount + " metin modeli erişilebilir. Modelleri getir ile devam edebilirsin.");
+    } catch(reason){setError(errorText(reason));}
+    finally{setBusy("");}
   };
   const chooseModel = (id: string) => {
     setFeedback();
@@ -211,6 +256,7 @@ export default function AiProviderSettings() {
     (imageProvider==='disabled'||(stored.image.reasoningEffort||'')===imageReasoning));
   const dirty=Boolean(!initializing&&stored&&(!textConfigured||!imageConfigured||textKey||imageKey));
   const reset=()=>{if(!stored)return;
+    serverDetectionVersion.current+=1;setServerConnected(false);setServerFound("");setServerModelCount(0);
     setTextProvider(inferText(stored));setImageProvider(inferImage(stored));
     setTextEndpoint(stored.endpoint);setImageEndpoint(stored.image.endpoint);
     setTextModel(stored.model);setImageModel(stored.image.model);
@@ -248,32 +294,48 @@ export default function AiProviderSettings() {
       {current?.transport === "api" || current?.transport === "local" ? <>
         <label><span>Endpoint</span><div className="ai-endpoint-row"><input value={endpoint} readOnly={Boolean(current.endpoint)} onChange={(event) => {
           if (role === "text") {
+            if(textProvider==="opencode-cli"){serverDetectionVersion.current+=1;setServerFound("");setServerConnected(false);setServerModelCount(0);setTextKey("");}
             setTextEndpoint(event.target.value);setTextModels([]);setTextModel("");setFallbackModel("");setReasoning("");setTextVerified(false);
           } else {
             setImageEndpoint(event.target.value);setImageModels([]);setImageModel("");setImageReasoning("");setImageVerified(false);
           }
           setFeedback();
-        }}/>{role === "text" && currentProvider === "opencode-cli" && <button type="button" className="secondary-button" onClick={() => void useSharedService()} disabled={Boolean(busy)}>{busy === "service" ? "Aranıyor…" : "Ortak servis"}</button>}</div></label>
-        {current.secret && <label><span>{currentProvider === "opencode-cli" ? "Sunucu parolası" : "API anahtarı"}</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "••••••••••••" : currentProvider === "opencode-cli" ? "OpenCode sunucu parolası" : "API anahtarı"} onChange={(event) => { if (role === "text") setTextKey(event.target.value); else setImageKey(event.target.value); setFeedback(); }}/></label>}
+        }}/>{isOpenCode && <button type="button" className="secondary-button" onClick={() => void detectOpenCodeServer()} disabled={Boolean(busy)}>{busy === "service" ? "Aranıyor…" : "Sunucuyu algıla"}</button>}</div></label>
+        {current.secret && <label><span>{isOpenCode ? "Sunucu parolası · varsa gir" : "API anahtarı"}</span><input type="password" autoComplete="off" value={key} placeholder={savedKey ? "Kayıtlı parola kullanılacak (değiştirmek için yaz)" : isOpenCode ? "Parolasız sunucu için boş bırak" : "API anahtarı"} onChange={(event) => {
+          if (role === "text") {setTextKey(event.target.value);if(isOpenCode){setServerConnected(false);setTextVerified(false);}}
+          else setImageKey(event.target.value);
+          setFeedback();
+        }}/></label>}
+        {isOpenCode && <div className="ai-opencode-connection">
+          <span className={serverConnected?"ready":serverFound==="password-required"?"attention":""} role="status">
+            {serverConnected ? "✓ Bağlantı doğrulandı · "+serverModelCount+" model"
+              :serverFound==="password-required" ? "Sunucu bulundu · parola gerekli"
+              :serverFound==="ready" ? "Sunucu bulundu · parola gerekmiyor"
+              :busy==="service" ? "Yerel OpenCode sunucusu aranıyor…"
+              :"Önce sunucuyu algıla, ardından bağlantıyı dene."}
+          </span>
+          <button type="button" className="secondary-button" onClick={()=>void checkOpenCodeConnection()}
+            disabled={Boolean(busy)||!textEndpoint.trim()}>{busy==="server-test"?"Test ediliyor…":"Bağlantıyı dene"}</button>
+        </div>}
       </> : null}
       {currentProvider !== "disabled" && <>
         <div className="ai-minimal-model-heading">
           <span>Model</span><div className="ai-minimal-check-actions">
-            <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover} onClick={() => void discover(false)}>{busy === "check" ? "Deneniyor…" : "Bağlantıyı dene"}</button>
-            <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover} onClick={() => void discover(true)}>{busy === "models" ? "Getiriliyor…" : "Modelleri getir"}</button>
+            {!isOpenCode && <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover} onClick={() => void discover(false)}>{busy === "check" ? "Deneniyor…" : "Bağlantıyı dene"}</button>}
+            <button type="button" className="secondary-button" disabled={Boolean(busy) || !canDiscover || (isOpenCode && !serverConnected)} onClick={() => void discover(true)}>{busy === "models" ? "Getiriliyor…" : "Modelleri getir"}</button>
           </div>
         </div>
         <select aria-label="Model" value={model} onChange={(event) => chooseModel(event.target.value)}>
           <option value="">Model seç</option>
           {displayModels.map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}
         </select>
-        {role === "text" && current?.transport !== "cli" && <label><span>Yedek model</span><select value={fallbackModel} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
+        {role === "text" && current?.transport !== "cli" && !isOpenCode && <label><span>Yedek model</span><select value={fallbackModel} onChange={(event) => setFallbackModel(event.target.value)}><option value="">Kapalı</option>{models.filter((entry) => entry.id !== textModel).map((entry) => <option key={entry.id} value={entry.id}>{entry.label || entry.id}</option>)}</select></label>}
         {shownReasoningOptions.length > 0 && <label><span>Reasoning · {reasoningOptions.length ? "modelin bildirdiği seçenekler" : "kaydedilen seviye"}</span>
           <select aria-label="Reasoning" value={selectedReasoning}
             onChange={(event) => { if (role === "text") setReasoning(event.target.value); else setImageReasoning(event.target.value); setFeedback(); }}>
             <option value="">Varsayılan</option>
             {shownReasoningOptions.map((entry) => <option key={entry.reasoningEffort} value={entry.reasoningEffort}
-              title={entry.description}>{entry.reasoningEffort}{entry.description ? " · " + entry.description : ""}</option>)}
+              title={entry.description}>{reasoningLabel(entry.reasoningEffort)}{entry.description ? " · " + entry.description : ""}</option>)}
           </select>
         </label>}
         {model && models.some((entry)=>entry.id === model) && !shownReasoningOptions.length &&

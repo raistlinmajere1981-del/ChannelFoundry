@@ -5,6 +5,7 @@ const narrativeStore = require("./narrative-store.cjs");
 const narrativeOutline = require("./narrative-outline.cjs");
 const invitationNumbers = require("./narrative-invitation-numbers.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
+const universeAttributes = require("./universe-attributes.cjs");
 const visualCompletion = require("./visual-completion-store.cjs");
 const visualProfiles = require("./visual-profiles.cjs");
 const aiAnalysis = require("./ai-analysis-public.cjs");
@@ -114,6 +115,7 @@ function addAsset(assetMap, sourceMap, input) {
 
 function archiveData(db, assetMap, assetSourceMap) {
   const editorial = universeWorkspace.publicEditorial(db);
+  const attributes = new Map(universeAttributes.list(db).profiles.map(row => [row.entityKey, row.fields]));
   const relationIds = new Map(editorial.nodes.map((node) => [node.id, []]));
   const relations = editorial.relations.map((relation) => {
     relationIds.get(relation.fromId)?.push(relation.id);
@@ -144,6 +146,7 @@ function archiveData(db, assetMap, assetSourceMap) {
     return {
       entityId: node.id,
       kind: node.kind,
+      ...(attributes.has(node.id) ? { attributes: universeAttributes.publicFields(node.kind, attributes.get(node.id)) } : {}),
       name: node.name,
       aliases: stringArray(node.aliases, 100, 300),
       summary: clean(node.summary, 6000),

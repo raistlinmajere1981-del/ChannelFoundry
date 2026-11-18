@@ -46,18 +46,23 @@ try{
     }
     console.log('PASS Records publication V3: TR source comparison, EN drafts, AI queue selection, visible visual rail, unsaved guard, responsive viewport');
   }else{
-    await page.getByTestId('publish-v3').waitFor();await page.getByRole('button',{name:'Tam yayını başlat'}).waitFor();
+    await page.getByTestId('publish-v3').waitFor();
+    // The automatic mode may favor safe update for this fixture's coverage.
+    // Explicitly choose full to exercise that publication route.
+    await page.locator('.publish-v3-options summary').click();
+    await page.getByLabel('Yayın yöntemi').selectOption('full');
+    await page.getByRole('button',{name:'Tam yayını başlat'}).waitFor();
     assert.equal(await page.getByRole('button',{name:/paket.*oluştur/i}).count(),0,'manual packaging removed');
     await page.getByRole('button',{name:'Tam yayını başlat'}).click();
     await page.waitForFunction(()=>window.__actions.filter(a=>a.name==='publish').length===1);
     assert.equal(await page.evaluate(()=>window.__actions.find(a=>a.name==='publish').mode),'full');
+    await page.getByLabel('Yayın yöntemi').selectOption('auto');
     await page.evaluate(()=>{window.__preview.coverage={...window.__preview.coverage,requiresFull:false,reasons:[],newEntities:0};});
     await page.getByRole('button',{name:'Durumu yenile'}).click();
     await page.getByRole('button',{name:'Değişiklikleri yayınla'}).waitFor();
     await page.getByRole('button',{name:'Değişiklikleri yayınla'}).click();
     await page.waitForFunction(()=>window.__actions.filter(a=>a.name==='publish').length===2);
     assert.equal(await page.evaluate(()=>window.__actions.filter(a=>a.name==='publish')[1].mode),'update');
-    await page.locator('.publish-v3-options').locator('summary').click();
     await page.getByLabel('İki dil tam onaylı olmadan yayınlamayı engelle').check();
     assert.equal(await page.getByRole('button',{name:'Değişiklikleri yayınla'}).isDisabled(),true);
     await page.evaluate(()=>window.__readyLanguages=true);

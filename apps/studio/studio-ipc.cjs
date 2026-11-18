@@ -11,6 +11,7 @@ const aiAnalysis = require("./ai-analysis.cjs");
 const aiActivity = require("./ai-activity.cjs");
 const universeMerge = require("./universe-merge.cjs");
 const universeWorkspace = require("./universe-workspace.cjs");
+const universeAttributes = require("./universe-attributes.cjs");
 const { registerNarrativeIpc } = require("./narrative-ipc.cjs");
 const { registerVefkIpc } = require("./vefk-ipc.cjs");
 const { registerVefkSourceIpc } = require("./vefk-source-ipc.cjs");
@@ -204,6 +205,16 @@ function registerAiHandlers() {
   ipcMain.handle("studio:ai-opencode-service", () => returnOutcome(
     "studio:ai-opencode-service", require("./ai-opencode.cjs").sharedService(),
   ));
+  ipcMain.handle("studio:ai-opencode-detect", (_event, input) =>
+    require("./ai-opencode.cjs").detectServer(input));
+  ipcMain.handle("studio:ai-opencode-test", (_event, input) => {
+    const openCode = require("./ai-opencode.cjs");
+    const endpoint = openCode.serverEndpoint(input);
+    const saved = aiService.getConfig(app.getPath("userData"));
+    const storedPassword = saved.provider === "opencode-cli" && saved.endpoint === endpoint
+      ? aiService.getSecret(app.getPath("userData"), "text") : "";
+    return openCode.testServer({endpoint, apiKey: String(input?.apiKey || "").trim() || storedPassword});
+  });
   ipcMain.handle("studio:ai-test-candidate", (_event, input) => aiService.testConnection(app.getPath("userData"), { candidate: input }));
   ipcMain.handle("studio:ai-image-test-candidate", (_event, input) => aiService.testImageCandidate(app.getPath("userData"), input));
   ipcMain.handle("studio:ai-models", (_event, input) => aiService.listModels(app.getPath("userData"), input));
@@ -238,6 +249,10 @@ function registerAiHandlers() {
 }
 
 function registerEditorialHandlers() {
+  ipcMain.handle("studio:universe-attributes-list", () => universeAttributes.list(runtime.database()));
+  ipcMain.handle("studio:universe-attributes-save", (_event, input) => universeAttributes.saveMany(runtime.database(), input));
+  ipcMain.handle("studio:universe-attributes-review", (_event, input) => universeAttributes.review(runtime.database(), input));
+  ipcMain.handle("studio:universe-attributes-suggest", (_event, input) => universeAttributes.suggest(runtime.database(), app.getPath("userData"), input));
   ipcMain.handle("studio:universe-workspace-status", () => universeWorkspace.status(runtime.database()));
   ipcMain.handle("studio:universe-workspace-list", (_event, input) => universeWorkspace.listNodes(runtime.database(), input));
   ipcMain.handle("studio:universe-workspace-relations", (_event, input) => universeWorkspace.listRelations(runtime.database(), input));

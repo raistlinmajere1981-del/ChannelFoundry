@@ -3,18 +3,22 @@ import {createPortal} from "react-dom";
 import "./visual-basket.css";
 
 type Props = {
-  current: StudioVisualBasketInput;
+  mode?: "add" | "manager";
+  current?: StudioVisualBasketInput;
   disabled?: boolean;
   hasImage?: boolean;
-  onAccepted?: () => void;
+  onAdded?: () => Promise<void> | void;
+  onBusyChange?: (busy:boolean) => void;
+  onAccepted?: (key:string) => void;
   onStatus?: (text:string,tone?:"success"|"error")=>void;
 };
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e);
-export default function VisualBasketHub({current,disabled=false,hasImage=false,onAccepted,onStatus}:Props) {
+export default function VisualBasketHub({mode="add",current,disabled=false,hasImage=false,onAdded,onBusyChange,onAccepted,onStatus}:Props) {
   const bridge=window.channelFoundryStudio;
   const [state,setState]=useState<StudioVisualBasketStatus|null>(null);
   const [open,setOpen]=useState(false);
   const [busy,setBusy]=useState(false);
+  useEffect(()=>{if(mode==="add")onBusyChange?.(busy);},[busy,mode,onBusyChange]);
   const [error,setError]=useState("");
   const [preview,setPreview]=useState<{key:string;name:string;url:string}|null>(null);
   const [accepting,setAccepting]=useState("");
@@ -31,6 +35,13 @@ export default function VisualBasketHub({current,disabled=false,hasImage=false,o
     setState(next);
   },[bridge]);
   useEffect(()=>{void refresh().catch(()=>{});},[refresh]);
+  // The top toolbar owns basket management; record-level add controls signal
+  // it to refresh its count without depending on the selected entity.
+  useEffect(()=>{
+    const notify=()=>{void refresh().catch(()=>{});};
+    window.addEventListener("channel-foundry:visual-basket-changed",notify);
+    return()=>window.removeEventListener("channel-foundry:visual-basket-changed",notify);
+  },[refresh]);
   useEffect(()=>{
     if(!open)return;
     const refreshTick=window.setInterval(()=>{void refresh().catch(()=>{});},1400);
@@ -43,14 +54,20 @@ export default function VisualBasketHub({current,disabled=false,hasImage=false,o
   const operation=async(fn:()=>Promise<unknown>,message=""):Promise<boolean>=>{
     if(busy||!bridge)return false;
     setBusy(true);setError("");
-    try {await fn();await refresh();if(message)onStatus?.(message,"success");return true;}
+    try {await fn();await refresh();window.dispatchEvent(new Event("channel-foundry:visual-basket-changed"));if(message)onStatus?.(message,"success");return true;}
     catch(e){const text=errorText(e);setError(text);onStatus?.(text,"error");return false;}
     finally{setBusy(false);}
   };
   const add=async()=>{
-    if(!current.prompt.trim()||disabled)return;
+    if(!current?.prompt.trim()||disabled)return;
     if(hasImage&&!window.confirm("Kayıtta mevcut görsel var. Sepete eklenecek üretim önce aday olarak saklanacak; ancak onayladığında mevcut görselin yerine geçecek. Devam?"))return;
-    await operation(()=>bridge!.visualBasketAdd(current),"Görsel üretim sepetine eklendi.");
+    await operation(async()=>{
+      await bridge!.visualBasketAdd(current);
+      // Keep the record busy until automatic profile persistence finishes.
+      // Once the queue owns its prompt snapshot, record navigation is safe.
+      try {await onAdded?.();}
+      catch(e){onStatus?.("Sepete eklendi; görsel profilini kaydederken hata: "+errorText(e),"error");}
+    },onAdded?"":"Görsel üretim sepetine eklendi.");
   };
   const items=state?.items??[];
   const existingKeys=useMemo(()=>new Set(items.map(item=>item.entityKey)),[items]);
@@ -86,7 +103,7 @@ export default function VisualBasketHub({current,disabled=false,hasImage=false,o
           size:(node.kind==="event"||node.kind==="location"||node.kind==="story")?"1536x1024":"1024x1024",useReference:true});
         done++;setPickCount(done);
       }
-      setChecked(new Set());await refresh();setError("");
+      setChecked(new Set());await refresh();window.dispatchEvent(new Event("channel-foundry:visual-basket-changed"));setError("");
       onStatus?.(done+" kayıt toplu üretim sepetine eklendi.","success");
     }catch(e){setError(done+" kayıt eklendi; kalanlar için hata: "+errorText(e));await refresh();}
     finally{setBusy(false);setPickCount(0);}
@@ -110,7 +127,8 @@ export default function VisualBasketHub({current,disabled=false,hasImage=false,o
     setAccepting(item.entityKey);
     const success=await operation(()=>bridge!.visualBasketAccept(item.entityKey),"Aday kitap görseline uygulandı.");
     if(success){if(preview?.key===item.entityKey)setPreview(null);
-      if(item.entityKey===current.entityKey)onAccepted?.();}
+      onAccepted?.(item.entityKey);
+      window.dispatchEvent(new CustomEvent("channel-foundry:visual-basket-accepted",{detail:item.entityKey}));}
     setAccepting("");
   };
   const batchAccept=async()=>{
@@ -119,16 +137,20 @@ export default function VisualBasketHub({current,disabled=false,hasImage=false,o
     setBusy(true);setError("");
     try {
       for(const item of items.filter(x=>x.state==="ready"))await bridge.visualBasketAccept(item.entityKey);
-      await refresh();setPreview(null);onAccepted?.();
+      await refresh();setPreview(null);window.dispatchEvent(new Event("channel-foundry:visual-basket-changed"));
+      for(const item of items.filter(x=>x.state==="ready")){
+        onAccepted?.(item.entityKey);
+        window.dispatchEvent(new CustomEvent("channel-foundry:visual-basket-accepted",{detail:item.entityKey}));
+      }
       onStatus?.("Hazır adaylar kitap görsellerine uygulandı.","success");
     }catch(e){setError(errorText(e));await refresh();}
     finally{setBusy(false);}
   };
-  return <div className="visual-basket-hub">
-    <button type="button" className="secondary-button" disabled={disabled||busy||!current.prompt.trim()||Boolean(state?.running)}
-      title={current.prompt.trim()?"Bu kayıt için görsel üretim işi oluşturur":"Önce görsel üretim tarifini hazırla"}
-      onClick={()=>void add()}>＋ Sepete ekle</button>
-    <button type="button" className="secondary-button" onClick={()=>{void refresh();setOpen(true);}}>▤ Üretim sepeti ({items.length})</button>
+  return <div className={"visual-basket-hub visual-basket-hub--"+mode}>
+    {mode==="add"&&<button type="button" className="secondary-button" disabled={disabled||busy||!current?.prompt.trim()||Boolean(state?.running)}
+      title={current?.prompt.trim()?"Bu kayıt için görsel üretim işi oluşturur":"Önce görsel üretim tarifini hazırla"}
+      onClick={()=>void add()}>＋ Sepete ekle</button>}
+    {mode==="manager"&&<button type="button" className="secondary-button visual-basket-toolbar-button" onClick={()=>{void refresh();setOpen(true);}}>▤ Sepet ({items.length})</button>}
     {open&&createPortal(<div className="vbm-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false);}}>
       <section className="vbm-panel" role="dialog" aria-modal="true" aria-label="Görsel üretim sepeti">
         <header className="vbm-header"><div><small>GÖRSEL ATÖLYESİ · ÜRETİM LİSTESİ</small><h2>Görsel sepeti</h2>

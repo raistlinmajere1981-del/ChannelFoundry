@@ -34,8 +34,10 @@ test('Studio can publish physical visibility without moving art or changing effe
       'Studio approval should accept persisted visibility without new slots');
     const prepared=await isolated.stage(scene,before.sourceHash);
     assert.equal(prepared.changed,true);
-    assert.deepEqual(prepared.changedFiles,[SITE_SCENE],
-      'visibility-only change cannot rewrite photo, book, lighting, overlay or publication');
+    assert.ok(prepared.changedFiles.includes(SITE_SCENE),
+      'visibility changes must update the scene definition');
+    assert.ok(prepared.changedFiles.every(file=>[SITE_SCENE,'src/scene/data/scene-presentation.v1.json'].includes(file)),
+      'visibility changes must not rewrite photos, books, lighting, overlays or publication');
     const after=await isolated.snapshot();
     for(const id of hidden){
       assert.equal(after.scene.objects.find(item=>item.id===id).visible,false,

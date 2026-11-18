@@ -29,10 +29,17 @@ function fromModelMetadata(entry, provider) {
     ?? entry.reasoning?.supportedEfforts ?? entry.reasoning?.supported_efforts;
   const thinking = entry.supportedThinkingLevels ?? entry.supported_thinking_levels
     ?? entry.thinking?.levels;
-  const variant = provider === "opencode-cli" && entry.variants && typeof entry.variants === "object"
-    && !Array.isArray(entry.variants) ? Object.entries(entry.variants)
-      .filter(([,value]) => value && typeof value === "object")
-      .map(([name,value])=> ({ name, description: value.description ?? "" })) : [];
+  // OpenCode v2 currently returns variants as [{id, settings}], whereas
+  // earlier versions expose a dictionary keyed by variant name.
+  const variant = provider === "opencode-cli" && Array.isArray(entry.variants)
+    ? entry.variants
+      .filter((value) => value && typeof value === "object" && !Array.isArray(value))
+      .map((value) => ({name: value.id, description: value.description ?? value.label ?? ""}))
+    : provider === "opencode-cli" && entry.variants && typeof entry.variants === "object"
+      ? Object.entries(entry.variants)
+        .filter(([,value]) => value && typeof value === "object")
+        .map(([name,value]) => ({name, description: value.description ?? ""}))
+      : [];
   const choices = Array.isArray(effort) ? normalizeOptions(effort,"effort")
     : Array.isArray(thinking) ? normalizeOptions(thinking,"thinkingLevel")
     : normalizeOptions(variant,"variant");

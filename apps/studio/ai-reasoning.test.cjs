@@ -35,6 +35,22 @@ test("OpenCode uses only explicitly reported variants, not model-name guesses",(
   assert.equal(models[0].defaultReasoningEffort,"low");
   assert.equal(models[1].supportedReasoningEfforts.length,0);
 });
+test("OpenCode v2 array variants surface the model's actual reasoning levels",()=>{
+  const models=openCode.normalizeServerModels([
+    {providerID:"opencode",id:"deepseek-v4.1-flash-free",variants:[
+      {id:"low",settings:{reasoningEffort:"low"}},
+      {id:"high",settings:{reasoningEffort:"high"}},
+      {id:"max",settings:{reasoningEffort:"max"}},
+    ]},
+    {providerID:"opencode",id:"no-variants",variants:[]},
+    {providerID:"opencode",id:"malformed",variants:[null,{id:"high"},{id:"high"},{id:"bad value"},{foo:"bar"}]},
+  ]);
+  assert.deepEqual(models[0].supportedReasoningEfforts.map(o=>[o.reasoningEffort,o.mode]),
+    [["low","variant"],["high","variant"],["max","variant"]]);
+  assert.deepEqual(models[1].supportedReasoningEfforts,[]);
+  assert.deepEqual(models[2].supportedReasoningEfforts.map(o=>o.reasoningEffort),["high"]);
+});
+
 test("Gemini generic model supports thinking levels only if reported",()=>{
   const models=client.normalizeListedModels([
     {id:"gemini-a",supportedThinkingLevels:["minimal","high"]},

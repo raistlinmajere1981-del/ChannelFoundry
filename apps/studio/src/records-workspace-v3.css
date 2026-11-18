@@ -122,3 +122,10 @@
 .records-v3-context-menu .records-v3-menu-title{padding:8px;border-bottom:1px solid var(--border-soft);font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .records-v3-context-menu button{display:block;width:100%;min-height:31px;padding:6px 9px;font-size:11px;color:var(--text-primary);text-align:left;border:0;border-radius:4px;background:transparent;}
 .records-v3-context-menu button:hover,.records-v3-context-menu button:focus-visible{background:var(--surface-hover);outline:1px solid var(--focus-ring);}
+
+
+/* Basket is a workspace-level tool. Keep it in the top bar, never in the
+   record's visual configuration. Wrap controls rather than clip small windows. */
+.records-v3-toolbar .visual-basket-hub--manager{flex:none;min-width:0}
+.records-v3-toolbar .visual-basket-toolbar-button{height:30px;min-height:30px}
+@media(max-width:1750px){.records-v3-toolbar{flex-wrap:wrap}.records-v3-toolbar .records-v3-search{flex:1 1 260px}}

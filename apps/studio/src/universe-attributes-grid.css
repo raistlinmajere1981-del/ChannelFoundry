@@ -1,0 +1,52 @@
+.attribute-overlay{position:fixed;inset:0;z-index:4000;box-sizing:border-box;background:rgba(9,13,19,.72);display:flex;align-items:center;justify-content:center;padding:clamp(8px,1.5vw,24px);font-family:var(--font-ui);color:var(--text-primary)}
+.attribute-workspace{box-sizing:border-box;width:min(1740px,100%);height:min(940px,100%);min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-control);border-radius:12px;background:var(--surface-panel);color:var(--text-primary);box-shadow:var(--shadow-overlay)}
+.attribute-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px 10px}
+.attribute-heading h2{margin:2px 0;font-size:23px}.attribute-heading p{margin:4px 0;font-size:12px;color:var(--text-muted,#a6a6a6)}.attribute-heading small{letter-spacing:1.3px;opacity:.7}
+.attribute-heading>button{font-size:21px;min-width:38px;min-height:38px;flex:none}
+.attribute-tabs{display:flex;gap:8px;padding:6px 22px 14px}.attribute-tabs button{padding:9px 16px;border:1px solid var(--border-color,#646464);border-radius:7px}.attribute-tabs .active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-strong)}.attribute-tabs span{font-size:11px;opacity:.8;margin-left:8px}
+.attribute-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 20px;border-block:1px solid var(--border-color,#505050)}.attribute-tools input[type=search]{flex:1;min-width:170px}.attribute-tools input[type=search],.attribute-tools select{padding:8px;border-radius:6px;max-width:320px}.attribute-tools label{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}.attribute-tools button{padding:9px 12px;border-radius:6px}
+.attribute-table-scroll{min-height:0;flex:1;overflow:auto;scrollbar-gutter:stable}
+.attribute-table{width:100%;min-width:1120px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12px}
+.attribute-table th,.attribute-table td{border-bottom:1px solid var(--border-color,#505050);border-right:1px solid var(--border-color,#505050);padding:8px;vertical-align:middle;text-align:left}
+.attribute-table thead th{position:sticky;top:0;z-index:2;background:var(--surface-panel-strong);color:var(--text-primary);padding:12px 8px;white-space:nowrap}
+.attribute-table th:first-child,.attribute-table td:first-child{width:50px;text-align:center}.attribute-table th:nth-child(2){width:190px}
+.attribute-table tbody th{font-weight:500;overflow-wrap:anywhere}.attribute-table tbody th small{display:block;margin-top:4px;font-size:10px;opacity:.55}
+.attribute-cell{display:flex;flex-direction:column;gap:4px}.attribute-cell input:not([type=checkbox]),.attribute-cell select{box-sizing:border-box;display:block;width:100%;min-width:0;min-height:32px;padding:7px 6px;border:1px solid var(--border-control);background:var(--surface-input);color:var(--text-primary);border-radius:4px;font:inherit}.attribute-cell input:focus,.attribute-cell select:focus{outline:2px solid var(--focus-ring);outline-offset:-1px;background:var(--surface-input)}.attribute-cell option{color:#222;background:#fff}
+.attribute-table .attribute-proposed{box-shadow:inset 3px 0 #c79853}.attribute-table .attribute-edited{box-shadow:inset 3px 0 #69a3b9}
+.attribute-proposal{display:flex;align-items:center;gap:4px;color:#c7a678;font-size:11px}.attribute-proposal label{display:flex;align-items:center;gap:4px;min-width:0;flex:1}.attribute-proposal span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attribute-proposal button{border:0;background:transparent;color:inherit;padding:0 3px}
+.attribute-more{display:block;margin:16px auto;padding:9px 16px}.attribute-empty{padding:30px;text-align:center}
+.attribute-source{padding:10px 20px;border-top:1px solid var(--border-color,#666);background:var(--surface-raised,#383838);font-size:12px;max-height:120px;overflow:auto}.attribute-source>button{float:right}.attribute-source p{margin:4px 0}.attribute-source a{display:inline-block;margin-right:14px}
+.attribute-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 20px;border-top:1px solid var(--border-color,#555)}.attribute-footer-status{display:flex;flex-direction:column;gap:4px;font-size:12px;min-width:0;flex:1}.attribute-footer-status small{opacity:.6}.attribute-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.attribute-actions label{display:flex;align-items:center;gap:5px;font-size:12px}.attribute-actions button{padding:8px 12px;border-radius:6px}.attribute-actions .primary{background:var(--accent-strong);color:var(--text-inverse)}.attribute-actions button:disabled{opacity:.4}
+@media(max-width:760px){.attribute-overlay{padding:4px}.attribute-workspace{border-radius:6px}.attribute-heading{padding:10px}.attribute-tabs{padding:4px 10px}.attribute-tabs button{padding:7px}.attribute-tools{padding:8px}.attribute-footer{padding:8px}.attribute-table{min-width:1000px}}
+
+
+/* Portal lives directly under body, above sidebar and panel stacking contexts. */
+.attribute-overlay :is(button,input,select){font-family:var(--font-ui)}
+.attribute-overlay button{cursor:pointer}
+.attribute-overlay button:disabled{cursor:default}
+.attribute-heading>button,.attribute-tabs button,.attribute-tools button,.attribute-footer button,.attribute-more,.attribute-source>button{
+ border:1px solid var(--border-control);background:var(--surface-input);color:var(--text-primary);
+}
+.attribute-tools :is(input[type="search"],select){background:var(--surface-input);border:1px solid var(--border-control);color:var(--text-primary)}
+.attribute-overlay input[type="checkbox"]{accent-color:var(--accent)}
+.attribute-table tbody tr>:nth-child(-n+2){position:sticky;z-index:1;background:var(--surface-panel);box-shadow:1px 0 var(--border-soft)}
+.attribute-table tbody tr>:first-child{left:0}
+.attribute-table tbody tr>:nth-child(2){left:50px}
+.attribute-table thead th:first-child{left:0;z-index:4}
+.attribute-table thead th:nth-child(2){left:50px;z-index:4}
+.attribute-heading h2{color:var(--text-primary)}
+.attribute-overlay :focus-visible{outline-color:var(--focus-ring)}
+
+
+.attribute-tools .attribute-parallel-select{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+.attribute-tools .attribute-parallel-select select{min-width:50px;width:57px;max-width:none}
+
+
+/* AI source anchor is explicit rather than a generic model explanation. */
+.attribute-evidence-quote{margin:5px 0;padding:6px 9px;border-left:2px solid var(--accent);background:var(--surface-panel);font-size:12px;line-height:1.4;white-space:normal}
+.attribute-evidence-quote small{margin-left:5px;opacity:.7}
+.attribute-source{max-height:min(240px,32vh)}
+
+
+.attribute-approved-source{align-self:flex-start;border:0;background:transparent;color:var(--text-secondary);font-size:10px;padding:2px 0;cursor:pointer}
+.attribute-approved-source:hover{text-decoration:underline}

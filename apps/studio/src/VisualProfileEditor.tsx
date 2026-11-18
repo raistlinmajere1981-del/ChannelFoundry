@@ -63,6 +63,7 @@ export default function VisualProfileEditor({
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [basketBusy, setBasketBusy] = useState(false);
   const [operation, setOperation] = useState<VisualOperation>(null);
   const [savedFields, setSavedFields] = useState<string>("");
 
@@ -95,7 +96,7 @@ export default function VisualProfileEditor({
   useEffect(() => { void load().catch(() => undefined); }, [item.key, productionActions]);
   const changed = savedFields !== "" && savedFields !== JSON.stringify([description, attributesText, atmosphere, prompt, negativePrompt]);
   useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onBusyChange?.(busy || basketBusy); }, [busy, basketBusy, onBusyChange]);
   useEffect(() => () => { onDirtyChange?.(false); onBusyChange?.(false); }, [item.key]);
 
   const input = (): StudioVisualProfileInput => ({
@@ -136,6 +137,32 @@ export default function VisualProfileEditor({
     } catch (reason) { onStatus?.(errorText(reason), "error"); }
     finally { finish(); }
   };
+
+  // Adding a basket job already stores a snapshot of its generation prompt.
+  // Save any unsaved visual profile fields too, so navigation does not raise
+  // a leave-confirmation immediately after a successful basket add.
+  const onBasketAdded = async () => {
+    if (!bridge) return;
+    if (!changed) {onStatus?.("Görsel üretim sepetine eklendi.","success");return;}
+    begin("save");
+    try {
+      const next=await bridge.visualProfileSave(input());
+      applyProfile(next);
+      onStatus?.("Sepete eklendi; görsel profilindeki değişiklikler de kaydedildi.","success");
+    } catch(reason) {
+      onStatus?.("Sepete eklendi, fakat görsel profili kaydedilemedi: "+errorText(reason),"error");
+    } finally { finish(); }
+  };
+
+  useEffect(()=>{
+    const changedImage=(event:Event)=>{
+      if ((event as CustomEvent<string>).detail !== item.key) return;
+      // A basket candidate was accepted in the independent top-bar manager.
+      void load().catch(reason=>onStatus?.("Görsel önizlemesi yenilenemedi: "+errorText(reason),"error"));
+    };
+    window.addEventListener("channel-foundry:visual-basket-accepted",changedImage);
+    return()=>window.removeEventListener("channel-foundry:visual-basket-accepted",changedImage);
+  },[item.key,productionActions]);
 
   const pick = async () => {
     if (!bridge || !productionActions) return;
@@ -237,15 +264,15 @@ export default function VisualProfileEditor({
 
   const generating = operation === "generate";
 
-  const basket = productionActions && <VisualBasketHub current={{...input(), title:item.title, prompt, size, presetId, useReference}}
-    hasImage={Boolean(profile?.imagePath)} disabled={busy} onAccepted={()=>{void load();}} onStatus={onStatus}/>;
+  const basket = productionActions && <VisualBasketHub mode="add" current={{...input(), title:item.title, prompt, size, presetId, useReference}}
+    hasImage={Boolean(profile?.imagePath)} disabled={busy} onAdded={onBasketAdded} onBusyChange={setBasketBusy} onStatus={onStatus}/>;
 
   const actionButtons = <div className="entity-visual-actions">
     {productionActions && <button className="secondary-button" disabled={busy || (!description.trim() && !attributesText.trim())} onClick={preparePrompt}>Tariften prompt hazırla</button>}
     <button className="secondary-button" disabled={busy} onClick={() => void save()}>{operation === "save" ? "Kaydediliyor…" : changed ? "Profili kaydet *" : "Profili kaydet"}</button>
     {productionActions && <button className="secondary-button" disabled={busy} onClick={() => void pick()}>{operation === "pick" ? "Dosya seçiliyor…" : "Görsel ekle"}</button>}
     {productionActions && capability?.supported && <button className="primary-button" disabled={busy || !prompt.trim()} onClick={() => void generate()}>{generating ? "Üretiliyor…" : "Görsel üret"}</button>}
-    {basket}
+    {!dock && basket}
   </div>;
   // In the compact dock the file actions must live outside the aspect-ratio
   // image viewport; otherwise its overflow clipping hides the lower controls.

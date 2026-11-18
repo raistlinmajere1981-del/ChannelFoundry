@@ -35,7 +35,7 @@ function normalizeEndpoint(value, provider) {
   try { url = new URL(raw); } catch { throw new Error("AI endpoint adresi geçersiz."); }
   if (!["http:", "https:"].includes(url.protocol)) throw new Error("AI endpoint HTTP veya HTTPS olmalıdır.");
   if (["ollama","opencode-cli"].includes(provider) && !["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
-    throw new Error("Ollama sağlayıcısı yalnız bu bilgisayardaki localhost endpoint'ine bağlanabilir.");
+    throw new Error("Yerel AI sağlayıcısı yalnız bu bilgisayardaki localhost endpoint'ine bağlanabilir.");
   }
   if (url.protocol === "http:" && !["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
     throw new Error("Uzak AI endpoint'leri HTTPS kullanmalıdır.");

@@ -59,3 +59,11 @@ Not: Paralel davet/anlatı üretimi sürerken bu işlerden hiçbiri anlatı işl
 - Canlı YouTube oynatıcı/yt-dlp/ffmpeg akış erişimi ve gerçek Codex görsel üretimi burada uçtan uca çalıştırılmadı; üretim başlatılmadı. Dört hücreli 1536×1024 levhada hücre çözünürlüğü sınırlıdır; kalite denetimi ve yeniden deneme kullanılması önerilir.
 - Electron ana süreç IPC yeniliklerini yüklemek için Studio'nun bir sonraki açılışta yeniden başlatılması gerekir. Mevcut paralel işlemleri kesmemek adına burada zorla kapatılmadı.
 - Commit, push veya deploy yapılmadı.
+
+### 18 Kasım 2026 — Sepet erişimi / kayıt geçişi
+- Görsel sepetinin **yönetim penceresi**, Kayıt Dosyaları üst çubuğundaki `Sepet (adet)` kontrolüne taşındı. TR/EN kayıt metni ekranının üst çubuğunda da erişilebilir.
+- Seçili kaydın görsel paneli yalnız `Sepete ekle` sunar; aynı yönetim penceresi görsel formunda tekrar yer almaz.
+- Görsel üretim işi sepete başarıyla eklenirse ve görsel profilinde henüz kaydedilmemiş düzenleme varsa profil otomatik kaydedilir. Böylece kayıt değiştirirken yanlış bir kaydedilmemiş düzenleme uyarısı alınmaz. Sepete ekleme başarısız olursa profil otomatik kaydedilmez ve normal kaydedilmemiş değişiklik koruması devam eder.
+- Sepet işlemleri içerikten bağımsız kalır: adaylar ancak ayrıca kabul edilince kitap görseli olur. Üst bardaki sepet adedi ekleme/çıkarma sonunda yenilenir, seçili kayıt değişse de yönetim kullanılabilir.
+- İzole tarayıcı testi: tek `Sepete ekle` düğmesi, düzenlenmiş prompt → sepet ekleme → otomatik profil kaydı → başka kayda onaysız geçiş, üst bar adedi, sepetten çıkarma, hatalı eklemede dirty koruması PASS.
+- Studio derlemesi, görsel sepeti doğrulaması ve Git diff kontrolü geçti. Canlı DB, yayın ve görseller değiştirilmedi; Git commit/push/deploy yapılmadı.

@@ -2,9 +2,11 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { LegacyRecordDetail, WorkspaceRecordDetail } from "./EditorialRecordDetail";
 import RecordSupportDetail, { type SupportRecord, type SupportSource } from "./RecordSupportDetail";
 import VisualProfileEditor from "./VisualProfileEditor";
+import VisualBasketHub from "./VisualBasketHub";
 import {useVideoSourceCatalog,videoSourceTitle} from "./video-source-labels";
 
 const PublicationTranslationCenter=lazy(()=>import("./PublicationTranslationCenter"));
+const UniverseAttributesGrid=lazy(()=>import("./UniverseAttributesGrid"));
 type LegacyItem = StudioPersistedItem & { relatedCount: number };
 type WorkspaceRelation = {key:string;runId:number;fromKey:string;toKey:string;label:string;sourceVideoIds:string[];state:"draft"|"approved";updatedAt:string};
 type Bridge = NonNullable<typeof window.channelFoundryStudio> & {
@@ -56,6 +58,8 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
  const [pageSize,setPageSize]=useState(100);
  const [menu,setMenu]=useState<{row:ItemRow;x:number;y:number}|null>(null);
  const [openVisualRequest,setOpenVisualRequest]=useState(false);
+ const [attributesOpen,setAttributesOpen]=useState(false);
+ const [attributesDirty,setAttributesDirty]=useState(false),[attributesBusy,setAttributesBusy]=useState(false);
  const searchRef=useRef<HTMLInputElement>(null);
  const surfaceRef=useRef<HTMLDivElement>(null);
  const onDirtyChange=useCallback((value:boolean)=>setFormDirty(value),[]);
@@ -63,8 +67,8 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
  const onVisualDirty=useCallback((value:boolean)=>setVisualDirty(value),[]);
  const onVisualBusy=useCallback((value:boolean)=>setVisualBusy(value),[]);
  const onStatus=useCallback((message:string|null,tone:"success"|"error"="success")=>setStatus(message?{message,tone}:null),[]);
- const dirty=formDirty||visualDirty||translationDirty;
- const busy=formBusy||visualBusy||bulkBusy||translationBusy;
+ const dirty=formDirty||visualDirty||translationDirty||attributesDirty;
+ const busy=formBusy||visualBusy||bulkBusy||translationBusy||attributesBusy;
  const recordsDirtyKey="channel-foundry:records-unsaved";
  const recordsBusyKey="channel-foundry:records-busy";
  useEffect(()=>{
@@ -223,7 +227,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
    else if(legacyByKey.has(key))selectRecord("legacy",key);
  };
  return <div className="editorial-workspace records-v3" ref={surfaceRef} data-testid="records-workspace-v3">
-   {translationMode?<header className="records-v3-toolbar records-v3-translation-top"><button onClick={closeTranslation}>‹ Kayıt arşivine dön</button><strong>Türkçe / İngilizce yayın metinleri</strong><span>AI çeviri · inceleme · onay</span><button className={rightOpen?'is-active':''} onClick={()=>setRightOpen(value=>!value)}>◧ Görsel paneli</button></header> : <header className="records-v3-toolbar">
+   {translationMode?<header className="records-v3-toolbar records-v3-translation-top"><button onClick={closeTranslation}>‹ Kayıt arşivine dön</button><strong>Türkçe / İngilizce yayın metinleri</strong><span>AI çeviri · inceleme · onay</span><VisualBasketHub mode="manager" onStatus={onStatus}/><button className={rightOpen?'is-active':''} onClick={()=>setRightOpen(value=>!value)}>◧ Görsel paneli</button></header> : <header className="records-v3-toolbar">
      <div className="records-v3-search"><span aria-hidden="true">⌕</span><input ref={searchRef} aria-label="Kayıt dosyalarında ara" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tüm kayıtlarda ara…"/></div>
      <select aria-label="Kayıt türü" value={kind} onChange={e=>setKind(e.target.value)}>{filterOptions.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
      <select aria-label="Durum filtresi" value={state} onChange={e=>setState(e.target.value)}><option value="all">Tüm durumlar</option><option value="approved">Onaylı / yayında</option><option value="draft">Taslak</option><option value="excluded">Yayın dışı</option><option value="missing">Kaynak eksik</option></select>
@@ -231,6 +235,8 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
      <button className={multi?"is-active":""} onClick={()=>{setMulti(!multi);setChecked(new Set());}} aria-pressed={multi}>☑ Çoklu seçim</button>
      <button onClick={()=>{if(checkLeave())onCreate();}}>＋ Yeni kayıt</button>
      <button onClick={newSupport}>＋ Destek</button>
+     <button onClick={()=>{if(checkLeave())setAttributesOpen(true);}}>◈ Özellikler</button>
+     <VisualBasketHub mode="manager" onStatus={onStatus}/>
      <button onClick={enterTranslation}>🌐 TR / EN</button>
      <button className={rightOpen?"is-active":""} onClick={()=>{if(rightOpen&&!checkLeave())return;setRightOpen(value=>!value);}} aria-pressed={rightOpen}>◧ Bağlam</button>
    </header>}
@@ -298,6 +304,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
      {menu.row.source!=="support"&&<button role="menuitem" onClick={()=>{if(selectRecord(menu.row.source,menu.row.key)){setRightOpen(true);setOpenVisualRequest(true);}setMenu(null);}}>Görsel işlemlerini aç</button>}
      {menu.row.source==="legacy"&&<button role="menuitem" onClick={()=>{setMulti(true);toggleChecked(menu.row.key);setMenu(null);}}>Toplu seçime ekle / çıkar</button>}
    </div>}
+   {attributesOpen&&<Suspense fallback={<div className="attribute-overlay">Özellikler yükleniyor…</div>}><UniverseAttributesGrid nodes={nodes} onClose={()=>setAttributesOpen(false)} onDirtyChange={setAttributesDirty} onBusyChange={setAttributesBusy}/></Suspense>}
    <footer className="records-v3-status" aria-live="polite"><span className={status?.tone==="error"?"error":""}>{status?.message??(dirty?"● Kaydedilmemiş değişiklikler":"Yerel arşiv hazır · Canlı site yayını ayrı")}</span><span>{busy?"İşlem sürüyor":supportLoading?"Destek kayıtları yükleniyor":""}</span></footer>
  </div>;
 }

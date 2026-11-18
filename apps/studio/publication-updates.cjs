@@ -116,8 +116,19 @@ function buildUpdatePublication(baseline, built, visibility = {}) {
       next.name = candidate.name;
       next.aliases = structuredClone(candidate.aliases);
     }
-    // Images are independent of language source text and story revisions.
-    next.visual = structuredClone(candidate.visual ?? {});
+    // Editorial attribute strips are independent of narrative language and
+    // portraits: update existing published entities without requiring a full
+    // publication or introducing new archive records.
+    if (candidate.attributes && Object.keys(candidate.attributes).length) {
+      next.attributes = structuredClone(candidate.attributes);
+    } else {
+      delete next.attributes;
+    }
+    // Do not erase a previously published portrait when its local profile is
+    // temporarily missing. A separate explicit withdrawal is required.
+    // Present new portraits can still replace older published portraits.
+    next.visual = candidate.visual?.assetId
+      ? structuredClone(candidate.visual) : structuredClone(old.visual ?? {});
     if (JSON.stringify(next.visual) !== JSON.stringify(old.visual)) images++;
     if (JSON.stringify(next) !== JSON.stringify(old)) updated++;
     return [next];
