@@ -32,3 +32,21 @@
 - Güvenli içerik güncellemesi: publication-updates.cjs ile canlı manifestle karşılaştırma; sonra scripts/deploy-publication-review-natro.mjs ile yalnız content/ manifestini atomik güncelleme.
 - Tasarım inceleme giriş kapısı ve arama motorlarına kapalı durum şimdilik korunmalı. SEO ve açılış bu session kapsamı dışındadır.
 - Sahne testlerindeki eski kaynak ölçüsü ve sabit koordinat beklentileri yeni fiziksel nesne konumlarına uyumlandı.
+
+## 18 Kasım canlı yayın tamamlanma sonucu
+- Web ana dal commit/push: 8ebdc51, sahne/kamera/kapak görselleri ve özellik şeridi.
+- Studio/ana dal ilk commit/push: cfbb12b, özellik sistemi/OpenCode/sepet/publish güncellemeleri ve web gitlink.
+- Webin statik V2 deploy'u doğrulanmış FTPS hattından tamamlandı, content/ klasörü bu aşamada korunarak aktarıldı.
+- Sonra yalnız 18 onaylı özelliği taşıyan güvenli Evren manifesti atomik FTPS deploy ile güncellendi. Öncesinde canlı paketin özel geri dönüş kopyası alındı.
+- Eski manifest: pub-9d5a9dd539d0bd8d356cb42f
+- Yeni canlı manifest: pub-67e6c237405e9868fd316870
+- Canlıdan tekrar okuma: 18 kayıt, 276 anlatı, 2695 varlık, 5477 ilişki, 4 görsel. Tuji ve Hednuriş birleşik taraf etiketleri doğrulandı.
+- npm run verify:live PASS: HTTPS şifreli giriş, API okuma, sahne varlığı SHA ve eski sahne dosyalarının bulunmaması.
+- Sonuç kullanıcı gözlemi için hazır: https://birdesengorgizlievren.com
+- Bu session'da arama motoru kısıtlaması, giriş şifresi ve topluluk yönetimi değiştirilmedi.
+
+## Test notu
+- Web birim testleri: 289/289 geçti, üretim derlemesi geçti.
+- Studio sahne ölçüsü/görünürlük testleri güncellendi ve geçti; yayın merkezi tarayıcı testi güncellendi ve geçti.
+- Geniş Studio release zinciri ve web foundation e2e zinciri bazı eskimiş beklentilerden dolayı ilk seferde tamamen yeşil olmadı; kamera yerleşimi ve reduced-motion davranışı nedeniyle foundation testleri yeniden gözden geçirilmek üzere sonraki kalite turuna bırakıldı. Dağıtım planı, çalışma derlemeleri ve canlı doğrulama betikleri başarılıdır.
+- Kullanıcı ve site sahibi görsel kabul turunda sahne, kamera ve Evren sayfalarındaki şeritleri incelemeli; hatalar bir sonraki session'da topluca ele alınabilir.
