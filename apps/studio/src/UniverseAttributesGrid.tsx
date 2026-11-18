@@ -8,7 +8,8 @@ type Profile={entityKey:string;fields:Record<string,string>};
 type Proposal={entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence?:Array<{detailIndex:number;quote:string;sourceVideoId:string}>};
 type Analysis={entityKey:string;evaluatedAt:string;proposalCount:number};
 type Provenance={entityKey:string;field:string;reason:string;evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>};
-type Result={profiles:Profile[];proposals:Proposal[];analyses:Analysis[];provenance:Provenance[]};
+type Option={kind:string;field:string;value:string;labelEn:string};
+type Result={profiles:Profile[];proposals:Proposal[];analyses:Analysis[];provenance:Provenance[];dictionary:Option[]};
 type Props={nodes:Node[];onClose():void;onDirtyChange(value:boolean):void;onBusyChange(value:boolean):void};
 const categories:{kind:Kind;label:string;fields:{key:string;label:string}[]}[]=[
  {kind:"character",label:"Muhataplar",fields:[{key:"sideStatus",label:"Taraf durumu"},{key:"age",label:"Yaş"},{key:"species",label:"Tür"},{key:"dimension",label:"Boyut"},{key:"rank",label:"Mevki"}]},
@@ -20,13 +21,14 @@ const sides=[
  ["karanlik_once_aydinlik","Karanlık → Aydınlık"],
  ["aydinlik_once_karanlik","Aydınlık → Karanlık"],
 ];
+const controlled:Record<Kind,string[]>={character:["species","dimension","rank"],object:["type"],location:["type","position","dimension"]};
 const proposalId=(key:string,field:string)=>key+"::"+field;
 const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
 
 export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBusyChange}:Props){
  const bridge=window.channelFoundryStudio;
  const [kind,setKind]=useState<Kind>("character");
- const [data,setData]=useState<Result>({profiles:[],proposals:[],analyses:[],provenance:[]});
+ const [data,setData]=useState<Result>({profiles:[],proposals:[],analyses:[],provenance:[],dictionary:[]});
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
  const [query,setQuery]=useState("");
@@ -40,6 +42,12 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
  const [progress,setProgress]=useState("");
  const [parallel,setParallel]=useState(3);
  const [skipProcessed,setSkipProcessed]=useState(true);
+ const [managerOpen,setManagerOpen]=useState(false);
+ const [managerField,setManagerField]=useState("species");
+ const [optionName,setOptionName]=useState("");
+ const [optionEnglish,setOptionEnglish]=useState("");
+ const [mergeFrom,setMergeFrom]=useState("");
+ const [mergeInto,setMergeInto]=useState("");
  const [suggesting,setSuggesting]=useState(false);
  const stopRef=useRef(false);
  const reloadVersion=useRef(0);
@@ -69,6 +77,11 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
    return()=>{alive=false;};
  },[bridge,receiveData]);
  const config=categories.find(c=>c.kind===kind)!;
+ const optionFields=config.fields.filter(f=>controlled[kind].includes(f.key));
+ const vocabulary=(data.dictionary||[]).filter(o=>o.kind===kind&&o.field===managerField);
+ const getOptions=(field:string)=>data.dictionary?.filter(o=>o.kind===kind&&o.field===field)||[];
+ const optionText=(field:string,value:string)=>field==="dimension"?value+". boyut":value;
+ const changeKind=(value:Kind)=>{setKind(value);setManagerField(controlled[value][0]);setMergeFrom("");setMergeInto("");};
  const current=useMemo(()=>new Map(data.profiles.map(p=>[p.entityKey,p.fields])),[data.profiles]);
  const suggestions=useMemo(()=>new Map(data.proposals.map(p=>[proposalId(p.entityKey,p.field),p])),[data.proposals]);
  const approvedEvidence=useMemo(()=>new Map((data.provenance||[]).map(p=>[proposalId(p.entityKey,p.field),p])),[data.provenance]);
@@ -168,7 +181,34 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
      setProgress("");setSuggesting(false);setBusy(false);
    }
  };
- const selectKind=(value:Kind)=>{setKind(value);setQuery("");setFilter("all");setLimit(80);setChecked(new Set());setInspecting(null);};
+ const addOption=async()=>{
+   if(!bridge||busy||!optionName.trim())return;
+   setBusy(true);setMessage("");
+   try{const result=await bridge.universeAttributesOptionAdd({kind,field:managerField,value:optionName,labelEn:optionEnglish});
+     setMessage(result.created?"Sözlük seçeneği eklendi: "+result.value:"Sözlük seçeneği zaten mevcut: "+result.value);
+     setOptionName("");setOptionEnglish("");await reload();
+   }catch(e){setMessage(errorText(e));}finally{setBusy(false);}
+ };
+ const mergeOptions=async()=>{
+   if(!bridge||busy||!mergeFrom||!mergeInto||mergeFrom===mergeInto)return;
+   if(!window.confirm(`"${mergeFrom}" seçeneği "${mergeInto}" içine birleştirilsin mi? İlişkili onaylı değerler ve öneriler güncellenecek.`))return;
+   setBusy(true);setMessage("");
+   try{const result=await bridge.universeAttributesOptionMerge({kind,field:managerField,source:mergeFrom,target:mergeInto});
+     setMergeFrom("");setMergeInto("");await reload();
+     setMessage(result.changed+" onaylı kayıt güncellendi. Yayına yansıması için yayın gerekir.");
+   }catch(e){setMessage(errorText(e));}finally{setBusy(false);}
+ };
+ const resetAttributes=async()=>{
+   if(!bridge||busy||pending)return;
+   const confirmation=window.prompt("Yalnız özellik değerleri, AI önerileri, kaynak kanıtları ve incelendi kayıtları silinecek. Varlıklar ve kaynak anlatılar kalacak. Devam için ÖZELLİKLERİ SIFIRLA yaz:");
+   if(confirmation!=="ÖZELLİKLERİ SIFIRLA")return;
+   setBusy(true);setMessage("");
+   try{const counts=await bridge.universeAttributesReset({confirmation});setChecked(new Set());setProposalChecked(new Set());
+     knownProposalsRef.current=new Set();await reload();
+     setMessage(`Özellikler sıfırlandı: ${counts.universe_entity_attributes||0} profil, ${counts.universe_entity_attribute_proposals||0} öneri, ${counts.universe_entity_attribute_analysis||0} analiz kaydı. Varlıklar korundu.`);
+   }catch(e){setMessage(errorText(e));}finally{setBusy(false);}
+ };
+ const selectKind=(value:Kind)=>{changeKind(value);setQuery("");setFilter("all");setLimit(80);setChecked(new Set());setInspecting(null);};
  return createPortal(<div className="attribute-overlay" role="dialog" aria-modal="true" aria-label="Evren özellikleri">
   <div className="attribute-workspace">
    <header className="attribute-heading"><div><small>EVREN · KAYIT YÖNETİMİ</small><h2>Özellikler</h2><p>Kaynak anlatılar ve görseller değişmez. Yalnızca onaylı özellikler webde görünür.</p></div><button type="button" onClick={exit} disabled={busy} aria-label="Özellikler penceresini kapat">✕</button></header>
@@ -191,11 +231,29 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
        setChecked(new Set(visible.filter(n=>!processedKeys.has(n.key)).slice(0,10).map(n=>n.key)));
      }}>İlk 10'u seç</button>
      <button disabled={busy||!selectedCount||pending} onClick={()=>void suggest()}>✧ Seçililere AI önerisi</button>
+     <button disabled={busy} aria-expanded={managerOpen} onClick={()=>setManagerOpen(value=>!value)}>{managerOpen?"▴ Sözlüğü kapat":"▾ Sözlüğü yönet"}</button>
      {suggesting&&<button onClick={()=>{
        stopRef.current=true;
        setMessage("Yeni paket başlatılmayacak; çalışan oturumların bitmesi beklenecek.");
      }}>Durdur</button>}
    </div>
+   {managerOpen&&<section className="attribute-dictionary" aria-label="Özellik sözlüğü yönetimi">
+     <div className="attribute-dictionary-heading"><strong>Ortak özellik sözlüğü</strong><small>Değerler bu kategorideki bütün kayıtlara uygulanır. Mezna için boyut otomatik atanmaz; kaynağa göre seçilir.</small></div>
+     <label>Alan <select aria-label="Sözlük alanı" disabled={busy} value={managerField} onChange={e=>{setManagerField(e.target.value);setMergeFrom("");setMergeInto("");}}>
+       {optionFields.map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+     </select></label>
+     <label>Yeni seçenek <input disabled={busy} aria-label="Yeni sözlük seçeneği" value={optionName} maxLength={65} placeholder={managerField==="dimension"?"1–99": "Yeni değer…"} onChange={e=>setOptionName(e.target.value)}/></label>
+     <label>İngilizce (opsiyonel) <input disabled={busy} aria-label="Seçenek İngilizce adı" value={optionEnglish} maxLength={100} placeholder="English label" onChange={e=>setOptionEnglish(e.target.value)}/></label>
+     <button disabled={busy||!optionName.trim()} onClick={()=>void addOption()}>+ Ekle</button>
+     <div className="attribute-dictionary-merge"><span>Birleştir</span>
+       <select aria-label="Birleştirilecek seçenek" value={mergeFrom} disabled={busy} onChange={e=>setMergeFrom(e.target.value)}><option value="">Kaynak seç…</option>{vocabulary.map(o=><option key={o.value} value={o.value}>{optionText(managerField,o.value)}</option>)}</select>
+       <span>→</span>
+       <select aria-label="Birleşecek hedef" value={mergeInto} disabled={busy} onChange={e=>setMergeInto(e.target.value)}><option value="">Hedef seç…</option>{vocabulary.filter(o=>o.value!==mergeFrom).map(o=><option key={o.value} value={o.value}>{optionText(managerField,o.value)}</option>)}</select>
+       <button disabled={busy||!mergeFrom||!mergeInto||mergeFrom===mergeInto} onClick={()=>void mergeOptions()}>Birleştir</button>
+     </div>
+     <button className="attribute-reset" disabled={busy||pending} onClick={()=>void resetAttributes()}>Özellik kayıtlarını sıfırla…</button>
+   </section>}
+   <datalist id="attribute-custodian-names">{nodes.filter(n=>n.state==="approved"&&n.kind==="character").map(n=><option key={n.key} value={n.name}/>)}</datalist>
    <div className="attribute-table-scroll">
     <table className="attribute-table"><thead><tr><th>Seç</th><th>Kayıt</th>{config.fields.map(f=><th key={f.key}>{f.label}</th>)}</tr></thead>
      <tbody>{visible.slice(0,limit).map(node=><tr key={node.key}>
@@ -208,9 +266,17 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
          return <td key={field.key} className={id in drafts?"attribute-edited":proposal?"attribute-proposed":""}>
            <div className="attribute-cell">
              {field.key==="sideStatus"?<select disabled={busy} aria-label={node.name+" "+field.label} value={value} onChange={e=>setDraft(node.key,field.key,e.target.value)}>{sides.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
-              :<input disabled={busy} aria-label={node.name+" "+field.label} value={value} onChange={e=>setDraft(node.key,field.key,e.target.value)} maxLength={140} placeholder="—"/>}
+              :controlled[kind].includes(field.key)?<select disabled={busy} aria-label={node.name+" "+field.label} value={value} onChange={e=>{
+                 setDraft(node.key,field.key,e.target.value);
+                 if(kind==="location"&&field.key==="position"&&e.target.value==="Dünya"&&!current.get(node.key)?.dimension&&!drafts[proposalId(node.key,"dimension")])setDraft(node.key,"dimension","3");
+               }}>
+                 <option value="">Belirtilmedi</option>
+                 {value&&!getOptions(field.key).some(o=>o.value===value)&&<option value={value}>{optionText(field.key,value)} (eski değer)</option>}
+                 {getOptions(field.key).map(o=><option key={o.value} value={o.value}>{optionText(field.key,o.value)}</option>)}
+               </select>
+              :<input disabled={busy} aria-label={node.name+" "+field.label} list={field.key==="custodian"?"attribute-custodian-names":undefined} value={value} onChange={e=>setDraft(node.key,field.key,e.target.value)} maxLength={field.key==="property"?90:140} placeholder="—"/>}
              {proposal&&<div className="attribute-proposal">
-               <label title="Bu AI önerisini toplu incelemeye dahil et"><input type="checkbox" checked={proposalChecked.has(id)} onChange={e=>setProposalChecked(old=>{const next=new Set(old);e.target.checked?next.add(id):next.delete(id);return next;})}/><span>AI: {field.key==="sideStatus"?sides.find(([v])=>v===proposal.value)?.[1]||proposal.value:proposal.value}</span></label>
+               <label title="Bu AI önerisini toplu incelemeye dahil et"><input type="checkbox" checked={proposalChecked.has(id)} onChange={e=>setProposalChecked(old=>{const next=new Set(old);e.target.checked?next.add(id):next.delete(id);return next;})}/><span>AI: {field.key==="sideStatus"?sides.find(([v])=>v===proposal.value)?.[1]||proposal.value:field.key==="dimension"?optionText(field.key,proposal.value):proposal.value}{controlled[kind].includes(field.key)&&!getOptions(field.key).some(o=>o.value===proposal.value)?" · yeni seçenek":""}</span></label>
                <button type="button" aria-label={node.name+" "+field.label+" öneri kaynağı"} onClick={()=>setInspecting(inspecting===id?null:id)}>ⓘ</button>
              </div>}
              {!proposal&&approvedEvidence.has(id)&&<button className="attribute-approved-source" type="button"

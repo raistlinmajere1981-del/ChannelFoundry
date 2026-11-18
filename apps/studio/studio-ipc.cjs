@@ -253,6 +253,12 @@ function registerEditorialHandlers() {
   ipcMain.handle("studio:universe-attributes-save", (_event, input) => universeAttributes.saveMany(runtime.database(), input));
   ipcMain.handle("studio:universe-attributes-review", (_event, input) => universeAttributes.review(runtime.database(), input));
   ipcMain.handle("studio:universe-attributes-suggest", (_event, input) => universeAttributes.suggest(runtime.database(), app.getPath("userData"), input));
+  ipcMain.handle("studio:universe-attributes-option-add", (_event,input) => universeAttributes.registerOption(runtime.database(),input));
+  ipcMain.handle("studio:universe-attributes-option-merge", (_event,input) => universeAttributes.mergeOption(runtime.database(),input));
+  ipcMain.handle("studio:universe-attributes-reset", (_event,input) => {
+    if(input?.confirmation!=="ÖZELLİKLERİ SIFIRLA")throw new Error("Silme onayı geçersiz.");
+    return universeAttributes.clearAll(runtime.database());
+  });
   ipcMain.handle("studio:universe-workspace-status", () => universeWorkspace.status(runtime.database()));
   ipcMain.handle("studio:universe-workspace-list", (_event, input) => universeWorkspace.listNodes(runtime.database(), input));
   ipcMain.handle("studio:universe-workspace-relations", (_event, input) => universeWorkspace.listRelations(runtime.database(), input));

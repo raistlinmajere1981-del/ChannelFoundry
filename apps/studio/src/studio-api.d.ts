@@ -523,10 +523,13 @@ interface Window {
     universeMergeStart(input?: { videoIds?: string[] }): Promise<StudioUniverseMergeStatus>;
     universeMergeResume(): Promise<{ running: boolean; reason?: string } & StudioUniverseMergeStatus>;
     universeMergeCancel(): Promise<{ running: boolean; canceled: number; runId: number | null } & StudioUniverseMergeStatus>;
-    universeAttributesList(): Promise<{profiles: Array<{entityKey:string;fields:Record<string,string>}>;proposals: Array<{entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>;analyses:Array<{entityKey:string;evaluatedAt:string;proposalCount:number}>;provenance:Array<{entityKey:string;field:string;reason:string;evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>}>;
+    universeAttributesList(): Promise<{profiles: Array<{entityKey:string;fields:Record<string,string>}>;proposals: Array<{entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>;analyses:Array<{entityKey:string;evaluatedAt:string;proposalCount:number}>;provenance:Array<{entityKey:string;field:string;reason:string;evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>}>;dictionary:Array<{kind:string;field:string;value:string;labelEn:string}>}>;
     universeAttributesSave(input:{edits:Array<{entityKey:string;field:string;value:string}>}):Promise<{changed:number}>;
     universeAttributesReview(input:{action:"approve"|"reject";items:Array<{entityKey:string;field:string}>}):Promise<{reviewed:number;action:string}>;
     universeAttributesSuggest(input:{keys:string[]}):Promise<{evaluated:number;proposed:number}>;
+    universeAttributesOptionAdd(input:{kind:string;field:string;value:string;labelEn?:string}):Promise<{value:string;created:boolean}>;
+    universeAttributesOptionMerge(input:{kind:string;field:string;source:string;target:string}):Promise<{changed:number;source:string;target:string}>;
+    universeAttributesReset(input:{confirmation:string}):Promise<Record<string,number>>;
     universeWorkspaceStatus(): Promise<StudioUniverseWorkspaceStatus>;
     universeWorkspaceList(input?: { kind?: StudioUniverseWorkspaceNode["kind"]; state?: StudioUniverseWorkspaceState }): Promise<StudioUniverseWorkspaceNode[]>;
     universeWorkspaceApply(runId?: number): Promise<StudioUniverseWorkspaceApplyResult>;

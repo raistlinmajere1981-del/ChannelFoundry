@@ -101,6 +101,18 @@ function validateSuggestion(kind,field,value,evidence){
       if(!explicitHistory&&!faithHistory)return false;
     }
   }
+  if(kind==="location"&&field==="position"&&/^Dünya$/i.test(v)&&
+      !/(?:dünya|yeryüzü)/iu.test(joined))return false;
+  // Do not infer a numeric dimension from a place name, chronology, or a
+  // nearby number; the source quote itself must identify that dimension.
+  if(field==="dimension"){
+    if(!/^[1-9][0-9]?$/.test(v)||Number(v)>99)return false;
+    const numeric=new RegExp("(?:\\b"+v+"\\s*\\.?\\s*(?:nci|ıncı|inci|uncu|üncü)?\\s*\\.?(?:\\s*)boyut|boyut(?:ta|unda|unun|un|u)?\\s*"+v+"\\b)","iu");
+    const ordinalNames=["","birinci","ikinci","üçüncü","dördüncü","beşinci","altıncı","yedinci","sekizinci","dokuzuncu","onuncu","on birinci","on ikinci"];
+    const word=ordinalNames[Number(v)];
+    const written=word&&joined.toLocaleLowerCase("tr-TR").includes(word+" boyut");
+    if(!numeric.test(joined)&&!written)return false;
+  }
   if(kind==="character"&&field==="rank"){
     if(ROLE_LESS.test(v))return false;
     // "He presided over a court" is an action, not the formal post of chair.
@@ -118,7 +130,7 @@ function validateSuggestion(kind,field,value,evidence){
   }
   if(kind==="object"&&field==="type"&&/^(?:nesne|eşya|parça)$/i.test(v))return false;
   if(kind==="location"&&field==="type"&&/^(?:mekân|yer|alan|bölge)$/i.test(v))return false;
-  if(kind==="location"&&field==="position"&&/^(?:bilinmiyor|dünya|evren)$/i.test(v))return false;
+  if(kind==="location"&&field==="position"&&/^(?:bilinmiyor|evren)$/i.test(v))return false;
   return true;
 }
 module.exports={sourceContext,evidenceFor,validateSuggestion,faithSignals};

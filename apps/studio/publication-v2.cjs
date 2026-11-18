@@ -115,7 +115,8 @@ function addAsset(assetMap, sourceMap, input) {
 
 function archiveData(db, assetMap, assetSourceMap) {
   const editorial = universeWorkspace.publicEditorial(db);
-  const attributes = new Map(universeAttributes.list(db).profiles.map(row => [row.entityKey, row.fields]));
+  const attributeData=universeAttributes.list(db);
+  const attributes = new Map(attributeData.profiles.map(row => [row.entityKey, row.fields]));
   const relationIds = new Map(editorial.nodes.map((node) => [node.id, []]));
   const relations = editorial.relations.map((relation) => {
     relationIds.get(relation.fromId)?.push(relation.id);
@@ -146,7 +147,10 @@ function archiveData(db, assetMap, assetSourceMap) {
     return {
       entityId: node.id,
       kind: node.kind,
-      ...(attributes.has(node.id) ? { attributes: universeAttributes.publicFields(node.kind, attributes.get(node.id)) } : {}),
+      ...(attributes.has(node.id) ? {
+        attributes: universeAttributes.publicFields(node.kind, attributes.get(node.id)),
+        attributesEn: universeAttributes.englishFields(node.kind,attributes.get(node.id),attributeData.dictionary),
+      } : {}),
       name: node.name,
       aliases: stringArray(node.aliases, 100, 300),
       summary: clean(node.summary, 6000),

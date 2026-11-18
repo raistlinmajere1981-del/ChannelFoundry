@@ -50,3 +50,16 @@
 
 .attribute-approved-source{align-self:flex-start;border:0;background:transparent;color:var(--text-secondary);font-size:10px;padding:2px 0;cursor:pointer}
 .attribute-approved-source:hover{text-decoration:underline}
+
+/* Vocabulary management stays compact above the scrolling data grid. */
+.attribute-dictionary{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:11px 18px;border-bottom:1px solid var(--border-control);background:var(--surface-raised,#f7f4ed);font-size:12px}
+.attribute-dictionary-heading{display:flex;flex-direction:column;flex:1 1 100%;gap:2px}
+.attribute-dictionary-heading small{color:var(--text-muted);font-size:11px}
+.attribute-dictionary label{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.attribute-dictionary :is(select,input,button){box-sizing:border-box;min-height:32px;padding:6px 8px;border:1px solid var(--border-control);border-radius:5px;background:var(--surface-input);color:var(--text-primary)}
+.attribute-dictionary input{width:155px;min-width:80px}
+.attribute-dictionary select{max-width:200px}
+.attribute-dictionary-merge{display:flex;align-items:center;gap:6px;margin-left:auto}
+.attribute-dictionary button:disabled{opacity:.45}
+.attribute-dictionary .attribute-reset{margin-left:auto;font-size:11px;border-color:#ad7b69;color:var(--text-secondary)}
+@media(max-width:1100px){.attribute-dictionary-merge{margin-left:0}.attribute-dictionary .attribute-reset{margin-left:0}}
