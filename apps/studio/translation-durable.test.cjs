@@ -164,3 +164,12 @@ test("name fidelity is checked per field, not just anywhere in the translated re
  const result=durable.qa(original,wrong,durable.fieldsFrom(original,"entity"));
  assert(result.flags.some(x=>x.startsWith('NAME_MISSING:Ömer:')));
 });
+
+test("repeated Huşimi proper name does not trigger generic untranslated-Turkish detector",()=>{
+ const tr={summary:"Huşimi hakkında konuştuklarını ve Huşimi'nin korunduğunu anlattı."};
+ const en={summary:Array(14).fill("Huşimi was mentioned in this account").join(". ")+". "};
+ const ok=durable.qa(tr,en,durable.fieldsFrom(tr,"entity")).flags;
+ assert(!ok.includes("POSSIBLE_TURKISH"));
+ const bad={summary:en.summary+Array(4).fill("Burası gerçekten çok önemli bir konuydu, çünkü açıklama yapılmamıştı.").join(" ")};
+ assert(durable.qa(tr,bad,durable.fieldsFrom(tr,"entity")).flags.includes("POSSIBLE_TURKISH"));
+});
