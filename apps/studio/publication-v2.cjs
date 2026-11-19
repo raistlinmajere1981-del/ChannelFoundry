@@ -277,8 +277,10 @@ function buildPublicationV2(db, options = {}) {
     locales:publishedVideoLanguage.published(db,'video',video.videoId),
   })) };
   const support = supportPublic.publicationSupport(db, youtubeAnalysis.videos);
-  if (!options.sourceOnly) require('./channel-drawing.cjs').synchronize(db, youtubeAnalysis.videos.filter(video =>
-    Object.keys(require('./publication-languages.cjs').published(db, 'video', video.videoId)).length > 0));
+  // Channel-drawing sponsor names are explicitly confirmed editorial facts
+  // attached to curated public videos. A pending TR/EN video prose translation
+  // must not freeze the sponsor engraving at an older episode.
+  if (!options.sourceOnly) require('./channel-drawing.cjs').synchronize(db, youtubeAnalysis.videos);
   const vefkCatalog = vefkPublication.buildCatalog(db);
   let logical = {
     schemaVersion: 2,

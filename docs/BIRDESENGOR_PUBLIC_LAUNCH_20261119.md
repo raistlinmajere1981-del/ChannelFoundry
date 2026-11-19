@@ -4,7 +4,7 @@
 
 **Alan adı:** https://birdesengorgizlievren.com/
 
-**Etkin publication:** `pub-928879f6e7942b060e61597a`
+**İlk açılış publication:** `pub-928879f6e7942b060e61597a` (destekçi düzeltmesiyle güncellendi; aşağıya bakın)
 
 ## Yayın kararı
 
@@ -45,3 +45,15 @@ Açılış için bütün İngilizce metinleri bitirme zorunluluğu kaldırıldı
 ## Git / çalışma kapanışı
 
 Web ve Studio kaynakları ayrı Git depolarında; web alt modülünün güncel commit'i, ana depoda submodule pointer olarak kaydedilir. Yerel SQLite yedeği, geçici çeviri dosyaları ve FTPS kimlik bilgileri **Git'e eklenmez**. Canlı yayın ile Git kaynak sürümü arasında son uyum kontrolü yapılır.
+
+## Son destekçi senkronizasyonu — 19 Kasım
+
+**Güncel canlı publication:** `pub-6fba852098525b848f30ae5b`.
+
+- Topluluk Defteri sağ/sol destekçi bölümünün PHP sorgusu yalnız `youtubeAnalysis.videos` listesindeki 50 tam TR/EN yayın varyantını kullanıyordu. Oysa yeni üç bölüm, `cameraArchive.videos` içindeki kaynak çözümleme arşivinde mevcut ve `support.sponsors` içinde onaylıydı.
+- Destekçi sayfası artık aynı imzalı paketteki, editoryal olarak seçilmiş tamamlanmış `cameraArchive.videos` kayıtlarını kullanır. TR için yalnız özgün YouTube başlığı kaynak metadata olarak gösterilir; eksik İngilizce çeviri üretilmiş gibi sunulmaz. Üyelere özel veya yayımlanmamış video kabul edilmez.
+- Yeni üç bölüm doğrulandı: 12 Kasım 2026 `inlvdZQQCRU` → **Altınay Ruhsal Uyanış**; 14 Kasım 2026 `Y4x5esJF-bY` → **Amine Sultan**; 16 Kasım 2026 `UiY0YmNqpT8` → **Cihat Girgin**. Sponsor kimliği/video ilişkileri korunmuştur.
+- Çizim Atölyesi, video metninin ayrıca TR/EN onayı bulunmasa bile videonun onaylı destekçi kaydından güncellenebilir. Otomatik üretim, editoryal `curated` / `confirm` doğrulamalarını ve kaynak tarihini hâlâ şart koşar. Yeni imzalı çizim belgesi **revizyon 5**: `16 Kasım 2026 Cihat Girgin`.
+- Kayıt sayıları değişmedi: **279 anlatı, 2.718 Evren varlığı, 5.519 ilişki, 5 görsel**. Yeni publication yalnız destekçi görünürlüğü ve çizim revizyonunu günceller; çeviri adayları onaylanmadı.
+- Yerel geri dönüş kopyası: `channels/birdesengor/.local-data/studio/backups/before-sponsor-sync-20261119.sqlite` ve `before-sponsor-sync-20261119-publication.json`. Canlı eski paket kopyası: `channels/birdesengor/.local-data/studio/backups/before-reviewed-full-publication-2026-11-19T02-27-37-279Z/`.
+- Testler: Studio ilgili modüller **20/20**, PHP topluluk API **22/22**, web **293/293**; build, PHP syntax, dist, preview, FTPS plan/deploy ve canlı üç bölüm/çizim revizyonu doğrulamaları geçti. Site giriş şifresiz kaldı; `noindex`, `robots.txt` ve SEO rotası 404 denetimi korundu.

@@ -142,14 +142,18 @@ test('normal publication build synchronizes sponsor and signed catalog; unpublis
     assert.equal(first.vefkCatalog.entries[0].revision,2);
     assert.match(first.vefkCatalog.entries[0].document.accessibility.matrixText,/Yayın Sponsoru/);
     assert.equal(first.vefkLanguages[drawing.ID].tr.title,'Sponsorluk');
-    const last=video(db,'BCDEFGHIJKL','2026-01-02',['Henüz Yayınlanmayan']);
-    const unchanged=publication.buildPublicationV2(db).snapshot;
-    assert.equal(unchanged.vefkCatalog.entries[0].revision,2);
-    assert.ok(!unchanged.youtubeAnalysis.videos.some(v=>v.videoId===last.videoId));
+    const last=video(db,'BCDEFGHIJKL','2026-01-02',['Yeni Onaylı Sponsor']);
+    const withoutVideoTranslation=publication.buildPublicationV2(db).snapshot;
+    assert.equal(withoutVideoTranslation.vefkCatalog.entries[0].revision,3,
+      'confirmed sponsor advances even if published video prose lacks a TR/EN variant');
+    assert.match(withoutVideoTranslation.vefkCatalog.entries[0].document.accessibility.matrixText,/Yeni Onaylı Sponsor/);
+    assert.ok(!withoutVideoTranslation.youtubeAnalysis.videos.some(v=>v.videoId===last.videoId),
+      'do not publish unapproved video translation just to update its sponsor');
     approve(db);
     const next=publication.buildPublicationV2(db).snapshot;
     assert.equal(next.vefkCatalog.entries.length,1);assert.equal(next.vefkCatalog.entries[0].id,drawing.ID);
-    assert.equal(next.vefkCatalog.entries[0].revision,3);assert.match(next.vefkCatalog.entries[0].document.accessibility.matrixText,/Henüz Yayınlanmayan/);
+    assert.equal(next.vefkCatalog.entries[0].revision,3);
+    assert.match(next.vefkCatalog.entries[0].document.accessibility.matrixText,/Yeni Onaylı Sponsor/);
   }finally{db.close();}
 });
 test('publication date is drawn from the approved episode and corrections create one new revision',()=>{
