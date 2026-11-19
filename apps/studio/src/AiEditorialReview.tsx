@@ -13,7 +13,7 @@ type ReviewBridge = NonNullable<typeof window.channelFoundryStudio> & {
 
 const kindLabel: Record<StudioUniverseWorkspaceNode["kind"], string> = {
   story: "Hikâye",
-  character: "Muhatap",
+  character: "Karakter",
   event: "Olay",
   location: "Mekân",
   object: "Nesne",
@@ -119,7 +119,7 @@ export default function AiEditorialReview() {
   const hasVisualDetails = Boolean(selectedVisual && (selectedVisual.description || selectedVisual.attributes.length || selectedVisual.atmosphere || selectedVisual.prompt || selectedVisual.negativePrompt));
   const contextGroups = selected ? [
     ["Hikâyeler", payloadArray(selected, "storyNames")],
-    ["Muhataplar", payloadArray(selected, "characterNames")],
+    ["Karakterler", payloadArray(selected, "characterNames")],
     ["Mekânlar", payloadArray(selected, "locationNames")],
     ["Nesneler", payloadArray(selected, "objectNames")],
   ].filter(([, values]) => (values as string[]).length) as Array<[string, string[]]> : [];
@@ -129,7 +129,7 @@ export default function AiEditorialReview() {
       <section className="panel ai-review-list">
         <div className="ai-review-toolbar">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Adaylarda ara…"/>
-          <select value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}><option value="all">Tüm türler</option><option value="story">Hikâyeler</option><option value="character">Muhataplar</option><option value="event">Olaylar</option><option value="location">Mekânlar</option><option value="object">Nesneler</option></select>
+          <select value={kind} onChange={(event) => setKind(event.target.value as KindFilter)}><option value="all">Tüm türler</option><option value="story">Hikâyeler</option><option value="character">Karakterler</option><option value="event">Olaylar</option><option value="location">Mekânlar</option><option value="object">Nesneler</option></select>
           <select value={state} onChange={(event) => setState(event.target.value as StateFilter)}><option value="draft">İnceleme bekleyen</option><option value="approved">Onaylı</option><option value="all">Tüm durumlar</option></select>
           <button className="secondary-button" disabled={busy || !filtered.length} onClick={() => void changeState(filtered.map((node) => node.key), state === "approved" ? "draft" : "approved")}>{state === "approved" ? "Görünenleri taslağa çek" : "Görünenleri onayla"}</button>
         </div>
@@ -141,7 +141,7 @@ export default function AiEditorialReview() {
         {selected ? <>
           <header><div><small>{kindLabel[selected.kind].toUpperCase()} · {selected.sourceVideoIds.length} KAYNAK</small><h3>{selected.name}</h3>{selected.aliases.length > 0 && <p>{selected.aliases.join(" · ")}</p>}</div><div><span className={`ai-review-state ${selected.state}`}>{selected.state === "approved" ? "Onaylı" : "İnceleme bekliyor"}</span><button className={selected.state === "draft" ? "primary-button" : "secondary-button"} disabled={busy} onClick={() => void changeState([selected.key], selected.state === "draft" ? "approved" : "draft")}>{selected.state === "draft" ? "Onayla" : "Taslağa çek"}</button></div></header>
           {selected.kind === "character" && <section className="ai-review-main-control">
-            <label className="record-main-character"><input type="checkbox" checked={Boolean(selected.isMainCharacter)} disabled={busy} onChange={(event) => void chooseMainCharacter(selected, event.target.checked)}/><span><strong>Ana karakter</strong><small>Birden fazla muhatap seçilebilir. Taslaklar da işaretlenebilir; yalnız onaylı kişiler sonraki Evren ve Hikâyeleştir bağlamına alınır.</small></span></label>
+            <label className="record-main-character"><input type="checkbox" checked={Boolean(selected.isMainCharacter)} disabled={busy} onChange={(event) => void chooseMainCharacter(selected, event.target.checked)}/><span><strong>Ana karakter</strong><small>Birden fazla karakter seçilebilir. Taslaklar da işaretlenebilir; yalnız onaylı kişiler sonraki Evren ve Hikâyeleştir bağlamına alınır.</small></span></label>
           </section>}
           <article className="ai-review-summary"><small>ÖZET</small><p>{selected.summary || "Özet bulunmuyor."}</p></article>
           {payloadArray(selected, "roles").length > 0 && <section><small>ROL / TÜR</small><div className="ai-review-chips">{payloadArray(selected, "roles").map((entry) => <span key={entry}>{entry}</span>)}</div></section>}
@@ -157,7 +157,7 @@ export default function AiEditorialReview() {
               {selectedVisual.negativePrompt && <p className="ai-review-visual-negative"><strong>Kaçınılacak:</strong> {selectedVisual.negativePrompt}</p>}
             </div>
           </section>}
-          <footer><div><small>KAYNAK VİDEOLAR</small><div className="ai-review-source-ids">{selected.sourceVideoIds.map((id) => <code key={id} title={`Video kimliği: ${id}`}>{videoSourceTitle(id, videoCatalog)}</code>)}</div></div><button className="text-button" onClick={() => void bridge.navigate(selected.kind === "character" ? "Muhataplar" : "Kayıt Dosyaları")}>Ayrıntılı editöre aç →</button></footer>
+          <footer><div><small>KAYNAK VİDEOLAR</small><div className="ai-review-source-ids">{selected.sourceVideoIds.map((id) => <code key={id} title={`Video kimliği: ${id}`}>{videoSourceTitle(id, videoCatalog)}</code>)}</div></div><button className="text-button" onClick={() => void bridge.navigate(selected.kind === "character" ? "Karakterler" : "Kayıt Dosyaları")}>Ayrıntılı editöre aç →</button></footer>
         </> : <div className="ai-review-detail-empty">İncelemek için bir evren adayı seç.</div>}
       </section>
     </div>

@@ -227,6 +227,7 @@ export async function readVefkPublication(raw, scene) {
     archive: raw.archive,
     assets: raw.assets,
     youtubeAnalysis: raw.youtubeAnalysis,
+    ...(raw.cameraArchive != null ? {cameraArchive:raw.cameraArchive} : {}),
     support: raw.support,
     ...(raw.vefkCatalog != null ? { vefkCatalog: raw.vefkCatalog } : {}),
   };

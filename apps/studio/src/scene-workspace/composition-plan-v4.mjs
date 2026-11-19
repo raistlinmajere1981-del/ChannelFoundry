@@ -18,11 +18,11 @@ export const COMPOSITION_GUIDE=Object.freeze({
   ]),
   details:Object.freeze([
     zone('robe','Kaftan',.415,.16,.18,.47,'Korunan renk ve kuşak, gölge/ışık sahneye göre uyarlanır'),
-    zone('stone','Taş ve damlalık',.254,.555,.12,.20,'Kaynak ağzı taşın üzerindeki darbe hedefi ile doğrultulu'),
+    zone('stone','Yeşim ve bakır plaka',.1834,.5851,.1122,.205,'Titreşim dalgaları yeşimden plakaya yayılır'),
     zone('pendulum','Metal sarkaç',.34,.435,.12,.265,'Korunan pirinç tasarım, bağlantı ve hareketi ayrı'),
-    zone('chest','Sandık',.807,.39,.18,.23,'Gövde sabit; arka menteşe ayrı; kapak açılırken üst boşluk'),
-    zone('dagger','Tören hançeri',.70,.805,.11,.16,'Korunan şekil ve desen; masa temas gölgesi'),
-    zone('incense','Tütsü',.835,.62,.13,.1,'Korunan form; pasif soğuk, tıklamayla kısa süreli hareket'),
+    zone('chest','Sandık',.245,.516,.067,.066,'Kapak rafta hafifçe aralanınca içeriden ışık sızar'),
+    zone('dagger','Tören hançeri',.017,.486,.093,.098,'Özgün hançer iki bronz kancalı askılığa oturur'),
+    zone('incense','Tütsü',.014,.639,.094,.109,'Ayaksız ahşap tablaya yarısı yanmış tütsü takılıdır'),
     zone('candle','Mum ve su kabı',.08,.585,.15,.265,'Görseli yeniden tasarlanabilir; görünür efekt yeri gerek'),
   ]),
 });

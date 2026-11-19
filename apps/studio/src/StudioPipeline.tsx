@@ -54,7 +54,7 @@ const navIcons: Record<(typeof sections)[number], StudioIconName> = {
 };
 
 type Section = (typeof sections)[number];
-type NavigableSection = Section | "Muhataplar";
+type NavigableSection = Section | "Karakterler" | "Muhataplar";
 type ItemKind = StudioPersistedItem["kind"];
 type StudioItem = StudioPersistedItem & { relatedCount: number };
 type StudioChannelBridge = NonNullable<typeof window.channelFoundryStudio> & {
@@ -232,7 +232,7 @@ export default function StudioPipeline() {
     if (active === "Vefk Atölyesi" && section !== active
       && sessionStorage.getItem("channel-foundry:vefk-unsaved") === "1"
       && !window.confirm("Kaydedilmemiş vefk düzenlemeleri var. Çalışma alanından çıkılsın mı?")) return;
-    if (section === "Muhataplar") {
+    if (section === "Karakterler" || section === "Muhataplar") {
       requestEditorialMode("characters");
       setActive("Kayıt Dosyaları");
       return;
@@ -265,12 +265,12 @@ export default function StudioPipeline() {
   const toggleSidebar = () => setSidebarMode((current) => saveSidebarMode(current === "expanded" ? "collapsed" : "expanded"));
   const createDraft = async (kind: ItemKind) => {
     const identity = makeIdentity(kind);
-    const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni muhatap", event: "Yeni olay", file: "Yeni dosya" };
+    const titles: Record<ItemKind, string> = { video: "Yeni kayıt", character: "Yeni karakter", event: "Yeni olay", file: "Yeni dosya" };
     const item: StudioPersistedItem = { ...identity, kind, title: titles[kind], meta: "", summary: "İçerik özetini buraya yaz.", status: "draft" };
     try {
       const saved = bridge ? await bridge.saveItem(item) : item;
       setItems((current) => [saved, ...current]);
-      activateSection(kind === "character" ? "Muhataplar" : "Kayıt Dosyaları");
+      activateSection(kind === "character" ? "Karakterler" : "Kayıt Dosyaları");
       setShowCreate(false);
       setError(null);
     } catch (reason) { setError(errorText(reason)); }
@@ -417,5 +417,5 @@ function SettingsWorkspace({ databaseInfo, catalog, workspaceStatus }: { databas
 }
 
 function CreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (kind: ItemKind) => void }) {
-  return <div className="modal-backdrop" onMouseDown={onClose}><div className="create-modal" onMouseDown={(event) => event.stopPropagation()}><div className="modal-head"><div><small>MANUEL İÇERİK</small><h2>AI evreninden bağımsız ne eklemek istiyorsun?</h2></div><button onClick={onClose}>×</button></div><div className="create-grid"><button onClick={() => onCreate("video")}><span>KY</span><strong>Kayıt</strong><small>Manuel editoryal kayıt</small></button><button onClick={() => onCreate("character")}><span>MH</span><strong>Muhatap</strong><small>Kişi, tanık veya varlık</small></button><button onClick={() => onCreate("event")}><span>OL</span><strong>Olay</strong><small>Timeline düğümü</small></button><button onClick={() => onCreate("file")}><span>DS</span><strong>Dosya</strong><small>Not veya araştırma belgesi</small></button></div></div></div>;
+  return <div className="modal-backdrop" onMouseDown={onClose}><div className="create-modal" onMouseDown={(event) => event.stopPropagation()}><div className="modal-head"><div><small>MANUEL İÇERİK</small><h2>AI evreninden bağımsız ne eklemek istiyorsun?</h2></div><button onClick={onClose}>×</button></div><div className="create-grid"><button onClick={() => onCreate("video")}><span>KY</span><strong>Kayıt</strong><small>Manuel editoryal kayıt</small></button><button onClick={() => onCreate("character")}><span>MH</span><strong>Karakter</strong><small>Kişi, tanık veya varlık</small></button><button onClick={() => onCreate("event")}><span>OL</span><strong>Olay</strong><small>Timeline düğümü</small></button><button onClick={() => onCreate("file")}><span>DS</span><strong>Dosya</strong><small>Not veya araştırma belgesi</small></button></div></div></div>;
 }

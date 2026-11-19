@@ -13,13 +13,13 @@ type ResultEntry = { key:string; title:string; label:string; summary:string; sou
 const n=(value:number)=>new Intl.NumberFormat("tr-TR").format(Math.max(0,value));
 const err=(value:unknown)=>value instanceof Error?value.message:String(value);
 const resultCategories:Array<{key:ResultCategory;label:string}>=[
-  {key:"stories",label:"Hikâyeler"},{key:"characters",label:"Muhataplar"},{key:"events",label:"Olaylar"},{key:"locations",label:"Mekânlar"},{key:"objects",label:"Nesneler"},{key:"relations",label:"Bağlantılar"},
+  {key:"stories",label:"Hikâyeler"},{key:"characters",label:"Karakterler"},{key:"events",label:"Olaylar"},{key:"locations",label:"Mekânlar"},{key:"objects",label:"Nesneler"},{key:"relations",label:"Bağlantılar"},
 ];
-const relationKind=(value:StudioUniverseRelation["fromType"])=>({story:"Hikâye",character:"Muhatap",event:"Olay",location:"Mekân",object:"Nesne"})[value];
+const relationKind=(value:StudioUniverseRelation["fromType"])=>({story:"Hikâye",character:"Karakter",event:"Olay",location:"Mekân",object:"Nesne"})[value];
 
 function resultEntries(universe:StudioUniverse,category:ResultCategory):ResultEntry[]{
   if(category==="stories")return universe.stories.map((entry,index)=>({key:`story:${entry.name}:${index}`,title:entry.name,label:"Hikâye",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:entry.sequence.map((detail)=>detail.text)}));
-  if(category==="characters")return universe.characters.map((entry,index)=>({key:`character:${entry.name}:${index}`,title:entry.name,label:entry.roles?.join(" · ")||"Muhatap",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:entry.details.map((detail)=>detail.text)}));
+  if(category==="characters")return universe.characters.map((entry,index)=>({key:`character:${entry.name}:${index}`,title:entry.name,label:entry.roles?.join(" · ")||"Karakter",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:entry.details.map((detail)=>detail.text)}));
   if(category==="events")return universe.events.map((entry,index)=>({key:`event:${entry.name}:${index}`,title:entry.name,label:"Olay",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:[]}));
   if(category==="locations")return universe.locations.map((entry,index)=>({key:`location:${entry.name}:${index}`,title:entry.name,label:"Mekân",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:entry.details.map((detail)=>detail.text)}));
   if(category==="objects")return universe.objects.map((entry,index)=>({key:`object:${entry.name}:${index}`,title:entry.name,label:"Nesne",summary:entry.summary,sourceVideoIds:entry.sourceVideoIds,details:entry.details.map((detail)=>detail.text)}));
@@ -119,7 +119,7 @@ export default function IncrementalUniverseWorkbench({onOpenReview}:{onOpenRevie
   const selectAll=()=>setSelectedVideoIds(nextSources.map((source)=>source.videoId));
 
   const counts=result?[
-    ["Hikâye",result.universe.stories.length],["Muhatap",result.universe.characters.length],["Olay",result.universe.events.length],["Mekân",result.universe.locations.length],["Nesne",result.universe.objects.length],["Bağlantı",result.universe.relations.length],
+    ["Hikâye",result.universe.stories.length],["Karakter",result.universe.characters.length],["Olay",result.universe.events.length],["Mekân",result.universe.locations.length],["Nesne",result.universe.objects.length],["Bağlantı",result.universe.relations.length],
   ]:[];
   const inspected=result?resultEntries(result.universe,resultCategory):[];
   const sourcesById=new Map((result?.sources??[]).map((source)=>[source.videoId,source.title]));

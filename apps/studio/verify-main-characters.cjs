@@ -33,7 +33,7 @@ assert.equal(narrative.buildInput(db).universeFingerprint, before, "Editorial ch
 assert.deepEqual(narrative.currentUniverseSources(db), initial, "Editorial choice must not change source evidence");
 assert.equal(select("character-a", false).isMainCharacter, false);
 assert.equal(store.listNodes(db).find(n=>n.key==="character-b").isMainCharacter, true);
-assert.throws(()=>store.updateNode(db,{key:"story-a",isMainCharacter:true}), /yalnız muhataplara/);
+assert.throws(()=>store.updateNode(db,{key:"story-a",isMainCharacter:true}), /yalnız karakterlere/);
 // Metadata-only selections never rewrite node payload/fingerprint, even for raw AI nodes.
 const flagged = store.updateNode(db, {key:"character-a",isMainCharacter:true});
 assert.equal(flagged.isMainCharacter,true);

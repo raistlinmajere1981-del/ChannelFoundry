@@ -48,7 +48,9 @@ test('descriptive object and location records may carry a localized display labe
   assert.equal(language.published(db,'entity','entity-object').en.name,'Kapsız Kitap');
   language.save(db,{kind:'entity',id:'entity-character',language:'tr',sourceHash:character.sourceHash,revision:0,approved:true,data:character.source});
   language.save(db,{kind:'entity',id:'entity-character',language:'en',sourceHash:character.sourceHash,revision:0,approved:true,data:character.source});
-  assert.throws(()=>language.save(db,{kind:'entity',id:'entity-character',language:'en',sourceHash:character.sourceHash,revision:1,approved:true,data:{...character.source,displayName:'King Arohan'}}),/Görünen ad/);
+  language.save(db,{kind:'entity',id:'entity-character',language:'en',sourceHash:character.sourceHash,revision:1,approved:true,data:{...character.source,displayName:'Kral Arohan'}});
+  assert.equal(language.published(db,'entity','entity-character').en.displayName,'Kral Arohan');
+  assert.equal(language.published(db,'entity','entity-character').en.name,'Kral Arohan');
   const objectEn=entity('entity-object').variants.en;
   assert.throws(()=>language.save(db,{kind:'entity',id:'entity-object',language:'en',sourceHash:object.sourceHash,revision:objectEn.revision,approved:true,data:{...object.source,displayName:'   '}}),/Görünen ad/);
   db.close();

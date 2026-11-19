@@ -76,6 +76,7 @@ function compareCoverage(local,baseline){
 
   const drawingsChanged=JSON.stringify(local.vefkCatalog??null)!==JSON.stringify(baseline.vefkCatalog??null);
   const supportChanged=JSON.stringify(local.support??null)!==JSON.stringify(baseline.support??null);
+  const cameraArchiveChanged=JSON.stringify(local.cameraArchive??null)!==JSON.stringify(baseline.cameraArchive??null);
   const outlineChanged=JSON.stringify(stripLocales(local.journal?.outline??null))!==JSON.stringify(stripLocales(baseline.journal?.outline??null));
   const reasons=[];
   if(newSections)reasons.push(`${newSections} yeni anlatı bölümü`);
@@ -88,12 +89,16 @@ function compareCoverage(local,baseline){
   if(partialLocaleChanges)reasons.push('Tek dil onaylı mevcut kayıtların yayın metinleri değişti');
   if(videoMetadataChanged)reasons.push('Kamera kaynak metaverisi değişti');
   if(supportChanged)reasons.push('Sponsor/katkı kayıtları değişti');
+  if(cameraArchiveChanged)reasons.push('Kamera çözümleme arşivi değişti');
   if(outlineChanged)reasons.push('İçindekilere yeni bölüm/seri eklendi');
-  return {requiresFull:reasons.length>0,reasons,newSections,newEntities,newRelations,newVideos,drawingsChanged,supportChanged,outlineChanged,vefkLanguageChanged,relationRemoved,videoMetadataChanged,partialLocaleChanges};
+  return {requiresFull:reasons.length>0,reasons,newSections,newEntities,newRelations,newVideos,drawingsChanged,supportChanged,outlineChanged,vefkLanguageChanged,relationRemoved,videoMetadataChanged,partialLocaleChanges,cameraArchiveChanged};
 }
 function buildUpdatePublication(baseline, built, visibility = {}) {
   valid(baseline);
   const current = valid(built.snapshot);
+  if (JSON.stringify(current.cameraArchive ?? null) !== JSON.stringify(baseline.cameraArchive ?? null)) {
+    throw new Error("Kamera çözümleme arşivi değişti; bütün kayıtların yayınlanması için tam yayın gerekli.");
+  }
   const result = structuredClone(baseline);
   const hiddenEntities = new Set(visibility.hiddenEntityIds ?? []);
   const hiddenSections = new Set(visibility.hiddenSectionIds ?? []);

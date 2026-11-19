@@ -5,7 +5,7 @@ export default function StudioNavigationBridge() {
     const bridge = window.channelFoundryStudio;
     if (!bridge?.onNavigate) return;
     return bridge.onNavigate((section) => {
-      if (section === "Muhataplar") {
+      if (section === "Karakterler" || section === "Muhataplar") {
         sessionStorage.setItem("channel-foundry:editor-mode", "characters");
         const target = Array.from(document.querySelectorAll<HTMLButtonElement>(".pipeline-sidebar .studio-nav button"))
           .find((button) => button.textContent?.trim() === "Kayıt Dosyaları");

@@ -48,7 +48,7 @@ type EditorialBridge = NonNullable<typeof window.channelFoundryStudio> & {
 function errorText(error:unknown){ return error instanceof Error ? error.message : String(error); }
 function names(value:string){ return [...new Set(value.split(/[\n,;]+/u).map((item)=>item.trim()).filter(Boolean))]; }
 function stateText(value?:EditorialState|""){ return value === "curated" ? "Ayıklandı" : value === "excluded" ? "Evren dışı" : "İnceleme bekliyor"; }
-function categoryText(value:string){ return ({storyHint:"Hikâye izi",storyBeat:"Anlatı ayrıntısı",character:"Muhatap",scene:"Olay / sahne",location:"Mekân",object:"Nesne",sponsor:"Destekçi Kaydı",contributor:"Katkıda bulunan"} as Record<string,string>)[value] || value; }
+function categoryText(value:string){ return ({storyHint:"Hikâye izi",storyBeat:"Anlatı ayrıntısı",character:"Karakter",scene:"Olay / sahne",location:"Mekân",object:"Nesne",sponsor:"Destekçi Kaydı",contributor:"Katkıda bulunan"} as Record<string,string>)[value] || value; }
 function canRename(item:EditorialItem){ return item.category === "character" || item.category === "location" || item.category === "object"; }
 function normalized(value:string){ return value.trim().toLocaleLowerCase("tr-TR").replace(/\s+/g," "); }
 function kindForCategory(category:string){ return category === "character" ? "character" : category === "location" ? "location" : category === "object" ? "object" : ""; }
@@ -401,7 +401,7 @@ export default function AnalysisCurationWorkbench(){
           <section className="analysis-curation-support">
             <small>KANAL DESTEK KAYITLARI</small>
             <h4>Evren dışında tutulan isimler</h4>
-            <p>Sponsorlar ve katkıda bulunanlar hiçbir zaman Muhatap veya Evren ilişkisi oluşturmaz.</p>
+            <p>Sponsorlar ve katkıda bulunanlar hiçbir zaman Karakter veya Evren ilişkisi oluşturmaz.</p>
             <div className="analysis-curation-items" ref={supportListRef}>
               {visibleSupportItems.map((item)=>{
                 const decision=(decisions[item.key] ?? item.decision) as SupportDecision;

@@ -102,7 +102,7 @@ function updateNode(db, input) {
   const current = hydrateNode(row);
   const mainSelection = input?.isMainCharacter;
   if (mainSelection !== undefined && (current.kind !== 'character' || typeof mainSelection !== 'boolean')) {
-    throw new Error('Ana karakter işareti yalnız muhataplara uygulanabilir.');
+    throw new Error('Ana karakter işareti yalnız karakterlere uygulanabilir.');
   }
   const metadataOnly = mainSelection !== undefined && Object.keys(input ?? {}).every(field => field === 'key' || field === 'isMainCharacter');
   if (metadataOnly) {

@@ -4,7 +4,7 @@ import {useState} from "react";
 import WebsiteAnalytics from "./WebsiteAnalytics";
 import { readCommunitySummary } from "./community-summary-cache";
 
-type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Muhataplar" | "Topluluk" | "Yayınlama" | "Ayarlar";
+type DashboardTarget = "Video Arşivi" | "AI Atölyesi" | "Kayıt Dosyaları" | "Karakterler" | "Topluluk" | "Yayınlama" | "Ayarlar";
 type DashboardItem = StudioPersistedItem & { relatedCount: number };
 type ActionTone = "attention" | "active" | "review" | "ready" | "quiet";
 type EditorialStats = StudioAiAnalysisStats & { editorialPending?: number; curated?: number; excluded?: number };
@@ -39,8 +39,8 @@ type Props = {
 type WorkAction = { label: string; note: string; value: number; target: DashboardTarget; tone: ActionTone };
 type RecentWork = { key: string; title: string; meta: string; badge: string; state: string; stateClass: string; target: DashboardTarget };
 
-const workspaceLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Muhatap", event: "Olay", location: "Mekân", object: "Nesne" };
-const workspaceShort: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "HK", character: "MH", event: "OL", location: "MK", object: "NS" };
+const workspaceLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Karakter", event: "Olay", location: "Mekân", object: "Nesne" };
+const workspaceShort: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "HK", character: "KR", event: "OL", location: "MK", object: "NS" };
 
 function formatNumber(value: number) { return new Intl.NumberFormat("tr-TR").format(Math.max(0, value)); }
 function publishedRelationCount(items: DashboardItem[], relations: StudioPersistedRelation[]) {
@@ -58,7 +58,7 @@ function buildRecent(workspaceNodes: StudioUniverseWorkspaceNode[]): RecentWork[
       badge: workspaceShort[node.kind],
       state: node.state === "approved" ? "Onaylı" : "İncele",
       stateClass: node.state === "approved" ? "approved" : "draft",
-      target: node.state === "approved" ? (node.kind === "character" ? "Muhataplar" : "Kayıt Dosyaları") as DashboardTarget : "AI Atölyesi" as DashboardTarget,
+      target: node.state === "approved" ? (node.kind === "character" ? "Karakterler" : "Kayıt Dosyaları") as DashboardTarget : "AI Atölyesi" as DashboardTarget,
     }));
 }
 

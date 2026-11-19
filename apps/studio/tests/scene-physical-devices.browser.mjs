@@ -22,7 +22,7 @@ try{
   previewImage:await site.preview(source),previewObjects:site.previewObjects(source),
   focusTargets:site.focusTargets(source),assets:[],
  });
- await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,{timeout:20000});
+ await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance'),{timeout:20000});
  const get=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
   const requestId='physical-'+Math.random(),timeout=setTimeout(()=>reject(Error('timeout')),5000);
   const listener=e=>{if(e.data?.requestId!==requestId||e.data.type!=='studio:data')return;

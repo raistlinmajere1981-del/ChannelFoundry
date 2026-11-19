@@ -4,9 +4,8 @@ const crypto = require('node:crypto');
 const LANGUAGES = ['tr', 'en'];
 const KINDS = ['video', 'section', 'vefk', 'entity', 'outline'];
 const PROMPT_VERSION = 'publication-language-4';
-// `name` is the canonical identity and never changes. Only descriptive object and
-// location records may carry a publication-only English label for readers.
-const DISPLAY_NAME_KINDS = new Set(['object', 'location']);
+// `name` is a canonical identity and never changes. Any entity may carry a
+// publication-only localized displayName; character identities remain immutable.
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
 const hash = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 const parse = value => { try { return JSON.parse(value); } catch { return null; } };
@@ -91,15 +90,14 @@ function validateData(original, next, key='') {
   for (const k of Object.keys(original)) validateData(original[k],next[k],Array.isArray(original)?key:k);
 }
 function validateVariant(kind, original, next) {
-  // `displayName` is an optional publication-only label. It never exists in the
-  // source, never replaces `name`, and is only accepted for object/location
-  // archive records; character, event and story identities stay untouched.
+  // `displayName` is an optional reader-facing label for any entity. The
+  // canonical `name` and all links remain byte-identical to their source.
   if (!original || typeof original !== 'object' || Object.prototype.hasOwnProperty.call(original, 'displayName')
     || !next || typeof next !== 'object' || !Object.prototype.hasOwnProperty.call(next, 'displayName')) {
     validateData(original, next);
     return next;
   }
-  if (kind !== 'entity' || !DISPLAY_NAME_KINDS.has(original.kind)) throw new Error('Görünen ad yalnız nesne ve mekân kayıtlarında kullanılabilir.');
+  if (kind !== 'entity') throw new Error('Görünen ad yalnız Evren kayıtlarında kullanılabilir.');
   if (typeof next.displayName !== 'string' || !next.displayName.trim() || next.displayName.length > 200) throw new Error('Görünen ad geçersiz.');
   const { displayName, ...rest } = next;
   validateData(original, rest);
@@ -292,6 +290,9 @@ function apply(db,snapshot) {
     for(const c of s.chapters??[]) {attach(c,'outline',c.key);delete c.title;delete c.numberLabel;}}
   // Text variants are a sidecar: the signed canonical drawing/catalog stays byte-identical.
   snapshot.vefkLanguages=Object.fromEntries((snapshot.vefkCatalog?.entries??[]).map(e=>[e.id,published(db,'vefk',e.id)]));
+  // Contents-page headings can be published before English article bodies.
+  // They are explicitly separate from approved section locales.
+  require('./publication-toc.cjs').attach(db,snapshot);
   return snapshot;
 }
 module.exports={resetInterrupted,videoSources,LANGUAGES,PROMPT_VERSION,hash,ensureSchema,language,putSource,source,variants,save,generate,published,records,sync,overview,apply,validateData,validateVariant};

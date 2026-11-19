@@ -5,10 +5,10 @@ const shadow=(x,y,width,height,rotation,opacity)=>Object.freeze({x,y,width,heigh
 export const ROOM_CONTACT_SHADOWS=Object.freeze({
   'candle':shadow(.08,.79,.79,.18,0,.61),
   'stone-specimen':shadow(.10,.84,.83,.12,0,.60),
-  'incense-holder':shadow(.11,.38,.82,.34,-39,.39),
+  'incense-holder':shadow(.08,.49,.87,.16,-27,.44),
   'water-basin':shadow(.06,.77,.88,.20,0,.55),
   'metal-pendulum':shadow(.18,.86,.65,.13,0,.50),
-  'ceremonial-dagger':shadow(.05,.74,.88,.15,-25,.35),
+  'ceremonial-dagger':shadow(.15,.51,.70,.13,0,.36),
 });
 export function materialGroundingStyle(id){
   const p=ROOM_CONTACT_SHADOWS[id];

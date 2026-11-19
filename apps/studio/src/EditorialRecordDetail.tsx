@@ -14,8 +14,8 @@ type LegacyProps = PropsBase & { item: LegacyItem; relations: StudioPersistedRel
 type EditorBridge = NonNullable<typeof window.channelFoundryStudio> & {
   universeWorkspaceUpdate(input: { key: string; name: string; summary: string; aliases: string[]; state: "draft" | "approved"; roles?: string[]; isMainCharacter?: boolean; storyNames?: string[]; characterNames?: string[]; locationNames?: string[]; objectNames?: string[] }): Promise<StudioUniverseWorkspaceNode>;
 };
-const kindLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Muhatap", event: "Olay", location: "Mekân", object: "Nesne" };
-const legacyLabels: Record<StudioPersistedItem["kind"], string> = { video: "Kayıt", character: "Muhatap", event: "Olay", file: "Dosya" };
+const kindLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Karakter", event: "Olay", location: "Mekân", object: "Nesne" };
+const legacyLabels: Record<StudioPersistedItem["kind"], string> = { video: "Kayıt", character: "Karakter", event: "Olay", file: "Dosya" };
 const lines = (value: string) => value.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean);
 const payloadArray = (node: StudioUniverseWorkspaceNode, key: string) => {
   const value = (node.payload as Record<string, unknown> | undefined)?.[key];
@@ -77,9 +77,9 @@ export function WorkspaceRecordDetail({ node, onReload, onStatus, onDirtyChange,
     </div></section>
     {node.kind==="story"&&<details className="record-v3-section" open><summary>Anlatı akışı <span>{sequence.length} adım</span></summary><div className="record-v3-sequence">{sequence.map((entry,i)=><article key={i}><strong>{String(i+1).padStart(2,"0")}</strong><div><p>{entry.text}</p><small>{entry.sourceVideoIds.length} kaynak video</small></div></article>)}{!sequence.length&&<p className="record-v3-empty">Bu hikâyede henüz sıralı anlatı akışı yok.</p>}</div></details>}
     {node.kind!=="story"&&sequence.length>0&&<details className="record-v3-section"><summary>Kaynaklı notlar <span>{sequence.length}</span></summary><div className="record-v3-sequence">{sequence.map((entry,i)=><article key={i}><strong>{String(i+1).padStart(2,"0")}</strong><div><p>{entry.text}</p><small>{entry.sourceVideoIds.length} kaynak video</small></div></article>)}</div></details>}
-    <details className="record-v3-section"><summary>Evren bağlamı <span>Hikâye · Muhatap · Mekân · Nesne</span></summary><div className="record-v3-fields">
+    <details className="record-v3-section"><summary>Evren bağlamı <span>Hikâye · Karakter · Mekân · Nesne</span></summary><div className="record-v3-fields">
       <TextLines label="Bağlı hikâyeler" value={storyNames} onChange={setStoryNames}/>
-      {node.kind!=="character"&&<TextLines label="Muhataplar" value={characterNames} onChange={setCharacterNames}/>}
+      {node.kind!=="character"&&<TextLines label="Karakterler" value={characterNames} onChange={setCharacterNames}/>}
       <TextLines label="Mekânlar" value={locationNames} onChange={setLocationNames}/>
       <TextLines label="Nesneler" value={objectNames} onChange={setObjectNames}/>
     </div></details>

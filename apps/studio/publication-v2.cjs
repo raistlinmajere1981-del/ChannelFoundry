@@ -265,6 +265,17 @@ function buildPublicationV2(db, options = {}) {
   const journalResult = journalData(db, archive, assetMap, assetSourceMap);
   const assets = [...assetMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId));
   const youtubeAnalysis = { videos: aiAnalysis.publicVideoSummaries(db) };
+  // The projection archive is independent of approved book/translation text.
+  // Only curated, completed video analyses enter it. Its source summaries remain
+  // explicitly distinct from approved TR/EN publication locales.
+  const publishedVideoLanguage = require('./publication-languages.cjs');
+  const cameraArchive = { videos: youtubeAnalysis.videos.map(video=>({
+    videoId:video.videoId,thumbnailUrl:video.thumbnailUrl,
+    publishedAt:video.publishedAt,durationSeconds:video.durationSeconds,
+    membersOnly:video.membersOnly,analysisStatus:'complete',publicationStatus:'published',
+    source:{title:clean(video.title,1000),summary:clean(video.summary,24000)},
+    locales:publishedVideoLanguage.published(db,'video',video.videoId),
+  })) };
   const support = supportPublic.publicationSupport(db, youtubeAnalysis.videos);
   if (!options.sourceOnly) require('./channel-drawing.cjs').synchronize(db, youtubeAnalysis.videos.filter(video =>
     Object.keys(require('./publication-languages.cjs').published(db, 'video', video.videoId)).length > 0));
@@ -275,6 +286,7 @@ function buildPublicationV2(db, options = {}) {
     archive,
     assets,
     youtubeAnalysis,
+    cameraArchive,
     support,
     ...(vefkCatalog.entries.length ? { vefkCatalog } : {}),
   };
@@ -293,6 +305,7 @@ function buildPublicationV2(db, options = {}) {
     archive: logical.archive,
     assets: logical.assets,
     youtubeAnalysis: logical.youtubeAnalysis,
+    cameraArchive: logical.cameraArchive,
     support: logical.support,
     ...(vefkCatalog.entries.length ? { vefkCatalog } : {}),
   };

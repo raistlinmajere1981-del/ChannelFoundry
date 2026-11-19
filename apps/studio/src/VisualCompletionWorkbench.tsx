@@ -16,7 +16,7 @@ function sceneStatusLabel(state: StudioVisualCompletionSceneState) {
 }
 
 function entityKindLabel(kind: string) {
-  if (kind === "character") return "Muhatap";
+  if (kind === "character") return "Karakter";
   if (kind === "location") return "Mekân";
   if (kind === "object") return "Nesne";
   if (kind === "event") return "Olay";

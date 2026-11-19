@@ -352,6 +352,7 @@ function vefk_s6_validate_publication(stdClass $raw): void {
         vefk_s6_require(property_exists($raw,$field),'Publication alanı eksik: '.$field);
         $meaning->{$field}=$raw->{$field};
     }
+    if (property_exists($raw,'cameraArchive')) $meaning->cameraArchive=$raw->cameraArchive;
     foreach(['languageVersion','languages','vefkLanguages'] as $field) if(property_exists($raw,$field)) $meaning->{$field}=$raw->{$field};
     if (property_exists($raw,'vefkCatalog') && $raw->vefkCatalog !== null) {
         $meaning->vefkCatalog=$raw->vefkCatalog;

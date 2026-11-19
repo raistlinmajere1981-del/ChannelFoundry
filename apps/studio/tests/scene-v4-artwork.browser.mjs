@@ -70,7 +70,7 @@ try{
   assert.ok(await page.locator('#add-effect-type option[value="pendulum-sway"]').count());
   await page.locator('#add-effect-type').selectOption('pendulum-sway');
   await page.locator('#add-effect').click();
-  await page.waitForFunction(()=>window.__sceneEditor.getScene().effects.length===23);
+  await page.waitForFunction(count=>window.__sceneEditor.getScene().effects.length===count,source.scene.effects.length+1);
   const candidate=await page.evaluate(()=>window.__sceneEditor.getScene());
   assert.equal(site.readiness(candidate,source).ready,true,site.readiness(candidate,source).problems.join('\n'));
   await page.getByRole('button',{name:/^Kaydet/}).click();
@@ -83,7 +83,7 @@ try{
   const draft=()=>page.evaluate(()=>window.__sceneEditor.snapshot());
   // Undo/redo must preserve both scene shape and its binary artwork revisions.
   await page.locator('#undo').click();
-  assert.equal((await draft()).scene.effects.length,22);
+  assert.equal((await draft()).scene.effects.length,source.scene.effects.length);
   assert.equal((await draft()).assets.length,2);
   await page.locator('#undo').click();
   assert.equal((await draft()).scene.objects.find(o=>o.id===created.id).motionLayers.length,0);
@@ -92,7 +92,7 @@ try{
   assert.equal((await draft()).scene.objects.find(o=>o.id===created.id).motionLayers.length,1);
   assert.equal((await draft()).assets.length,2);
   await page.locator('#redo').click();
-  assert.equal((await draft()).scene.effects.length,23);
+  assert.equal((await draft()).scene.effects.length,source.scene.effects.length+1);
   await page.locator('#object-select-'+created.id).click();
   await page.locator('#duplicate-artwork').click();
   const duplicated=(await draft()).scene.objects.find(o=>o.kind==='artwork'&&o.id!==created.id);
@@ -100,7 +100,7 @@ try{
   assert.notEqual(duplicated.visual.asset,created.visual.asset,'images are independent');
   assert.notEqual(duplicated.visual.layers[0].asset,attached.visual.layers[0].asset);
   assert.equal((await draft()).assets.length,4);
-  assert.equal((await draft()).scene.effects.length,24);
+  assert.equal((await draft()).scene.effects.length,source.scene.effects.length+2);
   await page.locator('#undo').click();
   assert.equal((await draft()).scene.objects.length,15);
   assert.equal((await draft()).assets.length,2);
@@ -117,10 +117,10 @@ try{
   await page.locator('#object-select-'+duplicated.id).click();
   await page.locator('#visual-layers-settings').evaluate(node=>{node.open=true;});
   await page.locator('.scene-layer-entry button.scene-danger').click();
-  assert.equal((await draft()).scene.effects.length,23);
+  assert.equal((await draft()).scene.effects.length,source.scene.effects.length+1);
   assert.equal((await draft()).assets.length,3);
   await page.locator('#undo').click();
-  assert.equal((await draft()).scene.effects.length,24);
+  assert.equal((await draft()).scene.effects.length,source.scene.effects.length+2);
   assert.equal((await draft()).assets.length,4);
   await page.locator('#object-select-'+duplicated.id).click();
   await page.locator('#visual-source-slot').selectOption(duplicated.visual.asset);

@@ -27,6 +27,7 @@ test('visible robe has a bounded two-state, site-only invisibility schema',()=>{
   intrusion.objects.find(o=>o.id==='archive-chest').veil={...robe(b).veil};
   assert.equal(validateAuthoredScene(intrusion,manifest).ok,false);
   const dragged=clone(b);
-  dragged.objects.find(o=>o.id==='archive-chest').pose.x+=.04;
+  const chest=dragged.objects.find(o=>o.id==='archive-chest');
+  chest.pose.x=1-chest.pose.width+.01;
   assert.equal(validateAuthoredScene(dragged,manifest).ok,false);
 });

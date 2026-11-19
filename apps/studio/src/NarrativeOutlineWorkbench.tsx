@@ -170,7 +170,7 @@ export default function NarrativeOutlineWorkbench({ memory }: { memory: StudioNa
           <button type="button" disabled={busy} onClick={() => chooseSeries("")}>Dizi ekle</button>
         </div>
         <div className="outline-static-categories" aria-label="Otomatik kitap dizinleri">
-          <span>Muhataplar</span><span>Nesneler</span><span>Mekânlar</span>
+          <span>Karakterler</span><span>Nesneler</span><span>Mekânlar</span>
         </div>
         <div className="outline-tree-scroll">
           {series.map(item => {

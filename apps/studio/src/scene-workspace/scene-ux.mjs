@@ -17,7 +17,7 @@ export function applySceneProfile(effect,key) {
   effect.params={...effect.params,...preset};
 }
 export function basicControls(type) {
-  const keys={'pendulum-sway':['amplitude','frequency','damping','duration','speed'],flame:['opacity','speed','sway'],glow:['opacity','speed','pulse','width'],smoke:['opacity','speed','spread'],'metal-glint':['opacity','speed','band','duration'],'water-ripple':['opacity','speed','spread','duration'],'stone-drop':['opacity','duration','dropSize','tremor','speed'],'stone-tremor':['amplitude','frequency','damping','duration','speed'],'dagger-shadow':['opacity','duration','figureScale','speed'],'seal-trace':['opacity','speed','stroke'],'chest-lid-open':['openAngle','duration','speed','hold'],'chest-light-leak':['opacity','spread','duration','speed','hold']}[type];
+  const keys={'pendulum-sway':['amplitude','frequency','damping','duration','speed'],flame:['opacity','speed','sway'],glow:['opacity','speed','pulse','width'],smoke:['opacity','speed','spread'],'metal-glint':['opacity','speed','band','duration'],'water-ripple':['opacity','speed','spread','duration'],'stone-resonance':['opacity','width','duration','speed'],'stone-drop':['opacity','duration','dropSize','tremor','speed'],'stone-tremor':['amplitude','frequency','damping','duration','speed'],'dagger-shadow':['opacity','duration','figureScale','speed'],'seal-trace':['opacity','speed','stroke'],'chest-lid-open':['openAngle','duration','speed','hold'],'chest-light-leak':['opacity','spread','duration','speed','hold']}[type];
   return keys.map(key=>{
     const control=objectEffectRegistry[type].controls.find(item=>item.key===key);
     return {...control,label:key==='opacity'?'Şiddet':key==='width'?'Yayılım (genişlik)':control.label};

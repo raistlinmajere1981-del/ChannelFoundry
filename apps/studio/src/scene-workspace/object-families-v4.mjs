@@ -32,9 +32,8 @@ export const OBJECT_FAMILIES_V4=Object.freeze([
  ],['water-basin.table-contact']),
  family('stone-specimen','Taş sistemi','independent',[
   part('rock','Yeşil taş','ready','/scene-assets/stone/jade-rock.webp','Biçim/renk kilitli'),
-  part('stand','Taş altlığı','ready','/scene-assets/stone/ornate-copper-plinth.webp','İşlemeli ayrı bakır altlık; yeşil taş bağımsız hareket eder'),
-  part('dropper','Bakır damlalık mekanizması','ready','/scene-assets/stone/copper-drip-arm.webp','Fiziksel kaynak ve su çıkış ağzı; damla animasyonu ayrı')
- ],['stone-specimen.impact','stone-specimen.dropper-outlet']),
+  part('plate','Bakır plaka','ready','/scene-assets/stone/hammered-copper-plate.webp','Yeşim taşının oturduğu dövme bakır plaka')
+ ],['stone-specimen.resonance']),
  family('ceremonial-robe','Duvar objesi','independent',[
   part('fabric','Kaftan ve kuşak','ready','/scene-assets/robe/ceremonial-kaftan.webp','Renk ve kuşak kimliği korunacak'),
   part('hook','Sabit askılık','ready',null,'Yeni master arka planına işli, kaftan yokken değişmez')
@@ -50,15 +49,16 @@ export const OBJECT_FAMILIES_V4=Object.freeze([
  family('archive-chest','Duvar objesi','independent',[
   part('body','Sandık gövdesi','ready','/scene-assets/chest/archive-body.webp'),
   part('lid','Menteşeli kapak','ready','/scene-assets/chest/archive-lid.webp'),
-  part('interior','Sandık iç boşluğu ve ışık maskesi','ready','/scene-assets/chest/interior-light-mask.webp','Gövdeyle aynı %150 malzeme genişliği; kapak açılınca sınırlı süre kehribar ışığı')
+  part('interior','Sandık iç boşluğu ve ışık maskesi','ready','/scene-assets/chest/interior-light-mask.webp','Kapak aralandığında birleşim çizgisinden kehribar ışığı sızar')
  ],['archive-chest.inner-light']),
  family('incense-holder','Masa objesi','independent',[
-  part('body','Tütsülük gövdesi','ready','/scene-assets/physical/carved-incense-holder.webp','Özgün oyma tekne ve çubuk eski görüntüden ayrıldı'),
+  part('body','Tütsülük gövdesi','ready','/scene-assets/physical/carved-incense-holder.webp','Ayaksız ceviz tabla ve yarısı yanmış tütsü'),
   part('ember','Köz / duman','ready',null,'Mevcut 2 efekt korunur')
  ],['incense-holder.table-contact']),
- family('ceremonial-dagger','Masa objesi','independent',[
-  part('blade','Hançer gövdesi','ready','/scene-assets/p8/ceremonial-dagger.webp','Biçim ve desen kimliği korunacak')
- ],['ceremonial-dagger.table-contact']),
+ family('ceremonial-dagger','Duvar objesi','independent',[
+  part('blade','Hançer gövdesi','ready','/scene-assets/dagger/mounted-dagger.webp'),
+  part('rack','Duvar askılığı','ready','/scene-assets/dagger/wall-rack.webp')
+ ],['ceremonial-dagger.wall-mount']),
  family('metal-pendulum','Masa objesi','independent',[
   part('fixed','Sabit sarkaç gövdesi','ready','/scene-assets/metal-pendulum/fixed.webp'),
   part('pendant','Hareketli metal parça','ready','/scene-assets/metal-pendulum/pendant.webp')

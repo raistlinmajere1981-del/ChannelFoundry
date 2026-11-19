@@ -8,7 +8,9 @@ const { ANALYSIS_OUTPUT_SCHEMA } = require("./ai-output-schemas.cjs");
 function stringArray(value, limit, maxLength) {
   const result = [];
   for (const entry of Array.isArray(value) ? value : []) {
-    const text = String(entry ?? "").trim().slice(0, maxLength);
+    // Providers sometimes return objects for requested text arrays. Preserve
+    // an explicit text field, never persist the meaningless '[object Object]'.
+    const text = (typeof entry === "string" ? entry : typeof entry?.text === "string" ? entry.text : "").trim().slice(0, maxLength);
     if (!text || result.includes(text)) continue;
     result.push(text);
     if (result.length >= limit) break;

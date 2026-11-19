@@ -5,7 +5,7 @@ import {createFlame} from '../runtime/effects/flame.mjs';
 import {createGlow} from '../runtime/effects/glow.mjs';
 import {createSealTrace} from '../runtime/effects/seal-trace.mjs';
 import {createMetalGlint} from '../runtime/effects/metal-glint.mjs';
-import {createWaterRipple} from '../runtime/effects/water-ripple.mjs';
+import {createWaterRipple,createStoneResonance} from '../runtime/effects/water-ripple.mjs';
 import {createPendulumSway} from '../runtime/effects/pendulum-sway.mjs';
 import {createStoneDrop} from '../runtime/effects/stone-drop.mjs';
 import {createStoneTremor} from '../runtime/effects/stone-tremor.mjs';
@@ -115,6 +115,14 @@ export const objectEffectRegistry = Object.freeze({
       Doğal:{opacity:.73,speed:1,duration:1.9,figureScale:.95},
       Canlı:{opacity:.92,speed:1.15,duration:1.55,figureScale:1.25},
     },
+    compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
+  },
+  'stone-resonance': {
+    label:'Taş rezonansı', description:'Yeşimden yayılan ve sönümlenen dört ince dalga.',
+    create:createStoneResonance, targetKinds:['sceneObject'], placement:'center', trigger:'pulse',
+    controls:[number('width','Dalga genişliği',1,.1,1.5,.01),number('height','Dalga yüksekliği',.5,.1,1,.01),
+      number('opacity','Şiddet',.72,0,1,.01),number('speed','Hız',1,.5,2,.05),number('duration','Süre (s)',2,.5,4,.05)],
+    presets:{Sakin:{opacity:.5},Doğal:{opacity:.72},Canlı:{opacity:.9}},
     compile(object,target,params){return {...params,width:params.width*target.scale,height:params.height*target.scale};},
   },
   'stone-tremor': {

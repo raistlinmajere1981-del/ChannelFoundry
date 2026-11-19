@@ -38,7 +38,7 @@ try{
    window.__mountStudioSceneV3();
  },packet);
  try {
-   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22
+   await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance')
       ||Boolean(document.querySelector('strong[role=alert]')),{timeout:30000});
  }catch(e){
    console.error('V3 foreground load diagnosis:',
@@ -168,7 +168,7 @@ try{
    };
    window.__mountStudioSceneV3();
  },{...packet,assets:draft.assets});
- await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22);
+ await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance'));
  await page.locator('#object-select-research-journal').click();
  await page.locator('[data-inspector-tab="visual"]').click();
  assert.equal(await page.locator('#visual-source-inspector').getAttribute('data-modified'),'true');
@@ -178,8 +178,8 @@ try{
  assert.deepEqual((await get()).assets.map(a=>a.path),[camera,vellum]);
  await page.locator('#object-select-stone-specimen').click();
  await page.locator('[data-inspector-tab="visual"]').click();
- assert.equal(await page.locator('#visual-source-slot option').count(),3,
-   'stone, copper plinth and physically independent dropper sources remain editable');
+ assert.equal(await page.locator('#visual-source-slot option').count(),2,
+   'the stone and its copper plate remain independently editable');
  assert.equal(await page.locator('#visual-crop-settings').isVisible(),true);
  assert.deepEqual(errors,[]);
  console.log('PASS '+artwork.length+' physical art slots, book alpha ratio protection, source preview, 3-object draft restore and independent stone crop');

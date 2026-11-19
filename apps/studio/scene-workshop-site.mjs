@@ -299,7 +299,7 @@ export function siteSceneSource(root=BIRDESENGOR_SITE){
     return 'data:image/webp;base64,'+bytes.toString('base64');
   };
   return [
-    ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{}),...(o.id==='stone-specimen'?{dropper:image('/scene-assets/stone/copper-drip-arm.webp')}:{})})),
+    ...state.manifest.objects.filter(o=>o.motionLayers?.length).map(o=>({objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:o.visual.layers.map(layer=>({id:layer.id,image:image(layer.asset),asset:layer.asset,box:layer.box})),...(o.id==='ceremonial-dagger'?{bladeMask:image('/scene-assets/dagger/dagger-blade-mask.webp')}:{}) , ...(o.id==='archive-chest'?{lightMask:image('/scene-assets/chest/interior-light-mask.webp')}:{})})),
     ...state.manifest.objects.filter(o=>INDEPENDENT_ROOM_MATERIAL_IDS.includes(o.id)).map(o=>({
       objectId:o.id,image:image(o.visual.asset),asset:o.visual.asset,layers:[]
     })),

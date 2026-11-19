@@ -24,10 +24,6 @@ export const PHYSICAL_ART_SLOTS=Object.freeze({
     {path:'/scene-assets/books/community-live/ribbon.webp',label:'Kapak şeridi'},
     {path:'/scene-assets/books/community-rag-paper.webp',label:'Okuma sayfaları · kâğıt dokusu'},
   ]),
-  'stone-specimen':Object.freeze([
-    {path:'/scene-assets/stone/copper-drip-arm.webp',label:'Taş damlalığı · bağımsız bakır mekanizma',
-     warning:'Çıkış ağzı taşın impact ankrajının tam üstünde kalmalı; damla önceden görselde bulunmamalı.'},
-  ]),
   camera:Object.freeze([
     {path:'/scene-assets/camera/research/camera-body.webp',label:'Kamera gövdesi',warning:'Gövde görselindeki LCD menteşe ve kamera lensinin konumu korunmalı. Fiziksel LCD ince ayarı ayrıca yapılabilir.'},
   ]),

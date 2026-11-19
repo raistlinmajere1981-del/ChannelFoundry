@@ -9,17 +9,17 @@ export function createFlame({random, params}) {
   const phases=[random()*Math.PI*2,random()*Math.PI*2,random()*Math.PI*2];
   const lean=between(random,-1,1);
   function shape(ctx,width,height,layer){
-    const t=time+phases[layer];
-    const base=height*.97;
-    const baseWidth=width*(.36-layer*.06);
-    const sway=Math.sin(t*2.1+phases[1])*width*.12*params.sway
-      +Math.sin(t*3.7+phases[2])*width*.045*params.sway;
-    const tipX=width*.5+sway+lean*width*.035;
-    const tipY=height*(.06+layer*.11)+Math.sin(t*3.1+phases[layer])*height*.03;
+    const baseX=width*.5,baseY=height*.98;
+    const belly=width*(.235-layer*.046);
+    // The envelope and luminous core follow the same draft; the wick stays fixed.
+    const drift=Math.sin(time*2.1+phases[0])*.14+Math.sin(time*4.7+phases[1])*.055;
+    const stretch=Math.sin(time*3.1+phases[2])*.031+Math.sin(time*5.3+phases[0])*.018;
+    const tipX=baseX+width*(drift*params.sway+lean*.018)*(1-layer*.18);
+    const tipY=height*(.07+layer*.17+stretch);
     ctx.beginPath();
-    ctx.moveTo(width*.5-baseWidth*.5,base);
-    ctx.bezierCurveTo(width*.5-baseWidth*.62,height*.66,tipX-width*.17,height*.34,tipX,tipY);
-    ctx.bezierCurveTo(tipX+width*.16,height*.33,width*.5+baseWidth*.62,height*.67,width*.5+baseWidth*.5,base);
+    ctx.moveTo(baseX,baseY);
+    ctx.bezierCurveTo(baseX-belly*1.4,height*.92,baseX-belly,height*.64,tipX,tipY);
+    ctx.bezierCurveTo(tipX+belly*.07,height*.44,baseX+belly*1.75,height*.82,baseX,baseY);
     ctx.closePath();
   }
   return {

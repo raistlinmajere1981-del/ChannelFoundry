@@ -48,7 +48,7 @@ export default function WebsiteAnalytics() {
     return()=>{live=false;};
   },[]);
   const contentName=(key:string)=>names[key]??Object.entries(names).find(([id])=>id===key||id.endsWith(key))?.[1]
-    ??(key.startsWith('universe-character-')?'Muhatap kaydı':key.startsWith('narrative-section-')?'Anlatı bölümü':key.startsWith('universe-')?'Evren kaydı':key.length===11?'Kamera videosu':'İçerik kaydı');
+    ??(key.startsWith('universe-character-')?'Karakter kaydı':key.startsWith('narrative-section-')?'Anlatı bölümü':key.startsWith('universe-')?'Evren kaydı':key.length===11?'Kamera videosu':'İçerik kaydı');
   const rows = data?.areas ?? [];
   const max = Math.max(1,...rows.map(row => row.seconds));
   return <section className="insight-settings analytics-settings">

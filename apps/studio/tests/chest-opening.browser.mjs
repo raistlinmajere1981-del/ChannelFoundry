@@ -24,15 +24,15 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
   await page.evaluate(message=>window.postMessage(message,'*'),packet);
-  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,null,{timeout:15000});
+  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance'),null,{timeout:15000});
   await page.locator('#object-select-archive-chest').click();
   assert.equal(await page.locator('#visual-placement-settings').isVisible(),true);
   const lid=page.locator('#stage-object-archive-chest [data-effect-layer="lid"]');
   assert.equal(await lid.count(),1);
   const size=await lid.evaluate(n=>parseFloat(n.style.width));
-  assert.equal(size,150,'editor preview matches right-edge material crop');
+  assert.equal(size,100,'shelf coffer fills its measured frame');
   await page.locator('#effect-select-archive-chest-lid-open').click();
-  assert.equal(await page.locator('.scene-effect-title').innerText(),'Sandık aralanması');
+  assert.equal(await page.locator('.scene-effect-title').innerText(),'Sandık menteşe açılması');
   await page.locator('#preview-pulse').click();
   await page.waitForFunction(()=>document.querySelector('#stage-object-archive-chest [data-effect-layer="lid"]')?.style.transform.includes('rotateX('),
     null,{timeout:1600});
@@ -54,7 +54,7 @@ try{
   assert.ok(chest(edited).hitArea.y>chest(original).hitArea.y+.012);
   assert.equal(site.readiness(edited,snapshot).ready,true,'site accepts movable chest in authored JSON');
   const invalid=structuredClone(edited);
-  invalid.objects.find(o=>o.id==='guardian-sword-right').pose.x+=.01;
+  invalid.objects.find(o=>o.id==='camera').pose.x+=.01;
   assert.equal(site.readiness(invalid,snapshot).ready,false,'other objects stay locked');
   await page.locator('#visual-reset').click();
   assert.deepEqual(chest(await page.evaluate(()=>window.__sceneEditor.getScene())).pose,chest(original).pose);

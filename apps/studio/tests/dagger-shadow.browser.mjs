@@ -22,7 +22,7 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/tests/scene-v2-harness.html?embedded=1',{waitUntil:'domcontentloaded'});
   await page.evaluate(message=>window.postMessage(message,'*'),packet);
-  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,null,{timeout:15000});
+  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance'),null,{timeout:15000});
   await page.locator('#object-select-ceremonial-dagger').click();
   assert.equal(await page.locator('#visual-placement-settings').isVisible(),true);
   assert.equal(await page.locator('#stage-object-ceremonial-dagger [data-effect-layer="blade"] img').count(),1);

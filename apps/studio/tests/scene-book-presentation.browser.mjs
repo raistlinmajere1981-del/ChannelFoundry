@@ -22,7 +22,7 @@ try {
     previewImage:await site.preview(source),previewObjects:site.previewObjects(source),
     focusTargets:site.focusTargets(source),assets:[],
   });
-  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.length===22,{timeout:20000});
+  await page.waitForFunction(()=>window.__sceneEditor?.getScene()?.effects?.some(effect=>effect.id==='stone-specimen-resonance'),{timeout:20000});
   const get=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
     const requestId='book-check-'+Math.random(),timeout=setTimeout(()=>reject(Error('Book draft timeout')),8000);
     const listener=event=>{if(event.data?.requestId!==requestId||event.data.type!=='studio:data')return;

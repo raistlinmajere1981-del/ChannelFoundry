@@ -190,7 +190,7 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
             <header><strong>Evren kayıtlarından ekle</strong><button type="button" disabled={busy} onClick={()=>setPickerOpen(false)}>✕</button></header>
             <label>Tür
               <select value={libraryKind} onChange={e=>{setLibraryKind(e.target.value);setChecked(new Set());}}>
-                <option value="character">Muhataplar</option><option value="object">Nesneler</option>
+                <option value="character">Karakterler</option><option value="object">Nesneler</option>
                 <option value="event">Olaylar</option><option value="location">Mekânlar</option><option value="all">Tüm türler</option>
               </select>
             </label>

@@ -75,7 +75,7 @@ try{
   assert.equal(request.stage,'open');
   assert.equal(request.device,'mobile');
   assert.equal(request.expectedSourceHash,source.sourceHash);
-  assert.equal(request.scene.effects.length,22);
+  assert.equal(request.scene.effects.length,source.scene.effects.length);
   assert.deepEqual(request.presentation,source.presentation,'opening screenshot does not mutate draft');
   assert.match(await page.locator('#scene-real-preview-meta').innerText(),/SENTETİK İÇERİK/);
   assert.match(await page.locator('#scene-real-preview-meta').innerText(),/Geçiş yalnız yakalamada yavaşlatıldı/);

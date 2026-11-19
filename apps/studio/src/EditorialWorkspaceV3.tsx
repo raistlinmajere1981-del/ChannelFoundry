@@ -17,8 +17,8 @@ type Bridge = NonNullable<typeof window.channelFoundryStudio> & {
 type Props = { nodes:StudioUniverseWorkspaceNode[];legacyItems:LegacyItem[];legacyRelations:StudioPersistedRelation[];onReload():Promise<void>;onCreate():void};
 type Selection = {source:"workspace"|"legacy"|"support";key:string};
 type ItemRow = {source:Selection["source"];key:string;kind:string;title:string;subtitle:string;status:string;sourceCount:number;relatedCount:number;searchText:string};
-const kindLabels:Record<string,string>={story:"Hikâye",character:"Muhatap",event:"Olay",location:"Mekân",object:"Nesne",video:"Kayıt",file:"Dosya",support:"Destek"};
-const filterOptions=[{value:"all",label:"Tüm kayıtlar"},{value:"story",label:"Hikâyeler"},{value:"character",label:"Muhataplar"},{value:"event",label:"Olaylar"},{value:"location",label:"Mekânlar"},{value:"object",label:"Nesneler"},{value:"support",label:"Sponsor & Katkı"},{value:"legacy",label:"Manuel kayıtlar"}];
+const kindLabels:Record<string,string>={story:"Hikâye",character:"Karakter",event:"Olay",location:"Mekân",object:"Nesne",video:"Kayıt",file:"Dosya",support:"Destek"};
+const filterOptions=[{value:"all",label:"Tüm kayıtlar"},{value:"story",label:"Hikâyeler"},{value:"character",label:"Karakterler"},{value:"event",label:"Olaylar"},{value:"location",label:"Mekânlar"},{value:"object",label:"Nesneler"},{value:"support",label:"Sponsor & Katkı"},{value:"legacy",label:"Manuel kayıtlar"}];
 const focusStorageKey="channel-foundry:editor-focus";
 const isYoutube=(item:LegacyItem)=>item.kind==="video"&&(item.id.startsWith("youtube-")||item.key.startsWith("video:youtube-"));
 const titleKey=(sel:Selection)=>sel.source+":"+sel.key;

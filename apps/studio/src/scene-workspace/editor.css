@@ -102,6 +102,14 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-room-figure{box-sizing:border-box;display:block;position:absolute;min-width:0;min-height:0;margin:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:pointer;user-select:none;outline-offset:4px;transform-origin:center;filter:none}
 .scene-room-figure:focus-visible{outline:2px solid var(--accent)}
 .scene-room-figure[data-selected="true"]{filter:drop-shadow(0 0 5px #d99d56b0)}
+/* The real photographic book is the movable NESNE area, not the old effect pose. */
+.scene-viewport[data-edit-mode="visual"] .scene-room-figure--book[data-selected="true"]{
+  outline:2px dashed #e0a258;outline-offset:2px;touch-action:none;
+}
+.scene-room-figure [data-room-corner="nw"]{left:0;top:0;transform:translate(-50%,-50%);cursor:nwse-resize}
+.scene-room-figure [data-room-corner="ne"]{right:0;top:0;transform:translate(50%,-50%);cursor:nesw-resize}
+.scene-room-figure [data-room-corner="sw"]{left:0;bottom:0;transform:translate(-50%,50%);cursor:nesw-resize}
+.scene-room-figure [data-room-corner="se"]{right:0;bottom:0;transform:translate(50%,50%);cursor:nwse-resize}
 .scene-room-figure img{display:block;max-width:none;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .scene-room-figure--book img{width:100%;height:auto;filter:brightness(calc(.81 * var(--scene-material-brightness,1))) saturate(.83) drop-shadow(0 2px 1px #080401c8)}
 .scene-room-figure[data-room-object="research-journal"] > canvas.object-effect-overlay{

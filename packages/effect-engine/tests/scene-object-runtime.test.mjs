@@ -111,7 +111,7 @@ function overlayContext(canvas,width=120,height=180){
 }
 
 test('object effect registry exposes bounded controls and presets for scene objects only',()=>{
-  assert.deepEqual(Object.keys(objectEffectRegistry).sort(),['chest-lid-open','chest-light-leak','dagger-shadow','flame','glow','metal-glint','pendulum-sway','seal-trace','smoke','stone-drop','stone-tremor','water-ripple']);
+  assert.deepEqual(Object.keys(objectEffectRegistry).sort(),['chest-lid-open','chest-light-leak','dagger-shadow','flame','glow','metal-glint','pendulum-sway','seal-trace','smoke','stone-drop','stone-resonance','stone-tremor','water-ripple']);
   for(const [type,entry] of Object.entries(objectEffectRegistry)){
     assert.deepEqual(entry.targetKinds,['sceneObject']);
     assert.ok(['bottom','center'].includes(entry.placement));
@@ -338,7 +338,7 @@ test('v2 fixture remains independently importable',()=>{
 });
 
 test('finite metal/ripple render seeded paths, expire by time and unsubscribe canonical ticker',()=>{
-  for(const type of ['metal-glint','water-ripple']){
+  for(const type of ['metal-glint','water-ripple','stone-resonance']){
     const a=make(type,'same'),b=make(type,'same'),other=make(type,'other');
     assert.deepEqual(a.inspect(),b.inspect());assert.notDeepEqual(a.inspect(),other.inspect());
     a.update(.5);for(let i=0;i<5;i++)b.update(.1);

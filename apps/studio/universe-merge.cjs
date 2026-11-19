@@ -87,7 +87,7 @@ async function processNext(db, userDataPath, options = {}) {
     return next;
   }
   const stage = `Seviye ${job.level + 1} · Parça ${job.batchIndex + 1}`;
-  aiActivity.note(activitySession.id, "Seçilmiş hikâye, muhatap, olay, mekân ve nesne malzemeleri sırayla işlenecek.", { stage });
+  aiActivity.note(activitySession.id, "Seçilmiş hikâye, karakter, olay, mekân ve nesne malzemeleri sırayla işlenecek.", { stage });
   try {
     const merged = await mergePayload(userDataPath, job.input, job.level, {
       signal: options.signal,

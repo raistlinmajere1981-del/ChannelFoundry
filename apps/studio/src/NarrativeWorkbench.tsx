@@ -23,7 +23,7 @@ function sourceLabel(source: StudioNarrativeSourceDescriptor | undefined, fallba
 }
 
 function sourceKindLabel(kind: unknown) {
-  const labels: Record<string, string> = { story: "Hikâye", character: "Muhatap", location: "Mekân", object: "Nesne", detail: "Ayrıntı", event: "Olay", sequence: "Olay sırası" };
+  const labels: Record<string, string> = { story: "Hikâye", character: "Karakter", location: "Mekân", object: "Nesne", detail: "Ayrıntı", event: "Olay", sequence: "Olay sırası" };
   return labels[clean(kind).toLowerCase()] ?? "Evren kaydı";
 }
 

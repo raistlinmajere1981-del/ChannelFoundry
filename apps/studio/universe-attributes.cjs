@@ -89,7 +89,7 @@ function ensureSchema(db) {
 }
 function getNode(db, key) {
   const node = db.prepare("SELECT key,kind,name,summary,source_video_ids_json,payload_json FROM universe_workspace_nodes WHERE key=? AND state='approved'").get(key);
-  if (!node || !FIELDS[node.kind]) throw new Error("Yalnız onaylı muhatap, nesne ve mekân kayıtları düzenlenebilir.");
+  if (!node || !FIELDS[node.kind]) throw new Error("Yalnız onaylı karakter, nesne ve mekân kayıtları düzenlenebilir.");
   return node;
 }
 function validField(kind, field) {

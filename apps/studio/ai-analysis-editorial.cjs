@@ -156,7 +156,7 @@ function buildItems(row) {
     const name = clean(entry?.name, 260);
     if (!name) continue;
     const detail = [clean(entry?.role, 500), ...textArray(entry?.details, 20, 800)].filter(Boolean).join(" · ");
-    items.push(item("character", name, name, detail || "Muhatap adayı", "universe", entry));
+    items.push(item("character", name, name, detail || "Karakter adayı", "universe", entry));
   }
   for (const entry of Array.isArray(safeJson(row.scenesJson, [])) ? safeJson(row.scenesJson, []) : []) {
     const name = clean(entry?.name || entry?.description, 260);

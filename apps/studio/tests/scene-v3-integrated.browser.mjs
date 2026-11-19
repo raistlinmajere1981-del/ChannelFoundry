@@ -27,7 +27,7 @@ try{
  },packet);
  await page.waitForFunction(()=>document.querySelectorAll('.scene-tree-object').length===14,undefined,{timeout:8500}).catch(async e=>{console.log('ROOT HTML',String(await page.locator('body').innerText()).slice(0,1600));console.log('ROOT COUNTS',await page.evaluate(()=>({root:!!document.querySelector('.scene-editor-root'), tree:!!document.querySelector('#object-list'), html:document.querySelector('#object-list')?.innerHTML.slice(0,1000), error:document.querySelector('.scene-workshop-status')?.innerText})));throw e});
  assert.equal(await page.locator('iframe').count(),0,'no iframe in Studio scene module');
- assert.equal(await page.locator('.scene-tree-effect').count(),22,'effect rows nested under object tree');
+ assert.equal(await page.locator('.scene-tree-effect').count(),source.scene.effects.length,'effect rows nested under object tree');
  assert.equal(await page.locator('#scene-photo').evaluate(n=>n.hidden),false);
  const scenePhotoBefore=await page.locator('#scene-photo').getAttribute('src');
  await page.evaluate(()=>document.documentElement.setAttribute('data-studio-theme','light'));
@@ -65,7 +65,7 @@ try{
  await page.locator('#presentation-focusMs').fill('910');await page.locator('#presentation-focusMs').press('Tab');
  await page.getByRole('button',{name:/^Kaydet/}).click();
  await page.waitForFunction(()=>window.__studioSceneSave?.presentation?.objects?.camera?.focusMs===910,{timeout:15000});
- assert.equal(await page.evaluate(()=>window.__studioSceneSave.scene.effects.length),22);
+ assert.equal(await page.evaluate(()=>window.__studioSceneSave.scene.effects.length),source.scene.effects.length);
  await selection.click({button:'right'});
  assert.equal(await page.locator('#scene-context-menu').isVisible(),true);
  assert.match(await page.locator('#scene-context-menu').innerText(),/Kamera|Özellikler/);
@@ -78,5 +78,5 @@ try{
  assert.equal(await page.locator('#library-panel').isVisible(),true);
  assert.deepEqual(errors,[],'no JS console errors');
  await page.screenshot({path:'/tmp/scene-v3-browser.png',fullPage:true});
- console.log('PASS Studio V3 direct React module, 14 tree nodes, 22 nested effects, real room artwork, contextual focus, saved presentation, right-click, panels; no iframe');
+ console.log('PASS Studio V3 direct React module, 14 tree nodes, nested effects, real room artwork, contextual focus, saved presentation, right-click, panels; no iframe');
 }finally{await browser?.close();server.kill('SIGTERM');}

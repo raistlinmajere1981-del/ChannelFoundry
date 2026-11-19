@@ -39,7 +39,7 @@ type DiffRow = { key: string; label: string; current: ReactNode; proposed: React
 
 const kindLabel: Record<StudioUniverseWorkspaceNode["kind"], string> = {
   story: "Hikâye",
-  character: "Muhatap",
+  character: "Karakter",
   event: "Olay",
   location: "Mekân",
   object: "Nesne",
@@ -47,7 +47,7 @@ const kindLabel: Record<StudioUniverseWorkspaceNode["kind"], string> = {
 const payloadLabels: Record<string, string> = {
   roles: "Rol / tür",
   storyNames: "Bağlı hikâyeler",
-  characterNames: "Bağlı muhataplar",
+  characterNames: "Bağlı karakterler",
   locationNames: "Bağlı mekânlar",
   objectNames: "Bağlı nesneler",
   details: "Kaynaklı ayrıntılar",

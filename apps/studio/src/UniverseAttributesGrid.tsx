@@ -12,7 +12,7 @@ type Option={kind:string;field:string;value:string;labelEn:string};
 type Result={profiles:Profile[];proposals:Proposal[];analyses:Analysis[];provenance:Provenance[];dictionary:Option[]};
 type Props={nodes:Node[];onClose():void;onDirtyChange(value:boolean):void;onBusyChange(value:boolean):void};
 const categories:{kind:Kind;label:string;fields:{key:string;label:string}[]}[]=[
- {kind:"character",label:"Muhataplar",fields:[{key:"sideStatus",label:"Taraf durumu"},{key:"age",label:"Yaş"},{key:"species",label:"Tür"},{key:"dimension",label:"Boyut"},{key:"rank",label:"Mevki"}]},
+ {kind:"character",label:"Karakterler",fields:[{key:"sideStatus",label:"Taraf durumu"},{key:"age",label:"Yaş"},{key:"species",label:"Tür"},{key:"dimension",label:"Boyut"},{key:"rank",label:"Mevki"}]},
  {kind:"object",label:"Nesneler",fields:[{key:"type",label:"Tür"},{key:"property",label:"Özellik"},{key:"custodian",label:"Sahibi / Koruyucusu"}]},
  {kind:"location",label:"Mekânlar",fields:[{key:"type",label:"Tür"},{key:"position",label:"Konum"},{key:"dimension",label:"Boyut"}]},
 ];

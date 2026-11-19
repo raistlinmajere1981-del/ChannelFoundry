@@ -1,5 +1,5 @@
 // An almost-human dark reflection crosses a polished ceremonial blade.
-// It is a single short event. The diagonal blade stencil is reinforced by a
+// It is a single short event. The mounted blade stencil is reinforced by a
 // material alpha mask in the site, so no silhouette is ever cast onto the room.
 export function createDaggerShadow({params}) {
   let elapsed=0,disposed=false,painted=false;
@@ -14,21 +14,21 @@ export function createDaggerShadow({params}) {
       const t=clamp(elapsed/duration());
       const envelope=Math.pow(Math.sin(Math.PI*t),1.3);
       if(envelope<=.003)return;
-      const x=(.70-.60*t)*width, y=(.35+.50*t)*height;
+      const x=(.55-.50*t)*width, y=(.46+.063*t)*height;
       const unit=Math.min(width,height);
       const radius=Math.max(1,unit*.13*params.figureScale);
       ctx.save();
       // Approximate the photographed blade's taper; the PNG alpha stencil
       // attached to this Canvas provides the final pixel-accurate boundary.
       ctx.beginPath();
-      ctx.moveTo(width*.48,height*.41);
-      ctx.lineTo(width*.63,height*.51);
-      ctx.lineTo(width*.08,height*.99);
-      ctx.lineTo(width*.066,height*.965);
+      ctx.moveTo(width*.50,height*.356);
+      ctx.lineTo(width*.585,height*.566);
+      ctx.lineTo(width*.043,height*.532);
+      ctx.lineTo(width*.043,height*.509);
       ctx.closePath();
       ctx.clip();
       // A faint cool gleam outlines the moving reflection without lighting
-      // the surrounding tabletop. No recognizable face or body detail.
+      // the display rack. No recognizable face or body detail.
       const edge=ctx.createRadialGradient(x,y,radius*.2,x,y,radius*2.1);
       edge.addColorStop(0,'rgba(129,151,160,0)');
       edge.addColorStop(.48,'rgba(111,133,146,.18)');

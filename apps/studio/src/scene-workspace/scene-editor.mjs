@@ -10,6 +10,7 @@ import {layoutSceneViewport,renderViewportControls} from './scene-viewport-layou
 import {sceneProfiles,profileForEffect,applySceneProfile,basicControls,assertSiteStructure} from './scene-ux.mjs';
 import {History} from './history.mjs';
 import {sceneEditMode,sceneBoxMove,sceneBoxResize} from './scene-editing.mjs';
+import {bookStageArea,bookPlacementFromArea,linkedArea,bookMarkerPoint} from './scene-book-area.mjs';
 import {deviceRoomBox,deviceStageHit,deviceNativeHit,deviceStagePoint} from './scene-room-geometry.mjs';
 import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../../../../packages/effect-engine/src/model/project.mjs';
 import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../../../../packages/effect-engine/src/registry/effects.mjs';
@@ -143,6 +144,8 @@ const INDEPENDENT_ROOM_MATERIALS=new Set(['water-basin','guardian-sword-left','g
 const editableVisual=item=>Boolean(item&&(canCropVisual(item)||INDEPENDENT_ROOM_MATERIALS.has(item.id))
   &&(!siteSource||previewObjects.has(item.id)));
 const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
+const selectedBookArea=id=>bookStageArea(presentation.objects[id].closedBook);
+const selectedDeviceArea=id=>deviceRoomBox(presentation,id,roomObjects);
 const replacementSource=(asset,original)=>assetReplacements.get(asset)?.dataUrl??original;
 function visualAssetSlots(item){
   const artwork=previewObjects.get(item?.id);
@@ -264,6 +267,71 @@ function mutatePresentation(action,key=null){
     action(next);validateScenePresentation(next);
     recordHistory(scene,key);presentation=next;draw();
     status('Odak görünümü güncellendi; ayarlar taslakta.');changed();return true;
+  }catch(e){error(e);draw();return false;}
+}
+function mutateBookArea(id,box,key='book:'+id+':area',fromHit=null){
+  if(!siteSource||!BOOK_OBJECT_IDS.includes(id)||isDragLocked(id))return false;
+  try{
+    const nextPresentation=structuredClone(presentation),nextScene=structuredClone(scene);
+    const original=bookStageArea(presentation.objects[id].closedBook);
+    const next=bookPlacementFromArea(presentation.objects[id].closedBook,box);
+    Object.assign(nextPresentation.objects[id].closedBook,next);
+    const owner=nextScene.objects.find(item=>item.id===id);
+    if(linkVisual&&owner.hitArea)owner.hitArea=fromHit??linkedArea(original,box,owner.hitArea);
+    validateScenePresentation(nextPresentation);validateScene(nextScene);
+    recordHistory(scene,key);presentation=nextPresentation;scene=nextScene;
+    draw();changed();status('Nesne alanı güncellendi; tıklama alanı '+(linkVisual?'birlikte':'bağımsız')+'.');
+    return true;
+  }catch(e){error(e);draw();return false;}
+}
+function mutateDeviceArea(id,box,key='device:'+id+':area'){
+  if(!siteSource||!PHYSICAL_DEVICE_IDS.includes(id)||isDragLocked(id))return false;
+  try{
+    const source=roomObjects.get(id),before=deviceStageHit(presentation,id,scene.objects.find(o=>o.id===id).hitArea);
+    if(source?.kind!=='device')throw Error('Cihazın oda alanı bulunamadı.');
+    const nextPresentation=structuredClone(presentation),nextScene=structuredClone(scene);
+    const placement={...roomDevicePlacement(presentation,id),
+      x:round(box.x+box.width/2),y:round(box.y+box.height/2),
+      scale:round(box.width/source.foundation.width)};
+    nextPresentation.objects[id].roomPlacement=placement;
+    const owner=nextScene.objects.find(o=>o.id===id);
+    // A disconnected click box retains its visible position after a device move.
+    if(!linkVisual&&owner.hitArea)owner.hitArea=deviceNativeHit(nextPresentation,id,before);
+    validateScenePresentation(nextPresentation);validateScene(nextScene);
+    recordHistory(scene,key);presentation=nextPresentation;scene=nextScene;
+    draw();changed();status('Cihaz alanı güncellendi; tıklama alanı '+(linkVisual?'birlikte':'bağımsız')+'.');
+    return true;
+  }catch(e){error(e);draw();return false;}
+}
+function updateHitArea(id,visible,key='hit:'+id+':area'){
+  const original=scene.objects.find(item=>item.id===id);
+  if(!original?.hitArea||isDragLocked(id))return false;
+  try{
+    const beforeHit=deviceStageHit(presentation,id,original.hitArea);
+    const nextScene=structuredClone(scene),nextPresentation=structuredClone(presentation);
+    const target=nextScene.objects.find(item=>item.id===id);
+    target.hitArea=deviceNativeHit(presentation,id,visible);
+    if(linkVisual&&siteSource&&BOOK_OBJECT_IDS.includes(id)){
+      const cover=bookStageArea(presentation.objects[id].closedBook);
+      const changedCover=linkedArea(beforeHit,visible,cover);
+      Object.assign(nextPresentation.objects[id].closedBook,
+        bookPlacementFromArea(presentation.objects[id].closedBook,changedCover));
+    }else if(linkVisual&&siteSource&&PHYSICAL_DEVICE_IDS.includes(id)){
+      const shown=deviceRoomBox(presentation,id,roomObjects),record=roomObjects.get(id);
+      const changed=linkedArea(beforeHit,visible,shown);
+      nextPresentation.objects[id].roomPlacement={...roomDevicePlacement(presentation,id),
+        x:round(changed.x+changed.width/2),y:round(changed.y+changed.height/2),
+        scale:round(changed.width/record.foundation.width)};
+      target.hitArea=deviceNativeHit(nextPresentation,id,visible);
+    }else if(linkVisual&&editableVisual(original)&&!PHYSICAL_DEVICE_IDS.includes(id)){
+      const pose=linkedArea(beforeHit,visible,original.pose);
+      moveVisual(nextScene,id,pose,false);
+      target.hitArea=deviceNativeHit(presentation,id,visible);
+    }
+    validateScene(nextScene);validateScenePresentation(nextPresentation);
+    recordHistory(scene,key);scene=nextScene;presentation=nextPresentation;
+    draw();changed();status('Tıklama alanı güncellendi; nesne alanı '+(linkVisual?'bağlıysa birlikte':'bağımsız')+'.');
+    return true;
   }catch(e){error(e);draw();return false;}
 }
 function mutate(action,key=null,assetsBefore=null){
@@ -432,8 +500,45 @@ function moveVisual(sceneCopy,id,nextPose,linked=linkVisual){
 }
 function renderVisualInspector(){
   const root=$('#visual-placement-settings'),host=$('#visual-inspector'),item=object();
-  root.hidden=!editableVisual(item);host.replaceChildren();
-  if(!editableVisual(item))return;
+  const isBook=Boolean(siteSource&&item&&BOOK_OBJECT_IDS.includes(item.id));
+  const isDevice=Boolean(siteSource&&item&&PHYSICAL_DEVICE_IDS.includes(item.id));
+  root.hidden=!(editableVisual(item)||isBook||isDevice);host.replaceChildren();
+  if(root.hidden)return;
+  if(isBook){
+    const area=selectedBookArea(item.id);
+    host.append(el('label',{class:'scene-visual-check'},
+      el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
+        onchange:event=>{linkVisual=event.target.checked;}}),
+      el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
+    for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)'],['width','Genişlik (%)'],['height','Yükseklik (%)']]){
+      host.append(numberInput(label,round(area[key]*100),value=>{
+        const box={...area,[key]:round(value/100)};
+        mutateBookArea(item.id,box,'book:'+item.id+':area:'+key);
+      },{id:'book-area-'+key,min:key==='width'||key==='height'?.1:0,max:100,step:.1}));
+    }
+    host.append(el('p',{class:'scene-visual-tip',text:'Görsel modunda kitabı sürükleyin, köşelerinden boyutlandırın. Alan modunda tıklama sınırını ayrı düzenleyebilirsiniz.'}));
+    return;
+  }
+  if(isDevice){
+    const area=selectedDeviceArea(item.id),p=roomDevicePlacement(presentation,item.id);
+    host.append(el('label',{class:'scene-visual-check'},
+      el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
+        onchange:event=>{linkVisual=event.target.checked;}}),
+      el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
+    for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)']]){
+      host.append(numberInput(label,round(area[key]*100),value=>mutateDeviceArea(item.id,{
+        ...area,[key]:round(value/100)},'device:'+item.id+':'+key),
+        {id:'device-area-'+key,min:0,max:100,step:.1}));
+    }
+    host.append(numberInput('Nesne ölçeği (%)',round(p.scale*100),value=>{
+      const s=value/100,present=roomObjects.get(item.id).foundation,
+        w=present.width*s,h=present.height*s,
+        center={x:area.x+area.width/2,y:area.y+area.height/2};
+      mutateDeviceArea(item.id,{x:center.x-w/2,y:center.y-h/2,width:w,height:h},'device:'+item.id+':scale');
+    },{id:'device-area-scale',min:55,max:175,step:1}));
+    host.append(el('p',{class:'scene-visual-tip',text:'Görsel modunda cihazı sürükleyip köşeden ölçekleyin. En-boy oranı korunur.'}));
+    return;
+  }
   const base=visualBase(item);
   const adjust=(fields,key)=>mutate(s=>moveVisual(s,item.id,fields),key);
   host.title='Taşı modunda sürükleyin. Ok tuşları: %0,1; Shift+ok: %1.';
@@ -1097,15 +1202,17 @@ function renderObjectInspector(){
       {id:'artwork-hit-enabled',title:'Kapatılırsa görselin tamamı etkileşim alanıdır.'}));
   }
   if(item.hitArea){
+    hitHost.append(el('label',{class:'scene-visual-check'},
+      el('input',{type:'checkbox',id:'hit-linked',checked:linkVisual,
+        onchange:event=>{linkVisual=event.target.checked;}}),
+      el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
     $('#hit-area-settings').title='Kesikli alanı sürükleyerek yerleştirin; efekt hedefi ayrı taşınır.';
     const visibleHit=deviceStageHit(presentation,item.id,item.hitArea);
     for(const [key,label] of [['x','Sol X %'],['y','Üst Y %'],['width','Genişlik %'],['height','Yükseklik %']]){
-      hitHost.append(numberInput(label,round(visibleHit[key]*100),value=>mutate(s=>{
-        const target=s.objects.find(entry=>entry.id===item.id);
-        const stage=deviceStageHit(presentation,item.id,target.hitArea);
-        stage[key]=round(value/100);
-        target.hitArea=deviceNativeHit(presentation,item.id,stage);
-      },'hit:'+item.id+':'+key),{min:key==='x'||key==='y'?0:.1,max:100,step:.1,'data-testid':'scene-hit-'+key}));
+      hitHost.append(numberInput(label,round(visibleHit[key]*100),value=>{
+        const stage={...deviceStageHit(presentation,item.id,item.hitArea),[key]:round(value/100)};
+        updateHitArea(item.id,stage,'hit:'+item.id+':'+key);
+      },{min:key==='x'||key==='y'?0:.1,max:100,step:.1,'data-testid':'scene-hit-'+key}));
     }
   }
   host.append(field('Grup',el('input',{id:'object-group',value:item.group??'',maxLength:80,
@@ -1232,7 +1339,8 @@ function buildObject(item){
   });
   // Physical camera and drawing board derive their editor geometry from the
   // same room placement that moves the actual cutout, never a stale pose.
-  const roomBox=deviceRoomBox(presentation,item.id,roomObjects);
+  const roomBox=deviceRoomBox(presentation,item.id,roomObjects)
+    ??(siteSource&&BOOK_OBJECT_IDS.includes(item.id)?selectedBookArea(item.id):null);
   const shownPose=roomBox??item.pose;
   if(roomBox)node.dataset.roomProjected='true';
   Object.assign(node.style,{
@@ -1265,19 +1373,13 @@ function buildObject(item){
     const fixed=el('img',{src:replacementSource(artwork.asset,artwork.image),alt:'',class:'scene-motion-fixed'});
     Object.assign(fixed.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',
       filter:item.kind==='artwork'?'none':materialToneForStudio(item.id),
-      ...(item.kind==='artwork'?visualClipStyle(item):{}),
-      ...(item.id==='archive-chest'?{width:'150%',zIndex:'1',...visualClipStyle(item)}:{})});node.append(fixed);
-    if(item.id==='stone-specimen'&&artwork?.dropper){
-      const copper=el('img',{src:replacementSource('/scene-assets/stone/copper-drip-arm.webp',artwork.dropper),
-        alt:'',class:'scene-stone-dropper'});
-      Object.assign(copper.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',
-        filter:'brightness(calc(.86 * var(--scene-material-brightness,1))) saturate(.7)'});
-      node.append(copper);
-    }
+      ...(item.id==='ceremonial-robe'?{}:visualClipStyle(item)),
+      ...(item.id==='archive-chest'?{zIndex:'1'}:{})});
+    node.append(fixed);
   }
   for(const id of item.motionLayers??[]){
     const layer=el('span',{'data-effect-layer':id,'aria-hidden':'true'});
-    Object.assign(layer.style,{position:'absolute',inset:0,width:item.id==='archive-chest'?'150%':'100%',
+    Object.assign(layer.style,{position:'absolute',inset:0,width:'100%',
       height:'100%',pointerEvents:'none',...(item.id==='archive-chest'?{zIndex:'3',transformStyle:'preserve-3d'}:{}),...(item.id==='ceremonial-robe'?{}:visualClipStyle(item))});
     const picture=artwork?.layers.find(entry=>entry.id===id);
     if(item.kind==='artwork')Object.assign(layer.style,visualClipStyle(item));
@@ -1318,7 +1420,9 @@ function renderMarkers(){
   const updated=renderEffectMarkerOverlay({
     host:$('#scene-markers'),scene,selectedEffectId:effectId,hiddenInRoom,
     editMode,legacyMode:!$('#effect-edit-mode'),
-    stagePoint:(owner,point)=>deviceStagePoint(presentation,owner.id,point),
+    stagePoint:(owner,point)=>siteSource&&BOOK_OBJECT_IDS.includes(owner.id)
+      ?bookMarkerPoint(presentation.objects[owner.id].closedBook,owner.pose,point)
+      :deviceStagePoint(presentation,owner.id,point),
     onDrag:(event,item)=>beginDrag(event,item),onSelect:item=>selectEffect(item.id),
     onArrow:(item,event)=>{
       const step=event.shiftKey?.05:.01;
@@ -1349,8 +1453,8 @@ function bindPreview(pulseId=null){
     // The Evren seal is painted on the same photographed cover in both
     // Studio and the site. Fall back to the abstract object host only if
     // the operator locally hides photographic room objects.
-    previewHandle=bindObjectScene(selected,id=>id==='research-journal'
-      ?$('#scene-room-objects [data-room-object="research-journal"]')??objectElements.get(id)
+    previewHandle=bindObjectScene(selected,id=>BOOK_OBJECT_IDS.includes(id)
+      ?$('#scene-room-objects [data-room-object="'+id+'"]')??objectElements.get(id)
       :objectElements.get(id),{expectedSceneId:scene.sceneId,interactive:true});
     const bladeMask=previewObjects.get('ceremonial-dagger')?.bladeMask;
     if(bladeMask){
@@ -1372,7 +1476,6 @@ function bindPreview(pulseId=null){
         canvas.style.webkitMaskSize='100% 100%';
         canvas.style.maskRepeat='no-repeat';
         canvas.style.maskMode='alpha';
-        canvas.style.width='150%';
         canvas.style.mixBlendMode='screen';
         canvas.style.zIndex='2';
       }
@@ -1421,7 +1524,7 @@ function renderRoomObjects(){
     const visualKind=record.kind==='device'?(id==='camera'?'camera':'vefk'):record.kind;
     const node=el('button',{type:'button',class:'scene-room-figure scene-room-figure--'+visualKind,
       'data-room-object':id,'data-selected':String(objectId===id),
-      ...(id==='research-journal'?{'data-scene-object-id':id,'data-scene-id':scene.sceneId}:{}),
+      ...(BOOK_OBJECT_IDS.includes(id)?{'data-scene-object-id':id,'data-scene-id':scene.sceneId}:{}),
       'aria-label':owner.name+' · oda görünümünde seç',
       onclick:()=>selectObject(id)});
     const placement=record.kind==='device'?roomDevicePlacement(presentation,id):null;
@@ -1477,6 +1580,16 @@ function renderRoomObjects(){
         if(record.kind==='book')beginBookDeskDrag(event,node,id,record);
         else beginDeviceRoomDrag(event,node,id,placement);
       });
+      if(visualMode&&objectId===id&&!isDragLocked(id)){
+        for(const corner of ['nw','ne','sw','se']){
+          const handle=el('span',{class:'scene-visual-resize-handle',
+            'data-room-corner':corner,'aria-label':owner.name+' nesne alanını boyutlandır'});
+          handle.addEventListener('pointerdown',event=>record.kind==='book'
+            ?beginBookDeskDrag(event,node,id,record,corner)
+            :beginDeviceRoomDrag(event,node,id,placement,corner));
+          node.append(handle);
+        }
+      }
       host.append(node);
     }
   }
@@ -1484,13 +1597,14 @@ function renderRoomObjects(){
 // Like book drags, this updates only the canonical room presentation; no
 // native effect-scene coordinates, close-up projection or image bytes move.
 let deviceRoomDrag=null;
-function beginDeviceRoomDrag(event,node,id,placement){
+function beginDeviceRoomDrag(event,node,id,placement,corner=null){
   if(deviceRoomDrag||isDragLocked(id))return;
+  event.preventDefault();event.stopPropagation();
   const viewport=$('#scene-viewport').getBoundingClientRect();
-  deviceRoomDrag={pointerId:event.pointerId,node,id,
-    x:event.clientX,y:event.clientY,source:structuredClone(placement),
-    width:viewport.width,height:viewport.height,
-    latest:{x:placement.x,y:placement.y},moved:false};
+  const source=selectedDeviceArea(id);
+  deviceRoomDrag={pointerId:event.pointerId,node,id,corner,
+    x:event.clientX,y:event.clientY,source,width:viewport.width,height:viewport.height,
+    latest:source,moved:false};
   node.setPointerCapture?.(event.pointerId);
   window.addEventListener('pointermove',moveDeviceRoomDrag);
   window.addEventListener('pointerup',endDeviceRoomDrag);
@@ -1498,12 +1612,31 @@ function beginDeviceRoomDrag(event,node,id,placement){
 }
 function moveDeviceRoomDrag(event){
   const d=deviceRoomDrag;if(!d||event.pointerId!==d.pointerId)return;
-  d.latest={
-    x:round(clamp(d.source.x+(event.clientX-d.x)/d.width,.05,.96)),
-    y:round(clamp(d.source.y+(event.clientY-d.y)/d.height,.04,.96)),
-  };
-  d.moved=d.latest.x!==d.source.x||d.latest.y!==d.source.y;
-  d.node.style.left=d.latest.x*100+'%';d.node.style.top=d.latest.y*100+'%';
+  const dx=(event.clientX-d.x)/d.width,dy=(event.clientY-d.y)/d.height;
+  const record=roomObjects.get(d.id),foundation=record.foundation;
+  let next=d.corner
+    ?sceneBoxResize(d.source,d.corner,dx,dy,{aspectLock:true,minSize:.04})
+    :sceneBoxMove(d.source,dx,dy);
+  if(d.corner){
+    const scale=next.width/foundation.width;
+    if(scale<.55||scale>1.75)return;
+    // A physical device has uniform scaling; no perspective stretching.
+    next={...next,height:foundation.height*scale};
+    if(d.corner.includes('n'))next.y=d.source.y+d.source.height-next.height;
+    if(next.y<0||next.y+next.height>1)return;
+  }
+  const placement={...roomDevicePlacement(presentation,d.id),
+    x:round(next.x+next.width/2),y:round(next.y+next.height/2),
+    scale:round(next.width/foundation.width)};
+  try{
+    const draft=structuredClone(presentation);
+    draft.objects[d.id].roomPlacement=placement;
+    validateScenePresentation(draft);
+  }catch{return;}
+  d.latest=next;d.moved=JSON.stringify(next)!==JSON.stringify(d.source);
+  d.node.style.left=placement.x*100+'%';d.node.style.top=placement.y*100+'%';
+  d.node.style.width=(foundation.width*placement.scale)*100+'%';
+  d.node.style.height=(foundation.height*placement.scale)*100+'%';
 }
 function endDeviceRoomDrag(event){
   const d=deviceRoomDrag;if(!d||event.pointerId!==d.pointerId)return;
@@ -1511,19 +1644,18 @@ function endDeviceRoomDrag(event){
   window.removeEventListener('pointermove',moveDeviceRoomDrag);
   window.removeEventListener('pointerup',endDeviceRoomDrag);
   window.removeEventListener('pointercancel',endDeviceRoomDrag);
-  if(d.moved)mutatePresentation(next=>{
-    next.objects[d.id].roomPlacement??=defaultRoomDevicePlacement(d.id);
-    Object.assign(next.objects[d.id].roomPlacement,d.latest);
-  },'roomPlacement:'+d.id+':drag');
+  if(d.moved)mutateDeviceArea(d.id,d.latest,'device:'+d.id+':drag');
   else draw();
 }
 let bookDeskDrag=null;
-function beginBookDeskDrag(event,node,id,record){
-  if(isDragLocked(id))return;
+function beginBookDeskDrag(event,node,id,record,corner=null){
+  if(bookDeskDrag||isDragLocked(id))return;
+  event.preventDefault();event.stopPropagation();
   const viewport=$('#scene-viewport').getBoundingClientRect();
-  bookDeskDrag={pointerId:event.pointerId,node,id,
-    x:event.clientX,y:event.clientY,source:record,width:viewport.width,height:viewport.height,
-    latest:{x:record.x,y:record.y},moved:false};
+  const start=bookStageArea(record);
+  bookDeskDrag={pointerId:event.pointerId,node,id,corner,
+    x:event.clientX,y:event.clientY,source:start,
+    width:viewport.width,height:viewport.height,latest:start,moved:false};
   node.setPointerCapture?.(event.pointerId);
   window.addEventListener('pointermove',moveBookDeskDrag);
   window.addEventListener('pointerup',endBookDeskDrag);
@@ -1531,12 +1663,20 @@ function beginBookDeskDrag(event,node,id,record){
 }
 function moveBookDeskDrag(event){
   const d=bookDeskDrag;if(!d||event.pointerId!==d.pointerId)return;
-  d.latest={
-    x:round(clamp(d.source.x+(event.clientX-d.x)/d.width,.08,.92)),
-    y:round(clamp(d.source.y+(event.clientY-d.y)/d.height,.18,.95)),
-  };
-  d.moved=d.latest.x!==d.source.x||d.latest.y!==d.source.y;
-  d.node.style.left=d.latest.x*100+'%';d.node.style.top=d.latest.y*100+'%';
+  const dx=(event.clientX-d.x)/d.width,dy=(event.clientY-d.y)/d.height;
+  const next=d.corner?sceneBoxResize(d.source,d.corner,dx,dy,{aspectLock:event.shiftKey,minSize:.06})
+    :sceneBoxMove(d.source,dx,dy);
+  const placement=bookPlacementFromArea(presentation.objects[d.id].closedBook,next);
+  try{
+    const draft=structuredClone(presentation);
+    Object.assign(draft.objects[d.id].closedBook,placement);
+    validateScenePresentation(draft);
+  }catch{return;}
+  d.latest=next;d.moved=JSON.stringify(next)!==JSON.stringify(d.source);
+  d.node.style.left=placement.x*100+'%';d.node.style.top=placement.y*100+'%';
+  d.node.style.width=placement.width*100+'%';
+  d.node.style.height=(placement.width*4/3)*100+'%';
+  d.node.style.transform='translate(-50%, -50%) rotate('+placement.angle+'deg) scaleY('+placement.surfaceScaleY+')';
 }
 function endBookDeskDrag(event){
   const d=bookDeskDrag;if(!d||event.pointerId!==d.pointerId)return;
@@ -1544,9 +1684,7 @@ function endBookDeskDrag(event){
   window.removeEventListener('pointermove',moveBookDeskDrag);
   window.removeEventListener('pointerup',endBookDeskDrag);
   window.removeEventListener('pointercancel',endBookDeskDrag);
-  if(d.moved)mutatePresentation(next=>{
-    Object.assign(next.objects[d.id].closedBook,d.latest);
-  },'book:'+d.id+':desk:drag');
+  if(d.moved)mutateBookArea(d.id,d.latest,'book:'+d.id+':desk:drag');
   else draw();
 }
 function renderControlStage(){
@@ -1666,11 +1804,8 @@ function renderStage(){
             const dx=event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0;
             const dy=event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0;
             if(isDragLocked(item.id))return;
-            mutate(s=>{
-              const selected=s.objects.find(entry=>entry.id===item.id);
-              const visibleBox=deviceStageHit(presentation,item.id,selected.hitArea);
-              selected.hitArea=deviceNativeHit(presentation,item.id,sceneBoxMove(visibleBox,dx,dy));
-            },'hit:'+item.id+':keyboard');
+            const visibleBox=deviceStageHit(presentation,item.id,item.hitArea);
+            updateHitArea(item.id,sceneBoxMove(visibleBox,dx,dy),'hit:'+item.id+':keyboard');
           });
         }
       }
@@ -1976,8 +2111,12 @@ function endHitDrag(event){
   window.removeEventListener('pointermove',moveHitDrag);
   window.removeEventListener('pointerup',endHitDrag);
   window.removeEventListener('pointercancel',endHitDrag);
-  if(hitDrag.changed){recordHistory(hitDrag.before);changed();}
-  hitDrag=null;draw();
+  if(hitDrag.changed){
+    const id=hitDrag.id,area=deviceStageHit(presentation,id,scene.objects.find(item=>item.id===id).hitArea);
+    scene=hitDrag.before;
+    updateHitArea(id,area,'hit:'+id+':drag');
+  }else draw();
+  hitDrag=null;
 }
 function beginDrag(event,item){
   if((event.button!==undefined&&event.button!==0)||isDragLocked(item.target.objectId))return;
@@ -2476,7 +2615,7 @@ function setEditMode(next,{announce=true}={}){
   const viewport=$('#scene-viewport');
   viewport.classList.toggle('visual-edit-mode',visualMode);
   viewport.dataset.editMode=editMode;
-  root.dataset.editMode=editMode;
+  surface.dataset.editMode=editMode;
   for(const [id,mode] of [['select-mode','select'],['visual-edit-mode','visual'],
       ['hit-edit-mode','hit'],['effect-edit-mode','effect']]){
     const control=$('#'+id);
@@ -2492,7 +2631,7 @@ function setEditMode(next,{announce=true}={}){
     if($('#show-markers')?.getAttribute('aria-pressed')==='false')$('#show-markers').click();
     setInspectorTab('effect');
   }
-  if(editMode==='visual')setInspectorTab(focusTargets.has(objectId)?'focus':'visual');
+  if(editMode==='visual')setInspectorTab('visual');
   if(scene)draw();
   if(announce){
     const names={select:'Seçim · sürükleme kapalı',visual:'Görsel · sürükle, köşelerden boyutlandır',

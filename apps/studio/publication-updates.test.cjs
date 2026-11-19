@@ -188,3 +188,19 @@ test('single-language modifications on an existing entity require full publicati
  assert.equal(coverage.requiresFull,true);
  assert(coverage.reasons.some(reason=>reason.includes('Tek dil')));
 });
+
+
+test('a new curated camera catalogue needs full publication, never a silent partial update',()=>{
+ const live=snap(),current=structuredClone(live);
+ current.cameraArchive={videos:[{
+  videoId:'ABCDEFGHIJK',publishedAt:'2026-11-18',analysisStatus:'complete',
+  publicationStatus:'published',membersOnly:false,source:{title:'Kaynak',summary:'Onaylı çözümleme kaynağı'},
+  locales:{},
+ }]};
+ resign(current);
+ const coverage=compareCoverage(current,live);
+ assert.equal(coverage.cameraArchiveChanged,true);
+ assert.equal(coverage.requiresFull,true);
+ assert.match(coverage.reasons.join(' '),/Kamera çözümleme arşivi/);
+ assert.throws(()=>buildUpdatePublication(live,{snapshot:current,assetSources:[],readiness:{}}),/tam yayın gerekli/);
+});

@@ -14,8 +14,8 @@ test('14 canonical objects have a physical migration family and exact effect anc
   assert.equal(OBJECT_FAMILIES_V4.length,14);
   assert.deepEqual(report.counts,{independent:14,partial:0,'needs-art':0});
   assert.deepEqual(report.extras,[]);
-  assert.equal(report.entries.reduce((n,e)=>n+e.effects.length,0),22);
-  assert.equal(report.entries.reduce((n,e)=>n+e.enabledEffectCount,0),14);
+  assert.equal(report.entries.reduce((n,e)=>n+e.effects.length,0),snapshot.scene.effects.length);
+  assert.equal(report.entries.reduce((n,e)=>n+e.enabledEffectCount,0),snapshot.scene.effects.filter(e=>e.enabled).length);
   for(const family of report.entries){
     assert.equal(family.id,familyForObject(family.id).id);
     assert.ok(family.activeAnchors.length);
@@ -46,7 +46,8 @@ test('sole 2:1 master and five source-verified independent materials',async()=>{
     assert.equal(cutout.previewOnly,undefined);
   }
   const master=readFileSync(new URL('../../../channels/birdesengor/web/public/scene-assets/approved/room-effects-v4-2to1.webp',import.meta.url));
-  assert.deepEqual(webpDimensions(master),{width:1774,height:887});
+  const {width,height}=webpDimensions(master);
+  assert.equal(width,height*2);
   const previewBlob=await source.preview(state);
   assert.deepEqual(Buffer.from(previewBlob.replace(/^data:image\/webp;base64,/,''),'base64'),master);
 });
