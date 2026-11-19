@@ -360,6 +360,21 @@ async function analyticsReset() {
   });
 }
 
+async function publishSeoManifest(seo) {
+  if (!seo || seo.schemaVersion !== 2 || !seo.publicationId) {
+    throw new Error("SEO manifesti hazırlanamadı.");
+  }
+  const result = await authorizedRequest(studioEndpoint(), "publish_seo", {
+    method: "POST", body: { seo },
+  });
+  if (!result.seoPublished || result.publicationId !== seo.publicationId
+      || result.contentFingerprint !== seo.contentFingerprint
+      || result.seoPageCount !== seo.pages.length) {
+    throw new Error("Sunucu SEO manifestini doğrulayamadı.");
+  }
+  return result;
+}
+
 async function publishPublication(publication, seo = null) {
   if (!publication || publication.schemaVersion !== 2) throw new Error("Publication v2 paketi hazırlanamadı.");
   const result = await authorizedRequest(studioEndpoint(), "publish", {
@@ -395,6 +410,7 @@ module.exports = {
   deletePost,
   uploadPublicationAsset,
   publishPublication,
+  publishSeoManifest,
   analyticsSummary,
   analyticsReset,
   resetConnection,

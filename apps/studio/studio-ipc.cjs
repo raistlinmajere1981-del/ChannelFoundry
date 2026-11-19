@@ -1,4 +1,4 @@
-const { app, ipcMain, shell } = require("electron");
+const { app, ipcMain, shell, dialog, BrowserWindow } = require("electron");
 const communityAdmin = require("./community-admin.cjs");
 const seoWorkspace = require("./seo-workspace.cjs");
 const publicationV2 = require("./publication-v2.cjs");
@@ -285,6 +285,16 @@ function registerEditorialHandlers() {
   ipcMain.handle("studio:visual-basket-remove", (_event, key) => visualBasket.remove(runtime.database(), app.getPath("userData"), key));
   ipcMain.handle("studio:visual-basket-retry", (_event, key) => visualBasket.retry(runtime.database(), key));
   ipcMain.handle("studio:visual-basket-preview", (_event, key) => visualBasket.candidate(runtime.database(), app.getPath("userData"), key));
+  ipcMain.handle("studio:visual-basket-import", async (event, key) => {
+    const owner=BrowserWindow.fromWebContents(event.sender);
+    const options={title:"Sepete dışarıdan aday görsel al",properties:["openFile"],
+      filters:[{name:"Görseller",extensions:["png","jpg","jpeg","webp"]}]};
+    const result=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options);
+    if(result.canceled||!result.filePaths[0])return {canceled:true};
+    const next=await visualBasket.importCandidate(runtime.database(),app.getPath("userData"),key,result.filePaths[0]);
+    runtime.refreshMainWindow();
+    return {canceled:false,status:next};
+  });
   ipcMain.handle("studio:visual-basket-accept", async (_event, key) => {
     const next = await visualBasket.accept(runtime.database(), app.getPath("userData"), key);
     runtime.refreshMainWindow();

@@ -168,12 +168,26 @@ function publicFields(kind, fields) {
   }
   return approved;
 }
+function ageEnglish(value) {
+  const text=String(value??'').trim();
+  if(!text)return '';
+  if(text==='binlerce yıl')return 'thousands of years';
+  if(/^\d{1,6}$/.test(text))return text;
+  if(/^\d{1,2}\.\d{3}$/.test(text))return text.replace('.',',');
+  if(/^\d{1,6} yaşında$/.test(text))return text.replace(' yaşında',' years old');
+  if(/^yaklaşık \d{1,6}$/.test(text))return text.replace('yaklaşık ','approximately ');
+  return ''; // Unreviewed age details must not be improvised.
+}
 function englishFields(kind, fields, options) {
   const available=new Map(options.filter(o=>o.kind===kind&&o.labelEn).map(o=>[o.field+"::"+fold(o.value),o.labelEn]));
   const translated={};
   for(const [field,value] of Object.entries(fields||{})){
     if(!value||!FIELDS[kind]?.includes(field)||field==="sideStatus")continue;
     if(field==="dimension"&&validDimension(String(value)))translated.dimension=String(value);
+    else if(kind==="character"&&field==="age"){
+      const age=ageEnglish(value);
+      if(age)translated.age=age;
+    }
     else if(available.has(field+"::"+fold(value)))translated[field]=available.get(field+"::"+fold(value));
   }
   return translated;

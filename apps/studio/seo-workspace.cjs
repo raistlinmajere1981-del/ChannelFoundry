@@ -4,14 +4,15 @@ const aiClient=require('./ai-client.cjs'),{activeProject}=require('./channel-pro
 const {LANGUAGES,language,hash}=require('./publication-languages.cjs');
 const limit=(v,n)=>String(v??'').replace(/\s+/g,' ').trim().slice(0,n);
 const safeId=v=>String(v??'').replace(/[^a-zA-Z0-9_.:-]/g,'').slice(0,120);
-const prefixes={section:'/evren/bolum/',video:'/kamera/video/',vefk:'/vefk/'};
+const prefixes={section:'/evren/bolum/',entity:'/evren/kayit/',video:'/kamera/video/',vefk:'/vefk/'};
 function storePath(root){return path.join(root,'seo-workspaces',safeId(activeProject()?.id||'default')+'.json');}
 function load(root){try{const v=JSON.parse(fs.readFileSync(storePath(root),'utf8'));if(v.schemaVersion===2)return v;}catch{}return {schemaVersion:2,site:{tr:{},en:{}},items:{}};}
 function write(root,value){const file=storePath(root);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file+'.tmp',JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(file+'.tmp',file);}
 function prose(value){if(typeof value==='string')return value;if(!value||typeof value!=='object')return '';if(Array.isArray(value))return value.map(prose).join(' ');return ['text','label','title','description','summary','caption','notes'].map(k=>typeof value[k]==='string'?value[k]:'').concat(['blocks','spans','items'].map(k=>prose(value[k]))).filter(Boolean).join(' ');}
 function defaults(snapshot){const rows=[];
- const add=(kind,id,locales)=>{for(const lang of LANGUAGES){const data=locales?.[lang];if(data?.status!=='approved')continue;const source=limit(kind==='section'?prose(data.blocks):kind==='video'?data.summary:[data.description,data.notes].filter(Boolean).join(' '),10000);if(!data.title||!source)continue;rows.push({kind,id:safeId(id),language:lang,title:limit(data.title,120),description:limit(source,180),source,sourceHash:hash(data),path:'/'+lang+prefixes[kind]+encodeURIComponent(safeId(id))});}};
+ const add=(kind,id,locales)=>{for(const lang of LANGUAGES){const data=locales?.[lang];if(data?.status!=='approved')continue;const source=limit(kind==='section'?prose(data.blocks):kind==='entity'?[data.summary,prose(data.details)].filter(Boolean).join(' '):kind==='video'?data.summary:[data.description,data.notes].filter(Boolean).join(' '),10000);const title=kind==='entity'?data.name:data.title;if(!title||!source)continue;rows.push({kind,id:safeId(id),language:lang,title:limit(title,120),description:limit(source,180),source,sourceHash:hash(data),path:'/'+lang+prefixes[kind]+encodeURIComponent(safeId(id))});}};
  for(const section of snapshot.journal?.sections??[])add('section',section.sectionId,section.locales);
+ for(const entity of snapshot.archive?.entities??[])add('entity',entity.entityId,entity.locales);
  for(const v of snapshot.youtubeAnalysis?.videos??[])if(!v.membersOnly&&v.publicationStatus==='published'&&v.analysisStatus==='complete')add('video',v.videoId,v.locales);
  for(const v of snapshot.vefkCatalog?.entries??[])add('vefk',v.id,snapshot.vefkLanguages?.[v.id]);
  return rows;

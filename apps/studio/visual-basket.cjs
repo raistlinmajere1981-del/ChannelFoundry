@@ -48,8 +48,8 @@ function add(db,input,root='') {
   const preset=presets.resolve(db,input?.presetId).id;
   const size=['1024x1024','1536x1024','1024x1536'].includes(input?.size)?input.size:'1024x1024';
   const neg=String(input?.negativePrompt||'').slice(0,6000);
-  db.prepare("INSERT INTO visual_basket_jobs(entity_key,entity_type,title,prompt,negative_prompt,preset_id,image_size,use_reference) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(entity_key) DO UPDATE SET entity_type=excluded.entity_type,title=excluded.title,prompt=excluded.prompt,negative_prompt=excluded.negative_prompt,preset_id=excluded.preset_id,image_size=excluded.image_size,use_reference=excluded.use_reference,state='pending',candidate_file='',error_text='',updated_at=CURRENT_TIMESTAMP")
-    .run(key,type,title,prompt,neg,preset,size,input?.useReference===false?0:1);
+  db.prepare("INSERT INTO visual_basket_jobs(entity_key,entity_type,title,prompt,negative_prompt,preset_id,image_size,use_reference,state) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_key) DO UPDATE SET entity_type=excluded.entity_type,title=excluded.title,prompt=excluded.prompt,negative_prompt=excluded.negative_prompt,preset_id=excluded.preset_id,image_size=excluded.image_size,use_reference=excluded.use_reference,state=excluded.state,candidate_file='',error_text='',updated_at=CURRENT_TIMESTAMP")
+    .run(key,type,title,prompt,neg,preset,size,input?.useReference===false?0:1,input?.externalOnly===true?'external':'pending');
   // A renewed basket entry invalidates its previous candidate without touching the book image.
   if (existing?.file && root) {
     const old=fileFor(root,existing.file);
@@ -71,6 +71,26 @@ function retry(db,key) {
   db.prepare("UPDATE visual_basket_jobs SET state='pending',error_text='',updated_at=CURRENT_TIMESTAMP WHERE entity_key=? AND state='error'").run(key);
   return status(db);
 }
+// Import an externally generated image as a reviewable basket candidate.
+// The original input, existing candidate and published book image remain intact on failure.
+async function importCandidate(db,root,key,sourceFile) {
+  ensure(db);
+  if (running) throw new Error('Üretim sürerken dış görsel alınamaz.');
+  const item=db.prepare("SELECT state,candidate_file AS file FROM visual_basket_jobs WHERE entity_key=?").get(String(key||'').trim());
+  if (!item) throw new Error('Görsel sepetinde bu kayıt bulunamadı.');
+  if (item.state==='working') throw new Error('Bu kayıt halen üretiliyor.');
+  const source=String(sourceFile||'').trim();
+  if (!source) throw new Error('Görsel dosyası seçilmedi.');
+  const target=path.join(candidateDir(root),crypto.randomBytes(12).toString('hex')+'.webp');
+  try {
+    await optimizeImage(source,target);
+    db.prepare("UPDATE visual_basket_jobs SET state='ready',candidate_file=?,generation_provider='external-import',generation_model='',error_text='',updated_at=CURRENT_TIMESTAMP WHERE entity_key=?")
+      .run(path.basename(target),String(key).trim());
+    const old=fileFor(root,item.file);
+    if(old && old!==target)try{fs.unlinkSync(old);}catch{}
+  } catch(e) {try{fs.unlinkSync(target);}catch{}throw e;}
+  return status(db);
+}
 function candidate(db,root,key) {
   const row=db.prepare("SELECT candidate_file AS file FROM visual_basket_jobs WHERE entity_key=? AND state='ready'").get(key);
   const file=fileFor(root,row?.file);
@@ -86,7 +106,7 @@ async function accept(db,root,key) {
   const target=profiles.targetFile(root,key,'.webp');
   try {
     await optimizeImage(file,target);
-    profiles.attachStoredFile(db,key,{entityType:row.entity_type,file:target,source:'generated',provider:row.generation_provider||'basket',model:row.generation_model||'unspecified'});
+    profiles.attachStoredFile(db,key,{entityType:row.entity_type,file:target,source:row.generation_provider==='external-import'?'manual':'generated',provider:row.generation_provider||'basket',model:row.generation_model||'unspecified'});
     db.prepare('DELETE FROM visual_basket_jobs WHERE entity_key=?').run(key);
     try{fs.unlinkSync(file);}catch{}
   } catch(e) {try{fs.unlinkSync(target);}catch{}throw e;}
@@ -190,5 +210,5 @@ function recover(db){
   ensure(db);
   if(!running)db.prepare("UPDATE visual_basket_jobs SET state='error',error_text='Önceki oturum kapandı; yeniden dene.',updated_at=CURRENT_TIMESTAMP WHERE state='working'").run();
 }
-module.exports={ensure,settings,setSettings,list,status,add,remove,retry,candidate,accept,
+module.exports={ensure,settings,setSettings,list,status,add,remove,retry,importCandidate,candidate,accept,
   layout,nextGroup,promptFor,referenceBoard,processGroup,start,pause,recover};

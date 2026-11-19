@@ -3,7 +3,7 @@ import {useSettingsSection} from './SettingsController';
 
 type SeoDraft={title:string;description:string;image:string};
 const blank=():SeoDraft=>({title:'',description:'',image:''});
-const labels:Record<StudioSeoRow['kind'],string>={section:'Evren',video:'Kamera',vefk:'Çizim Atölyesi'};
+const labels:Record<StudioSeoRow['kind'],string>={section:'Evren Bölümü',entity:'Evren Kaydı',video:'Kamera',vefk:'Çizim Atölyesi'};
 const identity=(row:StudioSeoRow)=>row.language+':'+row.kind+':'+row.id;
 const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
 export default function SeoSettings({active=true}:{active?:boolean}={}){
@@ -97,7 +97,7 @@ export default function SeoSettings({active=true}:{active?:boolean}={}){
      <div className="seo-v3-head-actions"><div className="seo-v3-languages" role="tablist" aria-label="SEO dili"><button role="tab" aria-selected={language==='tr'} onClick={()=>pick('site','tr')}>Türkçe</button><button role="tab" aria-selected={language==='en'} onClick={()=>pick('site','en')}>İngilizce</button></div>
        <button onClick={()=>void refresh(true).catch(reason=>setError(errorText(reason)))} disabled={Boolean(busy)}>Yenile</button></div>
    </header>
-   <div className="seo-v3-stats"><span><strong>{selectedRows.length}</strong> kaynak</span><span><strong>{pending.length}</strong> gözden geçirilecek</span><span><strong>{selectedRows.length-pending.length}</strong> onaylı</span><span>İndeksleme <strong>kapalı</strong></span></div>
+   <div className="seo-v3-stats"><span><strong>{selectedRows.length}</strong> kaynak</span><span><strong>{pending.length}</strong> gözden geçirilecek</span><span><strong>{selectedRows.length-pending.length}</strong> onaylı</span><span>İndeksleme <strong>canlıda açık</strong></span></div>
    <div className="seo-v3-grid">
      <aside className="seo-v3-index"><div className="seo-v3-filter"><input type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Başlık veya kaynak ara" aria-label="SEO içerik ara"/>
        <select aria-label="SEO durum filtresi" value={filter} onChange={event=>setFilter(event.target.value as typeof filter)}><option value="all">Tüm kayıtlar</option><option value="review">Gözden geçirilecek</option><option value="ready">Onaylı</option></select></div>
@@ -125,7 +125,7 @@ export default function SeoSettings({active=true}:{active?:boolean}={}){
        </div>
        {suggestion&&<div className="seo-v3-suggestion"><strong>✦ AI önerisi · henüz onaylanmadı</strong><b>{suggestion.title}</b><p>{suggestion.description}</p><button onClick={()=>{change({...edit,title:suggestion.title,description:suggestion.description});setSuggestion(null);}}>Taslağa al</button></div>}
        <div className="seo-v3-preview"><small>ARAMA SONUCU ÖNİZLEMESİ</small><strong>{edit.title||'Başlık belirlenmedi'}</strong><p>{edit.description||'Açıklama henüz girilmedi.'}</p></div>
-       <p className="seo-v3-note">SEO onayı yerelde saklanır; canlıya yalnız Yayın Merkezi üzerinden aktarılır. Önizleme şifresi, robots.txt ve noindex ayarları bu işlemle değiştirilmez.</p>
+       <p className="seo-v3-note">SEO onayı yerelde saklanır; tam içerik yayınıyla veya güvenli SEO yan yayınıyla canlıya aktarılır. Resmî sitede indeksleme açıktır; topluluk ve Studio yönetim işlemleri ayrı kimlik doğrulamasıyla korunur.</p>
        {loading&&<p role="status">SEO kayıtları hazırlanıyor…</p>}
        {notice&&<p role="status" className="seo-v3-notice">{notice}</p>}
        {error&&<p role="alert" className="seo-v3-error">{error}</p>}

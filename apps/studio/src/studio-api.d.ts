@@ -321,9 +321,9 @@ type StudioUniverseWorkspaceStateResult = StudioUniverseWorkspaceStatus & {
 
 type StudioVisualPreset = { id: string; name: string; instruction: string; negative: string };
 type StudioVisualPresets = { version: number; defaultId: string; presets: StudioVisualPreset[] };
-type StudioVisualBasketItem = { entityKey: string; entityType: string; title: string; prompt: string; negativePrompt: string; presetId: string; size: string; useReference: boolean; state: "pending" | "working" | "ready" | "error"; candidateFile: string; hasCandidate: boolean; generationProvider?: string; generationModel?: string; error: string; createdAt: string };
+type StudioVisualBasketItem = { entityKey: string; entityType: string; title: string; prompt: string; negativePrompt: string; presetId: string; size: string; useReference: boolean; state: "pending" | "external" | "working" | "ready" | "error"; candidateFile: string; hasCandidate: boolean; generationProvider?: string; generationModel?: string; error: string; createdAt: string };
 type StudioVisualBasketStatus = { settings: { imagesPerRequest: 1 | 2 | 4 }; items: StudioVisualBasketItem[]; running: boolean; pauseRequested: boolean };
-type StudioVisualBasketInput = StudioVisualProfileInput & { prompt: string; title: string; size: "1024x1024" | "1536x1024" | "1024x1536"; presetId?: string; useReference?: boolean };
+type StudioVisualBasketInput = StudioVisualProfileInput & { prompt: string; title: string; size: "1024x1024" | "1536x1024" | "1024x1536"; presetId?: string; useReference?: boolean; externalOnly?: boolean };
 type StudioVisualReference = { entityKey: string; imagePath: string; sourceVideoId: string; sourceSeconds: number | null; crop?: {x:number;y:number;width:number;height:number}|null; imageDataUrl: string; updatedAt: string };
 type StudioVideoFramePreview = { previewId: string; videoId: string; title: string; seconds: number; imageDataUrl: string };
 type StudioVideoCueHit = { startSeconds: number; endSeconds: number; text: string };
@@ -367,7 +367,7 @@ type StudioWebsiteInsights = {
   contents: Array<{ area: string; contentKey: string; views: number }>;
 };
 type StudioSeoRow = {
-  kind: "section" | "video" | "vefk"; language:PublicationLanguage; id: string; title: string; description: string;
+  kind: "section" | "entity" | "video" | "vefk"; language:PublicationLanguage; id: string; title: string; description: string;
   source: string; sourceHash:string; path: string; override: boolean; needsReview: boolean;
   candidate?:{sourceHash:string;title:string;description:string;createdAt:string}|null;
 };
@@ -541,6 +541,7 @@ interface Window {
     visualBasketRemove(entityKey: string): Promise<StudioVisualBasketStatus>;
     visualBasketRetry(entityKey: string): Promise<StudioVisualBasketStatus>;
     visualBasketPreview(entityKey: string): Promise<{ entityKey: string; imageDataUrl: string }>;
+    visualBasketImport(entityKey: string): Promise<{ canceled: boolean; status?: StudioVisualBasketStatus }>;
     visualBasketAccept(entityKey: string): Promise<StudioVisualBasketStatus>;
     visualBasketStart(): Promise<StudioVisualBasketStatus>;
     visualBasketPause(): Promise<{ running: boolean; pauseRequested: boolean }>;

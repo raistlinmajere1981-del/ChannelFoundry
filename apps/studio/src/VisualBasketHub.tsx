@@ -25,6 +25,7 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
   const [pickerOpen,setPickerOpen]=useState(false);
   const [library,setLibrary]=useState<StudioUniverseWorkspaceNode[]>([]);
   const [pickerBusy,setPickerBusy]=useState(false);
+  const [externalMode,setExternalMode]=useState(false);
   const [libraryKind,setLibraryKind]=useState("character");
   const [libraryQuery,setLibraryQuery]=useState("");
   const [checked,setChecked]=useState<Set<string>>(new Set());
@@ -100,20 +101,35 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
           "Açıklamada belirtilmeyen görünüş, aksesuar, sembol, kıyafet veya ortam ayrıntısı üretme."].join("\n");
         await bridge.visualBasketAdd({entityKey:node.key,entityType:node.kind,title:node.name,
           description,prompt,negativePrompt:source?.negativePrompt||"kaynakta bulunmayan öğeler, yazı, logo",
-          size:(node.kind==="event"||node.kind==="location"||node.kind==="story")?"1536x1024":"1024x1024",useReference:true});
+          size:(node.kind==="event"||node.kind==="location"||node.kind==="story")?"1536x1024":"1024x1024",useReference:true,externalOnly:externalMode});
         done++;setPickCount(done);
       }
       setChecked(new Set());await refresh();window.dispatchEvent(new Event("channel-foundry:visual-basket-changed"));setError("");
-      onStatus?.(done+" kayıt toplu üretim sepetine eklendi.","success");
+      onStatus?.(done+(externalMode?" kayıt dış görsel bekleme listesine eklendi.":" kayıt toplu üretim sepetine eklendi."),"success");
     }catch(e){setError(done+" kayıt eklendi; kalanlar için hata: "+errorText(e));await refresh();}
     finally{setBusy(false);setPickCount(0);}
   };
   const counts=useMemo(()=>({
     pending:items.filter(x=>x.state==="pending").length,
+    external:items.filter(x=>x.state==="external").length,
     working:items.filter(x=>x.state==="working").length,
     ready:items.filter(x=>x.state==="ready").length,
     error:items.filter(x=>x.state==="error").length,
   }),[items]);
+  const importExternal=async(item:StudioVisualBasketItem)=>{
+    if(!bridge||busy||state?.running)return;
+    if(item.state==="ready"&&!window.confirm("“"+item.title+"” için hazır aday mevcut. Yeni dosya yalnız bu adayı değiştirecek; kitap görseli korunacak. Devam?"))return;
+    setBusy(true);setError("");
+    try{
+      const result=await bridge.visualBasketImport(item.entityKey);
+      if(result.canceled)return;
+      await refresh();
+      if(preview?.key===item.entityKey)setPreview(null);
+      window.dispatchEvent(new Event("channel-foundry:visual-basket-changed"));
+      onStatus?.("Dış görsel aday olarak alındı; kitaba uygulanmadı.","success");
+    }catch(e){const message=errorText(e);setError(message);onStatus?.(message,"error");}
+    finally{setBusy(false);}
+  };
   const inspect=async(item:StudioVisualBasketItem)=>{
     setBusy(true);setError("");
     try {
@@ -158,7 +174,8 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
           <button type="button" aria-label="Kapat" onClick={()=>setOpen(false)} disabled={busy}>✕</button>
         </header>
         <div className="vbm-summary">
-          <span><strong>{counts.pending}</strong> Bekliyor</span>
+          <span><strong>{counts.pending}</strong> AI üretimi bekliyor</span>
+          <span><strong>{counts.external}</strong> Dış görsel bekliyor</span>
           <span><strong>{counts.working}</strong> Üretiliyor</span>
           <span><strong>{counts.ready}</strong> Aday hazır</span>
           <span><strong>{counts.error}</strong> Hatalı</span>
@@ -174,10 +191,11 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
           <div className="vbm-list">
             {items.map(item=><article key={item.entityKey} className={"vbm-item "+item.state}>
               <div className="vbm-item-head"><div><strong>{item.title}</strong><small>{item.entityType} · {item.presetId}{item.generationModel ? " · "+item.generationModel : ""}</small></div>
-                <b>{item.state==="pending"?"Bekliyor":item.state==="working"?"Üretiliyor":item.state==="ready"?"Aday hazır":"Hata"}</b></div>
+                <b>{item.state==="pending"?"AI bekliyor":item.state==="external"?"Dış görsel bekliyor":item.state==="working"?"Üretiliyor":item.state==="ready"?"Aday hazır":"Hata"}</b></div>
               {item.error&&<p className="vbm-failure">{item.error}</p>}
               <p>{item.prompt.slice(0,180)}{item.prompt.length>180?"…":""}</p>
               <div className="vbm-item-actions">
+                {item.state!=="working"&&<button type="button" disabled={busy||state?.running} onClick={()=>void importExternal(item)}>Dışarıdan aday al</button>}
                 {item.state==="ready"&&<><button type="button" disabled={busy||state?.running} onClick={()=>void inspect(item)}>Önizle</button>
                   <button type="button" disabled={busy||state?.running} onClick={()=>void accept(item)}>{accepting===item.entityKey?"Uygulanıyor…":"Kitaba uygula"}</button></>}
                 {item.state==="error"&&<button type="button" disabled={busy||state?.running} onClick={()=>void operation(()=>bridge!.visualBasketRetry(item.entityKey))}>Yeniden dene</button>}
@@ -201,8 +219,9 @@ export default function VisualBasketHub({mode="add",current,disabled=false,hasIm
               <span><strong>{row.name}</strong><small>{row.sourceVideoIds.length} kaynak video · {row.summary.slice(0,90)}</small></span>
             </label>)}{!pickerBusy&&!pickRows.length&&<p>Filtreye uygun başka kayıt yok.</p>}</div>
             <button type="button" disabled={busy||!pickRows.length} onClick={()=>setChecked(new Set(pickRows.slice(0,30).map(row=>row.key)))}>Görünen ilk 30 kaydı seç</button>
+            <label><input type="checkbox" checked={externalMode} onChange={e=>setExternalMode(e.target.checked)} disabled={busy}/> Dış görsel bekle (AI üretimine gönderme)</label>
             <button type="button" disabled={busy||!checked.size||Boolean(state?.running)} className="vbm-primary" onClick={()=>void addSelected()}>{busy?pickCount+" kayıt eklendi…":checked.size+" kaydı sepete ekle"}</button>
-            <small>Yalnız onaylı Evren kayıtları listelenir. Mevcut sepet içeriği tekrar eklenmez. Eksik görsel tarifleri onaylı özetlerden oluşturulur.</small>
+            <small>Yalnız onaylı Evren kayıtları listelenir. Mevcut sepet içeriği tekrar eklenmez. Eksik görsel tarifleri onaylı özetlerden oluşturulur. Dış görsel bekleyenler “Sepeti üret” ile çalıştırılmaz.</small>
           </aside>}
           {preview&&!pickerOpen&&<aside className="vbm-inspection"><header><strong>{preview.name}</strong><button type="button" onClick={()=>setPreview(null)}>✕</button></header>
             <img alt={preview.name+" · aday karakalem görseli"} src={preview.url}/>

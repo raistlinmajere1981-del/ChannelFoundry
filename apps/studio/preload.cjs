@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   visualBasketRemove: (key) => ipcRenderer.invoke("studio:visual-basket-remove", key),
   visualBasketRetry: (key) => ipcRenderer.invoke("studio:visual-basket-retry", key),
   visualBasketPreview: (key) => ipcRenderer.invoke("studio:visual-basket-preview", key),
+  visualBasketImport: (key) => ipcRenderer.invoke("studio:visual-basket-import", key),
   visualBasketAccept: (key) => ipcRenderer.invoke("studio:visual-basket-accept", key),
   visualBasketStart: () => ipcRenderer.invoke("studio:visual-basket-start"),
   visualBasketPause: () => ipcRenderer.invoke("studio:visual-basket-pause"),

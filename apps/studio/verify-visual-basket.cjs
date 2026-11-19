@@ -59,7 +59,33 @@ async function main(){
   basket.add(db,input(3));basket.add(db,input(4));basket.add(db,input(5));
   assert.equal(basket.nextGroup(db).length,2,'three targets must not be sent to 2x2 four tile layout');
   assert.equal(basket.status(db).settings.imagesPerRequest,4);
-  console.log('Visual basket: persistent settings, grouping, candidate separation, 2-sheet split, acceptance and cleanup verified.');
+  basket.add(db,{...input(7),externalOnly:true});
+  assert.equal(basket.list(db).find(item=>item.entityKey==='character:test-7').state,'external');
+  assert.ok(!basket.nextGroup(db).some(row=>row.entity_key==='character:test-7'),'external-only items must never reach the AI generator');
+  basket.add(db,input(6));
+  const importedFile=path.join(root,'outside.png');
+  await sharp({create:{width:1024,height:900,channels:3,background:'#787878'}}).png().toFile(importedFile);
+  assert.equal(profiles.getMetadata(db,'character:test-6'),null);
+  await assert.rejects(basket.importCandidate(db,root,'missing',importedFile),/bulunamadı/);
+  await basket.importCandidate(db,root,'character:test-6',importedFile);
+  const imported=basket.list(db).find(item=>item.entityKey==='character:test-6');
+  assert.equal(imported.state,'ready');
+  assert.equal(imported.generationProvider,'external-import');
+  assert.equal(profiles.getMetadata(db,'character:test-6'),null,'external candidates must not touch the book');
+  const candidateFile=path.join(root,'visual-candidates',imported.candidateFile);
+  assert.ok(fs.existsSync(candidateFile));
+  await assert.rejects(basket.importCandidate(db,root,'character:test-6',path.join(root,'missing.png')));
+  assert.ok(fs.existsSync(candidateFile),'failed replacement must preserve existing candidate');
+  await basket.importCandidate(db,root,'character:test-6',importedFile);
+  assert.ok(!fs.existsSync(candidateFile),'successful replacement should clean up prior candidate');
+  assert.ok(fs.existsSync(importedFile),'external source image must not be modified');
+  await basket.accept(db,root,'character:test-6');
+  assert.equal(profiles.getMetadata(db,'character:test-6').imageSource,'manual');
+  assert.equal(basket.list(db).some(item=>item.entityKey==='character:test-6'),false);
+  await basket.importCandidate(db,root,'character:test-7',importedFile);
+  assert.equal(basket.list(db).find(item=>item.entityKey==='character:test-7').state,'ready');
+  assert.equal(profiles.getMetadata(db,'character:test-7'),null);
+  console.log('Visual basket: settings, groups, external-only exclusion, safe import/replacement, candidate review and acceptance verified.');
  }finally{db.close();fs.rmSync(root,{recursive:true,force:true});}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
