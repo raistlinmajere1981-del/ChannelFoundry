@@ -12,11 +12,12 @@ const GLOBAL_QUOTA_PAUSE=path.join(WORK,'quota-paused.json');
 const MODEL="opencode/deepseek-v4.1-flash-free", REASONING="max";
 const GLOSSARY=[
   "Ömer","Poyraz","Tuji","Nezrin","Meseyn","Arohan","Kral Arohan",
-  "Bledum","Mezna","Babil","Ruşun","İbn Karuf","İbn Necem","Divitli Defter","Düğümlü Kitap","Derin Kuyu","Şira",
-  "Eron Ginas","Karon","Gufna","Solomon","Yaşlı Duman","BirDeSenGör"
+  "Bledum","Mezna","Babil","Ruşun","İbn Karuf","İbni Necemin","Divitli Defter","Düğümlü Kitap","Derin Kuyu","Şira",
+  "Eron Ginas","Karon","Gufna","Solomon","Yaşlı Duman","BirDeSenGör",
+  "Kapsız Kitap","Karanlık Devrin Kitabı","Roses","Muhsin Abi","Eyşan"
 ];
 // Accepted *place-name* localization, never a character identity change.
-const TERM_ALIASES={Babil:['Babylon']};
+const TERM_ALIASES={Babil:['Babylon'], 'İbn Karuf':['İbni Kâruf'], 'İbn Necem':['İbni Necemin']};
 const TEXT_KEYS=new Set(["title","summary","description","text","label","alt","caption","notes","numberLabel","role"]);
 const arg=name=>{const i=process.argv.indexOf(name);return i<0?null:process.argv[i+1];};
 const option=(name,def)=>{const n=Number(arg(name)??def);if(!Number.isSafeInteger(n)||n<0)throw Error("Invalid "+name);return n;};
@@ -134,9 +135,27 @@ function qa(source,translated,fields){
   let translatedField=translated;
   for(const part of field.path)translatedField=translatedField?.[part];
   const sourceField=String(field.text||""),english=String(translatedField||"");
-  // Check every field separately; a name elsewhere in the candidate cannot mask its loss here.
-  for(const name of ["Ömer","Kral Arohan","Yaşlı Duman","Nezrin","Meseyn","İbn Karuf","İbn Necem","Poyraz","Tuji","Düğümlü Kitap","Derin Kuyu","Şira"])
-   if(sourceField.includes(name)&&!english.includes(name))flags.push("NAME_MISSING:"+name+":"+JSON.stringify(field.path));
+  // Check each field; a name shifted over a fixed inline reference is acceptable
+  // ONLY within the same paragraph and directly across that one reference.
+  function movedAcrossInlineReference(name){
+   const p=field.path, k=p.length;
+   if(k<3||p[k-1]!=="text"||p[k-3]!=="spans"||!Number.isInteger(p[k-2]))return false;
+   let sourceSpans=source,targetSpans=translated;
+   for(const part of p.slice(0,-2)){sourceSpans=sourceSpans?.[part];targetSpans=targetSpans?.[part];}
+   if(!Array.isArray(sourceSpans)||!Array.isArray(targetSpans))return false;
+   const ix=p[k-2],aliases=[name,...(TERM_ALIASES[name]||[])];
+   return [-1,1].some(dir=>{
+    const ref=ix+dir,other=ix+dir*2;
+    return sourceSpans[ref]?.type==="reference"&&targetSpans[ref]?.type==="reference"
+      &&sourceSpans[ref].entityId===targetSpans[ref].entityId
+      &&sourceSpans[other]?.type==="text"&&targetSpans[other]?.type==="text"
+      &&!String(sourceSpans[other].text||"").includes(name)
+      &&aliases.some(alias=>String(targetSpans[other].text||"").includes(alias));
+   });
+  }
+  for(const name of ["Ömer","Kral Arohan","Yaşlı Duman","Nezrin","Meseyn","İbn Karuf","İbn Necem","Poyraz","Tuji","Düğümlü Kitap","Kapsız Kitap","Karanlık Devrin Kitabı","Roses","Muhsin Abi","Eyşan","Derin Kuyu","Şira"])
+   if(sourceField.includes(name)&&![name,...(TERM_ALIASES[name]||[])].some(alias=>english.includes(alias))&&!movedAcrossInlineReference(name))
+    flags.push("NAME_MISSING:"+name+":"+JSON.stringify(field.path));
   if(sourceField.trim().length>40&&sourceField.trim()===english.trim())
    flags.push("UNTRANSLATED:"+JSON.stringify(field.path));
   if(/telsiz/i.test(sourceField)&&/\bradio\b/i.test(english)
@@ -145,12 +164,38 @@ function qa(source,translated,fields){
  }
  // Compare numeral values rather than thousands separators (4800 = 4,800).
  const numerals=value=>(value.match(/\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,:]\d+)*/g)||[])
-  .map(s=>s.replace(/[.,](?=\d{3}(?:[.,]|$))/g,''));
- const originalNums=numerals(srcTexts),translatedNums=numerals(targetTexts);
+  .map(s=>s.replace(/[.,](?=\d{3}(?:[.,]|$))/g,'').replace(/,(?=\d{1,2}$)/g,'.'));
+ // Turkish clock notation "saat 9.35" corresponds to English "9:35".
+ // Only normalize a dot as a clock separator when the Turkish "saat" marker is present.
+ // Source dates such as "03.12 ile 03.59" or "03.12–03.59" may
+ // represent a clock *range*, even without an immediate "saat" prefix.
+ // Restrict this exception to zero-padded hours with valid minute values
+ // AND nearby temporal context. Ordinary decimal quantities still differ.
+ const dottedTimeRange=/\b([01]\d|2[0-3])\.([0-5]\d)(\s*(?:ile|[-–])\s*)([01]\d|2[0-3])\.([0-5]\d)\b/gi;
+ const rangeNormalized=srcTexts.replace(dottedTimeRange,(match,h1,m1,separator,h2,m2,index,text)=>{
+  const vicinity=text.slice(Math.max(0,index-85),Math.min(text.length,index+match.length+85));
+  if(!/\b(?:saat|gece|gecenin|zaman|aralık|arasında|arasındaki|aralığı|aralığını|aralığında|uyku|dakika|cuma|cumartesi)\b/i.test(vicinity))return match;
+  return h1+":"+m1+separator+h2+":"+m2;
+ });
+ // Turkish "21.30'da" is a clock time (at 21:30), not a decimal.
+ // Suffix and valid hour/minute range are both required; ordinary metric
+ // decimals such as "9.35 metre" must still fail mismatched-number QA.
+ const atTimeNormalized=rangeNormalized.replace(/\b([01]?\d|2[0-3])\.([0-5]\d)(?=['’](?:da|de|ta|te)\b)/gi,(_all,h,m)=>h+":"+m);
+ const timedSource=atTimeNormalized.replace(/\bsaat\s+(\d{1,2})\.(\d{2})(?=\D|$)/gi,(_all,h,m)=>"saat "+h+":"+m);
+ // A historical ordinal name written as "5. Murat" is naturally rendered "Murat V".
+ // Validate the target ordinal before excluding its Arabic numeral from the generic comparison.
+ const muratV=/\b5\.\s*Murat\b/.test(timedSource);
+ if(muratV&&!/\bMurat\s+(?:V|5(?:th)?|the Fifth)\b/.test(targetTexts))
+  flags.push("NUMBER_NAME_MISMATCH:5_Murat");
+ const numericSource=muratV?timedSource.replace(/\b5\.\s*Murat\b/g,"Murat V"):timedSource;
+ const originalNums=numerals(numericSource),translatedNums=numerals(targetTexts);
  if(JSON.stringify(originalNums.sort())!==JSON.stringify(translatedNums.sort()))flags.push("NUMBERS_CHANGED");
  const ratio=targetTexts.length/Math.max(srcTexts.length,1);
  if(ratio<0.42||ratio>2.1)flags.push("LENGTH_RATIO:"+ratio.toFixed(2));
- const trChars=(targetTexts.match(/[ÇçĞğİıŞş]/g)||[]).length;
+ // Do not mistake frequent identity-bearing Turkish proper nouns for untranslated prose.
+ // Keep the generic TR script detector active for all remaining words.
+ const recognizedProperNameWords=/(?:Eşref|Şami|Çaylık|Çığlık|Ebaruşta|Hurşimi|İbni|Düğümlü|Yaşlı|Şira|Eyşan|Maşrif|Şartem|Şednaz|Hednuriş|Ednuriş|Nuriş|eşhedü)/g;
+ const trChars=(targetTexts.replace(recognizedProperNameWords,"").match(/[ÇçĞğİıŞş]/g)||[]).length;
  if(trChars>Math.max(10,srcTexts.length/180))flags.push("POSSIBLE_TURKISH");
  // Inline references are fixed-position spans. A following unconnected pronoun
  // can silently break grammar (e.g. "Poyraz I told him...").
@@ -202,7 +247,7 @@ async function run(){
   fs.rmSync(GLOBAL_QUOTA_PAUSE,{force:true});
   fs.rmSync(pauseFile,{force:true});
  }
- let done=0,requests=0,failed=0,quota=false,skippedExisting=0,deferredLarge=0,deferredErrors=0;
+ let done=0,requests=0,failed=0,quota=false,skippedExisting=0,deferredLarge=0,deferredErrors=0,staleSkipped=0;
  const items=[...manifest.items];
  if(process.argv.includes('--short-first')){
   const sizes=readDb(db=>{const st=db.prepare("SELECT length(data_json) AS n FROM publication_language_variants WHERE kind=? AND id=? AND language='tr'");return items.map(x=>st.get(x.kind,x.id)?.n||0)});
@@ -222,7 +267,7 @@ async function run(){
    if(process.argv.includes('--defer-errors')&&fs.existsSync(path.join(DIR,'errors',base+'.json'))){deferredErrors++;continue;}
    let pack;
    try{pack=readDb(db=>getPack(db,item));if(pack.validEn){console.log("SKIP_APPROVED",item.kind,item.id);skippedExisting++;continue;}}
-   catch(e){console.error("SOURCE_STALE",item.kind,item.id,e.message);failed++;continue;}
+   catch(e){console.error("SOURCE_STALE",item.kind,item.id,e.message);staleSkipped++;continue;}
    const reusable=findReusable(item,pack.source);
    if(reusable){atomic(resultFile,{...reusable,reusedFromAnotherBatch:true});console.log("REUSED_CANDIDATE",item.kind,item.id);done++;continue;}
    const fields=fieldsFrom(pack.tr,item.kind),chunks=fieldChunks(fields),proposed=structuredClone(pack.tr);
@@ -236,7 +281,7 @@ async function run(){
      if(fs.existsSync(GLOBAL_QUOTA_PAUSE)){quota=true;blocked=true;break;}
      if(requests>=maxRequests){blocked=true;break;}
      const context={kind:item.kind,entryTitle:pack.tr.title||pack.tr.name||"",entityKind:pack.tr.kind||"",terms:GLOSSARY};
-     const prompt="Translate Turkish publication prose to natural English. Faithfully preserve narrator first person, attribution, uncertainty, chronology, and reported versus completed events. No inventing or simplifying. Preserve personal names and coined terms including Nezrin, Meseyn, Arohan, Kral Arohan, İbn Karuf, İbn Necem, Bledum, Mezna, Divitli Defter, Düğümlü Kitap, Derin Kuyu, Şira, BirDeSenGör and Yaşlı Duman (a personal nickname, NOT Old Smoke or Old Duman). The historical place Babil can be rendered Babylon. The canonical entity name is immutable: displayName is reader-facing localized title only. For purely personal proper names, displayName should be identical to the original; for descriptive titles, translate the descriptive words while preserving proper names. Translate all reference labels, keeping their grammar continuous with adjacent spans. Reference span positions are fixed: for a reference named Poyraz followed by Turkish possessive/case text, write a fluent continuation such as ' was the person I told...', never ungrammatical 'Poyraz I told him...'. Treat telsiz as walkie-talkie/transceiver and radyo as radio; do not conflate them. Preserve exact reported statements and narrator perspective. Keep Arabic symbols, numbers, identifiers, references unchanged. Each provided path must appear exactly once, with complete nonempty text. Return JSON object with one fields array; each item contains exact path and its translated text.";
+     const prompt="Translate Turkish publication prose to natural English. Faithfully preserve narrator first person, attribution, uncertainty, chronology, and reported versus completed events. No inventing or simplifying. Preserve personal names and coined terms including Nezrin, Meseyn, Arohan, Kral Arohan, İbn Karuf, İbni Necemin, Bledum, Mezna, Divitli Defter, Düğümlü Kitap, Derin Kuyu, Şira, BirDeSenGör and Yaşlı Duman (a personal nickname, NOT Old Smoke or Old Duman). The historical place Babil can be rendered Babylon. The canonical entity name is immutable: displayName is reader-facing localized title only. For purely personal proper names, displayName should be identical to the original; for descriptive titles, translate the descriptive words while preserving proper names. Translate all reference labels, keeping their grammar continuous with adjacent spans. Reference span positions are fixed: for a reference named Poyraz followed by Turkish possessive/case text, write a fluent continuation such as ' was the person I told...', never ungrammatical 'Poyraz I told him...'. Treat telsiz as walkie-talkie/transceiver and radyo as radio; do not conflate them. Emanet is an entrusted item or object, not automatically a relic. Preserve the exact spelling of İbni Necemin and derivative Necemin; do not shorten or replace this person with Ibn Necem or Necem. Preserve exact reported statements and narrator perspective. Distinguish Turkish adayı meaning the island in island contexts from aday meaning a candidate. Preserve plural subjects, Turkish ordinals, attribution, and whether an event was observed, planned, reported, or actually completed. In sacrifice/compensation contexts diyet is not a food diet: retain the word diyet and gloss as a non-monetary forfeit when necessary. Translate ritual davet according to the context rather than a generic social gathering. Tas is a bowl or basin used in an invitation, whereas taş is stone; do not confuse them. Anmak/andığı can mean mention rather than invoke or summon. Ritual tarif means instructions or directions rather than a food recipe. Preserve whose actions are attributed to whom: for example, en küçük yardımcı is the youngest/smallest assistant who speaks, not a descriptor of a chain. Where Turkish leaves an actor ambiguous, do not invent a definite actor. Keep Arabic symbols, numbers, identifiers, references unchanged. Each provided path must appear exactly once, with complete nonempty text. Return JSON object with one fields array; each item contains exact path and its translated text.";
      try{
       requests++;console.log("REQUEST",item.kind,item.id,"chunk",n+1+"/"+chunks.length,"total",requests);
       const answer=await opencode.complete({model:MODEL,reasoningMode:"variant",reasoningEffort:REASONING,endpoint:"http://127.0.0.1:4096",apiKey:key,timeoutSeconds:420},[{role:"system",content:prompt},{role:"user",content:JSON.stringify({context,fields:c})}],{timeoutMs:420000});
@@ -266,7 +311,7 @@ async function run(){
    }catch(e){console.error("VALIDATION_FAIL",item.kind,item.id,e.message);atomic(path.join(DIR,"errors",base+".json"),{at:new Date().toISOString(),reason:e.message});failed++;}
   }
  }finally{release();}
- console.log("RUN_SUMMARY",JSON.stringify({batch,completedDuringRun:done,skippedExisting,deferredLarge,deferredErrors,requests,failed,quotaPaused:quota,limits:{maxRecords,maxRequests,maxFailures,maxChunks}}));
+ console.log("RUN_SUMMARY",JSON.stringify({batch,completedDuringRun:done,skippedExisting,staleSkipped,deferredLarge,deferredErrors,requests,failed,quotaPaused:quota,limits:{maxRecords,maxRequests,maxFailures,maxChunks}}));
 }
 function audit(){
  const resultDir=path.join(DIR,"results");

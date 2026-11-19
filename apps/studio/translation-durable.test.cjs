@@ -34,12 +34,107 @@ test("quality audit flags lost numbers and protected names",()=>{
  assert(report.flags.includes("NUMBERS_CHANGED"));
 });
 
+test("number QA accepts Turkish decimal commas in equivalent English numbers",()=>{
+ const tr={title:"Tuji 1-1,5 metre yaklaştı ve 12,75 oranı kaydetti."};
+ const en={title:"Tuji came within 1–1.5 meters and noted a ratio of 12.75."};
+ assert(!durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const wrong={title:"Tuji came within 2–1.5 meters and noted a ratio of 12.75."};
+ assert(durable.qa(tr,wrong,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+});
+
 test("Babil may localize as Babylon but a named identity must remain exact",()=>{
  const original={title:"Babil'de Yaşlı Duman konuştu.",summary:"Konuşma."};
  const target={title:"Old Smoke spoke in Babylon.",summary:"A conversation."};
  const report=durable.qa(original,target,durable.fieldsFrom(original,"section"));
  assert(!report.flags.includes("GLOSSARY:Babil"));
  assert(report.flags.includes("GLOSSARY:Yaşlı Duman"));
+});
+
+test("Turkish stated clock times map to English 24-hour clock notation",()=>{
+ const tr={title:"Saat 9.35'te çıktım."},en={title:"I left at 9:35."};
+ assert(!durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const measure={title:"Uzunluğu 9.35 metre."};
+ const wrong={title:"It measured 9:35 meters."};
+ assert(durable.qa(measure,wrong,durable.fieldsFrom(measure,"section")).flags.includes("NUMBERS_CHANGED"));
+});
+
+test("zero-padded dotted Turkish clock ranges match English clock ranges, but decimals do not",()=>{
+ const tr={title:"Gece 03.12 ile 03.59 arasında ve 03.12–03.59 aralığında konuşuldu."};
+ const en={title:"We spoke between 03:12 and 03:59 at night, and in the 03:12–03:59 interval."};
+ assert(!durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const bad={title:"We spoke between 03:12 and 03:58 at night, and in the 03:12–03:59 interval."};
+ assert(durable.qa(tr,bad,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const metric={title:"Boyutları 03.12 ile 03.59 metre olarak ölçüldü."};
+ const misleading={title:"The lengths were measured as 03:12 to 03:59 meters."};
+ assert(durable.qa(metric,misleading,durable.fieldsFrom(metric,"section")).flags.includes("NUMBERS_CHANGED"));
+});
+
+test("Turkish apostrophe-suffixed 21.30'da maps to 21:30, but metric decimal stays distinct",()=>{
+ const tr={title:"Pazartesi günü 21.30'da buluşmak üzere."};
+ const en={title:"See you Monday at 21:30."};
+ assert(!durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const bad={title:"See you Monday at 21:31."};
+ assert(durable.qa(tr,bad,durable.fieldsFrom(tr,"section")).flags.includes("NUMBERS_CHANGED"));
+ const metric={title:"Uzunluğu 9.35 metre."},wrong={title:"It measured 9:35 meters."};
+ assert(durable.qa(metric,wrong,durable.fieldsFrom(metric,"section")).flags.includes("NUMBERS_CHANGED"));
+});
+
+test("5. Murat may become Murat V but an incorrect Roman ordinal is rejected",()=>{
+ const tr={title:"5. Murat'ın babasının ismini sordu."};
+ const en={title:"He asked for the name of Murat V's father."};
+ const flags=durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags;
+ assert(!flags.includes("NUMBERS_CHANGED"));
+ assert(!flags.includes("NUMBER_NAME_MISMATCH:5_Murat"));
+ const bad={title:"He asked for the name of Murat IV's father."};
+ assert(durable.qa(tr,bad,durable.fieldsFrom(tr,"section")).flags.includes("NUMBER_NAME_MISMATCH:5_Murat"));
+});
+
+test("canonical İbni Kâruf and İbni Necemin satisfy older source-name forms",()=>{
+ const tr={title:"İbn Karuf ve İbn Necem",blocks:[{spans:[{type:"text",text:"İbn Karuf, İbn Necem ile konuştu."}]}]};
+ const en={title:"İbni Kâruf and İbni Necemin",blocks:[{spans:[{type:"text",text:"İbni Kâruf spoke with İbni Necemin."}]}]};
+ const report=durable.qa(tr,en,durable.fieldsFrom(tr,"section"));
+ assert(!report.flags.some(x=>x.includes("Karuf")||x.includes("Necem")));
+});
+
+test("frequently repeated proper names do not trigger untranslated-Turkish false alarms",()=>{
+ const source={title:"Şami, Çaylık ve Çığlık Ormanı",summary:"Şami Şami Şami Şami Şami ile Eşref oradaydı."};
+ const translated={title:"Şami, Çaylık and Çığlık Forest",summary:"Şami spoke to Eşref about Şami, and Şami returned to Şami."};
+ const flags=durable.qa(source,translated,durable.fieldsFrom(source,"section")).flags;
+ assert(!flags.includes("POSSIBLE_TURKISH"));
+ const other={title:"Example",summary:"Ömer bir olay anlattı; başka ayrıntılar vardı, fakat kesin değildi. Ardından tekrar konuşmaya başladı."};
+ const badlyTranslated={title:"Example",summary:"A strange thing happened. Gerçekten çok karışık bir şey olduğu için insanlar yanlışlıkla başka şeylere karar vermişlerdi."};
+ const badFlags=durable.qa(other,badlyTranslated,durable.fieldsFrom(other,"section")).flags;
+ assert(badFlags.includes("POSSIBLE_TURKISH"));
+});
+
+test("canonical named book Karanlık Devrin Kitabı is preserved",()=>{
+ const tr={title:"Karanlık Devrin Kitabı çağrısı"};
+ const en={title:"A summoning from Book of the Dark Age"};
+ const flags=durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags;
+ assert(flags.includes("GLOSSARY:Karanlık Devrin Kitabı"));
+ assert(flags.some(x=>x.startsWith("NAME_MISSING:Karanlık Devrin Kitabı")));
+ en.title="A summoning from Karanlık Devrin Kitabı";
+ assert(!durable.qa(tr,en,durable.fieldsFrom(tr,"section")).flags.some(x=>x.includes("Karanlık Devrin Kitabı")));
+});
+
+test("inline reference can shift a name across one adjacent link without losing it",()=>{
+ const source={blocks:[{spans:[
+  {type:"text",text:"Kral Arohan'ın sarayının bulunduğu "},
+  {type:"reference",entityId:"city-babylon",label:"Babil"},
+  {type:"text",text:"'e gitmesini teklif ettim."}
+ ]}]};
+ const translated={blocks:[{spans:[
+  {type:"text",text:"I offered to send her to "},
+  {type:"reference",entityId:"city-babylon",label:"Babylon"},
+  {type:"text",text:", where Kral Arohan's palace stood."}
+ ]}]};
+ const fields=durable.fieldsFrom(source,"section");
+ assert(!durable.qa(source,translated,fields).flags.some(f=>f.startsWith("NAME_MISSING:Kral Arohan")));
+ translated.blocks[0].spans[2].text=", where the palace stood.";
+ assert(durable.qa(source,translated,fields).flags.some(f=>f.startsWith("NAME_MISSING:Kral Arohan")));
+ translated.blocks[0].spans[2].text=", where Kral Arohan's palace stood.";
+ translated.blocks[0].spans[1].entityId="city-other";
+ assert(durable.qa(source,translated,fields).flags.some(f=>f.startsWith("NAME_MISSING:Kral Arohan")));
 });
 
 test("detects a broken English sentence after a fixed-position entity reference",()=>{
