@@ -57,3 +57,16 @@ Web ve Studio kaynakları ayrı Git depolarında; web alt modülünün güncel c
 - Kayıt sayıları değişmedi: **279 anlatı, 2.718 Evren varlığı, 5.519 ilişki, 5 görsel**. Yeni publication yalnız destekçi görünürlüğü ve çizim revizyonunu günceller; çeviri adayları onaylanmadı.
 - Yerel geri dönüş kopyası: `channels/birdesengor/.local-data/studio/backups/before-sponsor-sync-20261119.sqlite` ve `before-sponsor-sync-20261119-publication.json`. Canlı eski paket kopyası: `channels/birdesengor/.local-data/studio/backups/before-reviewed-full-publication-2026-11-19T02-27-37-279Z/`.
 - Testler: Studio ilgili modüller **20/20**, PHP topluluk API **22/22**, web **293/293**; build, PHP syntax, dist, preview, FTPS plan/deploy ve canlı üç bölüm/çizim revizyonu doğrulamaları geçti. Site giriş şifresiz kaldı; `noindex`, `robots.txt` ve SEO rotası 404 denetimi korundu.
+
+## Son portre yayını ve Hakan birleştirmesi — 19 Kasım 2026
+
+**Nihai canlı publication:** `pub-17650d683f675d03403873c0`
+**Alan adı:** https://birdesengorgizlievren.com/?lang=tr
+
+- Studio'da sonradan eklenen dört manuel karakalem portresi yeniden dışa aktarıldı: **Hakan Demir**, **İbni Kâruf**, **İbni Necemin**, **Eşref Abi**. 5 eski görsel korunup toplam **9** oldu; dört yeni dosya canlı sunucuda HTTP 200 ve SHA-256 ile doğrulandı.
+- Kullanıcının önceki talebine uygun olarak `Hakan` kaydı, `Hakan Demir` kaydında birleştirildi. İki kaynak video, iki ilişki ve Türkçe/İngilizce onaylı varyantlar korundu. Anlatıdaki eski Hakan kimlik bağı, korunan ana kayda yönlendirildi; okura görünen bağlantı etiketi değişmedi. Evren kayıt sayısı **2.718 → 2.717**, anlatı **279**, ilişkiler **5.519** olarak kaldı.
+- Geniş yayın korumasına, yalnız eski `universe-character-3e78846d1ca1c3` kimliğinin `universe-character-9df60e998324b9` ile birleştirilmesi için **tek seferlik çevre değişkeni onayıyla** ve katı kaynak/bağ kontrolüyle izin verildi. Diğer mevcut kayıtları silmek hâlâ engelleniyor.
+- Hakan anlatı referansı nedeniyle değişen kaynak SHA, aynı başlıklı İngilizce içindekiler çevirisinin sürüm işaretini geçersiz kılmıştı. Başlık metni değişmediği doğrulandı ve yeni kaynak SHA ile yeniden bağlandı. Son pakette **279/279 İngilizce içindekiler başlığı** mevcut; henüz çevrilmemiş 164 gövde onaylı gösterilmiyor.
+- İlk görsel paketinde `pub-60e41076443a5b08b66ca234` yayımlandı; ardından tek başlığın kaynak sürümü yenilenerek **nihai** `pub-17650d683f675d03403873c0` atomik yayımlandı. Canlı doğrulama: 279 anlatı, 2.717 Evren kaydı, 5.519 ilişki, 9 görsel, dört yeni portre SHA eşleşmesi, Hakan'ın tek kimliği ve anlatı bağı, Çizim Atölyesi Cihat Girgin revizyonu 5, `noindex` ve `robots.txt`, sitemap 404.
+- Studio SQLite ve önceki yerel yayın paketi yedekleri: `channels/birdesengor/.local-data/studio/backups/before-portraits-final-release-20261119.sqlite` ve `before-portraits-final-release-20261119-publication.json`. İki canlı yayın geçişi için dosya yedekleri: `before-reviewed-full-publication-2026-11-19T03-16-50-451Z/` ve `before-reviewed-full-publication-2026-11-19T03-20-16-769Z/` (aynı yedekler dizini altında).
+- İlgili Studio otomatik testleri **26/26**, SQLite `PRAGMA quick_check=ok`; web sahne kaynakları, SEO ayarları, topluluk verileri, henüz onaylanmamış çeviri adayları değiştirilmedi. Takip işleri kullanıcı ve site sahibi incelemesinden sonra ayrı oturumlara bırakıldı.
