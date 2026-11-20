@@ -109,7 +109,7 @@ BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-2 node "$w/codex-universe-bulk-ter
 # Sıfırlama doğrulandıysa uygun paralellik (üç) ile devam:
 BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-2 node "$w/codex-universe-bulk-terra.cjs" run 3
 BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-3 node "$w/codex-universe-bulk-terra.cjs" run 3
-BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-4 node "$w/codex-universe-bulk-terra.cjs" run 3
+# Codex lane4 DEVRE DIŞI: devir geri alındı; A/B/C tekrar DeepSeek sahibi.
 node "$w/codex-universe-terra.cjs" run 1
 node "$w/evren-ledger.cjs"
 node apps/studio/translation-durable.cjs audit --batch universe
@@ -120,3 +120,34 @@ node apps/studio/translation-durable.cjs audit --batch universe
 Son yayın `public-export/publication-live-baseline.json` ve `public-export/seo-live-baseline.json` dosyaları üzerinden hazırlanmalı; `official-release-20261120/real` artık eski bazdır. Tamamlanan adayların tümü QA'yı geçerse yeni yayın klasörü varsayılan `evren-release-20261120-r2` olacaktır. Önce yeniden bütün yedekleri al; daha sonra `prepare-evren-release.cjs`, `publish-evren-release.cjs`, `apply-evren-release-local.cjs` adımlarını kontrollü çalıştır ve yayındaki Türkçe, 15 görsel, 5.519 ilişki, SEO/sitemap ve SQLite eşleşmesini denetle.
 
 Codex kota yenilenmesini takiben 03:37 Türkiye saatine tek seferlik devam görevi tanımlandı; yalnız bu otomasyonun doğrulanmış çıktıları gerçek tamamlanma ve yayın sonucu olarak kabul edilmeli.
+
+
+---
+
+## 03:26 Türkiye saati — DeepSeek yenilenen kota sonrası son durum (önceki 03:18 bölümünün üstüne geçer)
+
+Kullanıcı OpenCode kotasının yenilendiğini bildirdi, Codex beş saatlik pencere sıfırlanmasına yaklaşık 15 dakika vardı. İlgili **287 A/B/C kaydının tamamı henüz Codex tarafından işlenmemiş** olduğundan geri devir güvenle gerçekleştirildi:
+
+- Eski Codex lane4 planı/41 paketi, bir ham Codex cevabı veya `finished.json` üretmeden `$w/codex-universe-bulk-terra-4-revoked-20261120-0323/` dizinine atomik taşındı. **Bu arşivdeki işleri çalıştırma.**
+- Eski devir bildirimi `$w/deepseek-handoff-to-codex-20261120.revoked.json` adıyla arşivlendi; iade kanıtı `$w/deepseek-ownership-restored-20261120.json`. Kimlikler, sourceHash ve trHash bire bir kontrol edildi.
+- Açık A/B/C DeepSeek manifestleri aynı kaldı; bu kayıtlardaki tek model sahibi **DeepSeek**. Codex 03:37'de tekrar çalıştığında eski lane4'ü asla başlatmasın.
+- DeepSeek A/B/C tekrar üç paralel oturumla çalıştı; bu turda **40 yeni aday** daha tamamlandı. Üç işçi kapandı ve ücretsiz kota işareti tekrar oluştu. Tekrar kota yenilenmeden bu işareti kaldırma.
+- `parallel-deepseek-universe.cjs merge` ile 40 aday ana Evren sonuçlarına aktarıldı. `translation-durable.cjs audit --batch universe` sonucu **1.566 temiz, 0 flagged, 0 invalid, 0 stale**. Kaydedilmiş 40 ham aday korunuyor.
+- **Canlı geçerli EN: 1.879 / TR: 2.684.** Yeni yerel temiz aday **94**; gerçek eksik çeviri **711**.
+- Kalan 711 dağılımı: **DeepSeek A/B/C 247**, Codex lane2 **319**, Codex lane3 **144**, uzun tekil Codex **1**. Revoked Codex lane4 bu dağılımda YOK.
+- A/B/C'yi ileride yeniden açmak yalnız DeepSeek kotasının gerçekten yenilenmesi halinde güvenli; daha önceki 287 kayıt planı yerinde, kalan 247 aynı 3 manifestin eksik kayıtlarıdır.
+- 03:37'deki kayıtlı otomatik devam görevi güncel dağılıma göre düzenlendi: Codex yalnız lane2/3 ve tek uzun kayda bakacak, eski lane4 yok.
+- Git değişiklikleri bu belgeyle kaydedilmiştir. Üretim dosyaları `.local-data` içinde kalır, git'e eklenmez.
+
+Kısa denetim:
+
+```bash
+cd /home/raistlin/ChannelFoundry
+w=channels/birdesengor/.local-data/studio/translation-work-20261119
+node "$w/evren-ledger.cjs"
+node apps/studio/translation-durable.cjs audit --batch universe
+node "$w/parallel-deepseek-universe.cjs" status
+BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-2 node "$w/codex-universe-bulk-terra.cjs" status
+```
+
+**Sonraki güvenli işlem:** Codex kotası doğrulanınca lane2'de kaldığı paketten devam. Haftalık %95 kullanım koruması değişmez. DeepSeek kota yenilenmemişse 247 kayıt DeepSeek'in duraklatılmış özgün A/B/C manifestlerinde saklanır. Yayın için güncel `public-export` baseline, yedekler, kaynak hash kontrolü, SEO ve canlı yeniden okuma şarttır; insan incelemesi yapılmış gibi işaretleme.
