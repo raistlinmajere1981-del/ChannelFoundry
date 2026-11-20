@@ -65,14 +65,39 @@ function textLines(text, maxWidth, size) {
   if (line.trim())lines.push(line.trim());
   return lines.map(value=>({text:value,width:width(value)}));
 }
+// Vertical glyph metrics come from the same outlines used to engrave the ink.
+// Position the date after the actual bottom of the sponsor name, not a fixed
+// baseline; this also handles multi-line sponsor names and tall Turkish glyphs.
+const glyphVerticalBounds=(text,size)=>{
+  let min=Infinity,max=-Infinity;
+  for(const char of text){
+    const glyph=letters[char];
+    if(!glyph)throw new Error('Sponsor tarih/isim konturu bulunamadı: '+char);
+    for(const run of glyph.runs)for(const [,gy] of run){
+      const y=gy*size/1000;
+      if(y<min)min=y;
+      if(y>max)max=y;
+    }
+  }
+  return {min:Number.isFinite(min)?min:0,max:Number.isFinite(max)?max:0};
+};
+function sponsorLines(sponsor,dateHeading,nameSize) {
+  const nameLines=textLines(sponsor.names.join(' · '),820,nameSize)
+    .map((line,row)=>({...line,size:nameSize,baseline:736+row*(nameSize+24),ink:'sponsorName'}));
+  const lastNameBottom=Math.max(...nameLines.map(line=>line.baseline+glyphVerticalBounds(line.text,line.size).max));
+  const dateSize=62;
+  const dateBounds=glyphVerticalBounds(dateHeading,dateSize);
+  // Fixed minimum for the short Taha name, dynamic distance for larger names.
+  const gap=Math.max(38,Math.round(nameSize*.22));
+  const dateBaseline=Math.ceil(Math.max(830,lastNameBottom+gap-dateBounds.min));
+  return [...nameLines,{text:dateHeading,size:dateSize,baseline:dateBaseline,ink:'letter'}];
+}
 function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
   const dateHeading = sponsor.names.length ? publicationDateLabel(sponsor.publishedAt) : '';
   const sponsorText = sponsor.names.length ? dateHeading+' '+sponsor.names.join(' · ') : 'Destekçilerimize teşekkürler';
   const nameSize=sponsorNameSize(sponsor.names.join(' · '));
   const lines = sponsor.names.length
-    ? [ { text:dateHeading, size:45, baseline:650, ink:'letter' },
-        ...textLines(sponsor.names.join(' · '),820,nameSize)
-          .map((line,row)=>({...line,size:nameSize,baseline:736+row*(nameSize+24),ink:'sponsorName'})) ]
+    ? sponsorLines(sponsor,dateHeading,nameSize)
     : textLines(sponsorText,820,45).map((line,row)=>({...line,size:45,baseline:700+row*62,ink:'letter'}));
   const paths=artwork.paths.map(p=>({...p}));
   let charIndex=0;
@@ -87,7 +112,9 @@ function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
       x+=glyph.advance*scale;charIndex++;
     }
   });
-  const height=Math.max(900,lines.at(-1).baseline+Math.max(90,nameSize*.68));
+  const lastLine=lines.at(-1);
+  const height=Math.max(900,Math.ceil(lastLine.baseline+
+    glyphVerticalBounds(lastLine.text,lastLine.size).max+70));
   const geometry={coordinateSpace:'svg-viewBox',viewBox:[0,0,1000,height],paths,
     inkStyles:{construction:{width:1.3,cap:'round'},seal:{width:1.6,cap:'round'},portrait:{width:1.05,cap:'round'},portraitFeature:{width:.75,cap:'round'},hatch:{width:.95,cap:'round'},letter:{width:1.3,cap:'round'},sponsorName:{width:1.5,cap:'round'}}};
   let cursor=0; const markers=[{id:'outline',atMs:0}];let portraitStarted=false,sponsorStarted=false;

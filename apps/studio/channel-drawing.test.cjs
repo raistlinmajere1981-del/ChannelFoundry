@@ -29,8 +29,8 @@ test('all artwork and Turkish sponsor glyphs are canonical timed ink, with no ra
   assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.index.')).length,12);
   assert.equal(doc.geometry.paths.filter(p=>p.id.startsWith('geometry.cipher.')).length,8);
   const text=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('');
-  assert.equal(text.startsWith('9Kasım2026'),true,'the real publication date replaces the old sponsor label');
-  assert.match(text,/Çağrı&Şule/);
+  assert.equal(text.startsWith('Çağrı&Şule'),true,'sponsor name is drawn before its date');
+  assert.ok(text.endsWith('9Kasım2026'),'the real publication date is drawn below sponsor name');
   for(const p of doc.geometry.paths)assert.match(p.d,/^[MLZ0-9. +\-]+$/);
   const {createVefkPlayer}=await import('../../docs/contracts/vefk-site-consumer.mjs');
   const player=createVefkPlayer(doc);
@@ -49,7 +49,7 @@ test('large sponsor label and name wrap losslessly within the expanded drawing s
   const doc=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',publishedAt:'2026-11-09',names}});
   assert.equal(core.validateVefk(doc).ok,true);
   const paths=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.'));
-  assert.equal(paths.map(p=>p.semanticValue).join(''),('9 Kasım 2026'+names.join(' · ')).replace(/\s+/g,''));
+  assert.equal(paths.map(p=>p.semanticValue).join(''),(names.join(' · ')+'9 Kasım 2026').replace(/\s+/g,''));
   const bounds=ps=>ps.flatMap(p=>Array.from(p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g),m=>[+m[1],+m[2]]));
   for(const [x,y] of bounds(paths)) {
     assert.ok(x>=90 && x<=910,`sponsor x ${x}`);
@@ -60,6 +60,28 @@ test('large sponsor label and name wrap losslessly within the expanded drawing s
   const namePoints=bounds(short.geometry.paths.filter(p=>p.ink==='sponsorName'));
   assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>105,'short sponsor has enlarged vector outlines');
   assert.equal(core.validateVefk(drawing.makeDocument()).ok,true,'fallback uses the existing document contract');
+});
+test('sponsor date is larger, centred, and does not overlap the name for short and multi-line names',()=>{
+  const bounds=paths=>{
+    const pts=paths.flatMap(p=>[...p.d.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g)]
+      .map(m=>[Number(m[1]),Number(m[2])]));
+    return {left:Math.min(...pts.map(p=>p[0])),top:Math.min(...pts.map(p=>p[1])),
+      right:Math.max(...pts.map(p=>p[0])),bottom:Math.max(...pts.map(p=>p[1]))};
+  };
+  for(const names of [['Taha'],['Çağrı & Şule'],
+    ['Çağrı Şule Çok Uzun Destekçi Adı ve Ortakları','A'.repeat(70)]]){
+    const doc=drawing.makeDocument({sponsor:{videoId:'caWEw435a9E',publishedAt:'2026-11-19',names}});
+    const paths=doc.geometry.paths.filter(p=>p.id.startsWith('sponsor.'));
+    const name=bounds(paths.filter(p=>p.ink==='sponsorName'));
+    const date=bounds(paths.filter(p=>p.ink==='letter'));
+    assert.ok(date.top-name.bottom>=35,
+      'date must be at least 35 drawing units below the sponsor name: '+names.join(' · '));
+    assert.ok(date.bottom<doc.geometry.viewBox[3]-60,
+      'date must remain inside the vellum viewBox, including multi-line sponsors');
+    assert.ok(Math.abs((date.left+date.right)/2-500)<2,'date is centered below name');
+    assert.ok(date.bottom-date.top>42,'publication date is larger than the former 45-unit writing');
+    assert.equal(core.validateVefk(doc).ok,true);
+  }
 });
 test('portrait and economical seal retain loading proportions and exclude surrounding page content',()=>{
   const fs=require('node:fs');
@@ -167,7 +189,7 @@ test('publication date is drawn from the approved episode and corrections create
     assert.equal(second.revision,first.revision+1);
     assert.match(second.document.accessibility.matrixText,/^3 Ocak 2026 Altınay Ruhsal Uyanış$/);
     assert.notEqual(second.document.contentHash,first.document.contentHash);
-    assert.equal(second.document.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('').startsWith('3Ocak2026'),true);
+    assert.equal(second.document.geometry.paths.filter(p=>p.id.startsWith('sponsor.')).map(p=>p.semanticValue).join('').endsWith('3Ocak2026'),true);
     assert.equal(drawing.synchronize(db,[updated]).changed,false,'unchanged publication date must not create another revision');
   }finally{db.close();}
 });
