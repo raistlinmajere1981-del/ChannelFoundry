@@ -58,7 +58,7 @@ test('large sponsor label and name wrap losslessly within the expanded drawing s
   assert.ok(doc.geometry.viewBox[3]>800,'long names expand the surface');
   const short=drawing.makeDocument({sponsor:{videoId:'ABCDEFGHIJK',names:['Tufan Akkaya']}});
   const namePoints=bounds(short.geometry.paths.filter(p=>p.ink==='sponsorName'));
-  assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>60,'name uses enlarged 68-unit outlines');
+  assert.ok(Math.max(...namePoints.map(p=>p[1]))-Math.min(...namePoints.map(p=>p[1]))>105,'short sponsor has enlarged vector outlines');
   assert.equal(core.validateVefk(drawing.makeDocument()).ok,true,'fallback uses the existing document contract');
 });
 test('portrait and economical seal retain loading proportions and exclude surrounding page content',()=>{
@@ -121,7 +121,7 @@ test('same identity gets new immutable geometry/timeline revision, idempotent ex
     const repeated=drawing.synchronize(db,[source]);assert.equal(repeated.revision,one.revision);assert.equal(repeated.changed,false);
     editorial.saveReview(db,{videoId:source.videoId,state:'curated',manualSponsors:['Yeni Sponsor'],decisions:{}});
     const two=drawing.synchronize(db,[source]);assert.equal(two.id,one.id);assert.equal(two.revision,one.revision+1);
-    assert.notEqual(two.document.geometry.paths.at(-1).d,one.document.geometry.paths.at(-1).d);
+    assert.notEqual(require('./publication-languages.cjs').hash(two.document.geometry.paths.filter(p=>p.id.startsWith('sponsor.'))),require('./publication-languages.cjs').hash(one.document.geometry.paths.filter(p=>p.id.startsWith('sponsor.'))),'complete signed name ink changes for new sponsor');
     assert.notEqual(two.document.drawPlan.durationMs,one.document.drawPlan.durationMs);
     assert.equal(store.getDocument(db,one.id,one.revision).contentHash,one.document.contentHash);
     const absent=drawing.synchronize(db,[]);assert.equal(absent.revision,two.revision,'unverified/future episode never clears current sponsor');

@@ -12,7 +12,9 @@ import PublishCenter from '../src/PublishCenter';
 const nodes=[
   {key:'story-67',kind:'story',state:'approved',name:'67. Davet ve Defterin Mezna Planı',summary:'Umman’dan gelen davetli hakkında bir hikâye.',aliases:[],sourceVideoIds:['abc123'],isMainCharacter:false,updatedAt:'2026-11-10T12:00:00',payload:{sequence:[{text:'67. davetli bir defter götürmek üzere Mezna’ya hareket eder.',sourceVideoIds:['abc123']}],characterNames:['Ömer'],locationNames:['Mezna']}},
   {key:'character-omer',kind:'character',state:'approved',name:'Ömer',summary:'Anlatıcı',aliases:['Konuk'],sourceVideoIds:['abc123'],isMainCharacter:true,updatedAt:'2026-11-10T12:00:00',payload:{roles:['Anlatıcı'],storyNames:['67. Davet ve Defterin Mezna Planı']}},
-  {key:'object-stone',kind:'object',state:'draft',name:'Taş numune',summary:'Bir taş',aliases:[],sourceVideoIds:['abc123'],updatedAt:'2026-11-10T12:00:00',payload:{}}
+  {key:'object-stone',kind:'object',state:'draft',name:'Taş numune',summary:'Bir taş',aliases:[],sourceVideoIds:['abc123'],updatedAt:'2026-11-10T12:00:00',payload:{}},
+  {key:'object-ring',kind:'object',state:'approved',name:'Kayıt yüzüğü',summary:'Bir yüzük',aliases:[],sourceVideoIds:['abc123'],updatedAt:'2026-11-10T12:00:00',payload:{}},
+  {key:'location-mezna',kind:'location',state:'approved',name:'Mezna bölgesi',summary:'Kaynakta geçen mekân',aliases:[],sourceVideoIds:['abc123'],updatedAt:'2026-11-10T12:00:00',payload:{}}
 ];
 const legacy=[{key:'file:manual-1',kind:'file',title:'Bağımsız dosya',id:'manual-1',status:'draft',meta:'13 Kas 2026',summary:'Manuel kayıt',relatedCount:1}];
 const relations=[{key:'relation1',runId:1,fromKey:'story-67',toKey:'character-omer',label:'olaya katılır',sourceVideoIds:['abc123'],state:'approved',updatedAt:'2026-11-10T12:00:00'}];
@@ -29,6 +31,25 @@ window.__readyLanguages=false;
 window.__batchStatus={rows:[],counts:{queued:0,running:0,done:0,failed:0,skipped:0},running:false,paused:true};
 const languageOverview=()=>({rows:languageRows,counts:{ready:window.__readyLanguages?languageRows.length:1,missing:1,pending:0,stale:0,errors:0}});
 const actions=[];window.__actions=actions;
+const attributeData={
+ profiles:[{entityKey:'character-omer',fields:{sideStatus:'notr',age:'48',species:'İnsan',dimension:'3',rank:''}},
+   {entityKey:'object-ring',fields:{type:'Yüzük',property:'Işık yayıyor',custodian:'Ömer'}}],
+ proposals:[{entityKey:'character-omer',field:'rank',value:'Komutan',baseline:'',reason:'Kaynak anlatıda mevki belirtiliyor.',
+   sourceVideoIds:['abc123'],evidence:[{detailIndex:0,quote:'Ömer komutan olarak anıldı.',sourceVideoId:'abc123'}]}],
+ analyses:[],
+ provenance:[{entityKey:'character-omer',field:'species',reason:'Onaylı kaynaklı tür özelliği.',
+   evidence:[{detailIndex:1,quote:'Ömer insan olarak anlatılıyor.',sourceVideoId:'abc123'}]}],
+ dictionary:[
+  {kind:'character',field:'species',value:'İnsan',labelEn:'Human'},
+  {kind:'character',field:'dimension',value:'3',labelEn:'3'},
+  {kind:'character',field:'rank',value:'Komutan',labelEn:'Commander'},
+  {kind:'object',field:'type',value:'Yüzük',labelEn:'Ring'},
+  {kind:'location',field:'type',value:'Şehir',labelEn:'City'},
+  {kind:'location',field:'position',value:'Dünya',labelEn:'World'},
+  {kind:'location',field:'dimension',value:'3',labelEn:'3'}
+ ]
+};
+window.__attributeData=attributeData;
 window.channelFoundryStudio={
  languagesOverview:async()=>languageOverview(),languagesGet:async({kind,id})=>languageRows.find(row=>row.kind===kind&&row.id===id)||null,
  languagesGenerate:async({kind,id,language})=>{actions.push({name:'translation-generate',kind,id,language});const entry=languageRows.find(row=>row.kind===kind&&row.id===id);entry.variants.en={...entry.variants.en,state:'draft',data:{...entry.source,summary:'Generated English summary.'},candidate:null,revision:2};return {...entry};},
@@ -46,6 +67,37 @@ window.channelFoundryStudio={
  visualImagePick:async data=>{actions.push({name:'visual-pick',data});return {canceled:false,profile:{source:'manual',description:'',attributes:[],atmosphere:'',prompt:'',negativePrompt:'',imagePath:'/tmp/test.png',imageDataUrl:'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}};},
  visualImageGenerate:async data=>{actions.push({name:'visual-generate',data});return {generation:{provider:'test',model:'fixture'},profile:{...data,imagePath:'/tmp/generated.png',imageDataUrl:'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}};},
  visualImageClear:async key=>{actions.push({name:'visual-clear',key});return {profile:null};},visualImageShow:async key=>{actions.push({name:'visual-show',key});},
+ universeAttributesList:async()=>structuredClone(attributeData),
+ universeAttributesSave:async({edits})=>{
+   actions.push({name:'attribute-save',edits});
+   for(const {entityKey,field,value} of edits){
+     let profile=attributeData.profiles.find(p=>p.entityKey===entityKey);
+     if(!profile){profile={entityKey,fields:{}};attributeData.profiles.push(profile);}
+     profile.fields[field]=value;
+     attributeData.proposals=attributeData.proposals.filter(p=>p.entityKey!==entityKey||p.field!==field);
+     attributeData.provenance=attributeData.provenance.filter(p=>p.entityKey!==entityKey||p.field!==field);
+   }
+   return {changed:edits.length};
+ },
+ universeAttributesReview:async({action,items})=>{
+   actions.push({name:'attribute-review',action,items});
+   for(const {entityKey,field} of items){
+     const proposal=attributeData.proposals.find(p=>p.entityKey===entityKey&&p.field===field);
+     if(action==='approve'&&proposal){
+       let profile=attributeData.profiles.find(p=>p.entityKey===entityKey);
+       if(!profile){profile={entityKey,fields:{}};attributeData.profiles.push(profile);}
+       profile.fields[field]=proposal.value;
+       attributeData.provenance.push({entityKey,field,reason:proposal.reason,evidence:proposal.evidence});
+     }
+     attributeData.proposals=attributeData.proposals.filter(p=>p.entityKey!==entityKey||p.field!==field);
+   }
+   return {action,reviewed:items.length};
+ },
+ universeAttributesOptionAdd:async({kind,field,value,labelEn})=>{
+   actions.push({name:'attribute-option-add',kind,field,value,labelEn});
+   attributeData.dictionary.push({kind,field,value,labelEn:labelEn??''});
+   return {value,created:true};
+ },
  universeWorkspaceUpdate:async data=>{actions.push({name:'update',data});const index=nodes.findIndex(n=>n.key===data.key);nodes[index]={...nodes[index],...data,updatedAt:new Date().toISOString()};return nodes[index];},
  saveItem:async data=>{actions.push({name:'save-item',data});const idx=legacy.findIndex(i=>i.key===data.key);legacy[idx]={...legacy[idx],...data};},
  bulkApply:async data=>{actions.push({name:'bulk',data});return {affected:data.keys.length,affectedRelations:0};},

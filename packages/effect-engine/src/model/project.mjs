@@ -67,7 +67,7 @@ function validateObjectScene(scene) {
   const unique = id => {string(id,'Kimlik',120); if(ids.has(id)) fail(`Tekrarlanan kimlik: ${id}`); ids.add(id);};
   const objects=new Map();
   for(const item of scene.objects) {
-    keys(item,['id','name','group','kind','visual','visible','pose','anchors','motionLayers','hitArea','veil','crop'],'Nesne');
+    keys(item,['id','name','group','kind','visual','visible','pose','anchors','motionLayers','hitArea','editorArea','veil','crop'],'Nesne');
     if(item.kind!==undefined&&item.kind!=='artwork')fail('Bilinmeyen nesne türü.');
     if(item.visual!==undefined){
       keys(item.visual,['asset','layers'],'Nesne görseli');
@@ -116,6 +116,16 @@ function validateObjectScene(scene) {
       num(area.width,.001,1,'Tıklama genişliği');num(area.height,.001,1,'Tıklama yüksekliği');
       if(area.x+area.width>1.000000001||area.y+area.height>1.000000001)
         fail('Tıklama alanı sahne dışına taşamaz.');
+    }
+    // The Studio-only selection outline must never scale or crop the art.
+    // Optional and backwards compatible with every authored V2 scene.
+    if(item.editorArea!==undefined){
+      keys(item.editorArea,['x','y','width','height'],'Studio nesne alanı');
+      for(const key of ['x','y','width','height'])
+        num(item.editorArea[key],key==='width'||key==='height'?.001:0,1,'Studio nesne alanı '+key);
+      if(item.editorArea.x+item.editorArea.width>1.000000001||
+         item.editorArea.y+item.editorArea.height>1.000000001)
+        fail('Studio nesne alanı sahne dışına taşamaz.');
     }
     keys(item.pose,['x','y','width','height','rotation','depth'],'Nesne konumu');
     const pose=item.pose;

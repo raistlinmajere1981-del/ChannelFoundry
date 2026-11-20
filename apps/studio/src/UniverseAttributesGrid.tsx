@@ -1,8 +1,8 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {createPortal} from "react-dom";
 import "./universe-attributes-grid.css";
+import {attributeCategories as categories,attributeSides as sides,attributeControlled as controlled,type Kind} from "./universe-attribute-fields";
 
-type Kind="character"|"object"|"location";
 type Node=StudioUniverseWorkspaceNode;
 type Profile={entityKey:string;fields:Record<string,string>};
 type Evidence={detailIndex:number;quote:string;sourceVideoId:string;sourceType?:"transcript";};
@@ -12,17 +12,6 @@ type Provenance={entityKey:string;field:string;reason:string;evidence:Evidence[]
 type Option={kind:string;field:string;value:string;labelEn:string};
 type Result={profiles:Profile[];proposals:Proposal[];analyses:Analysis[];provenance:Provenance[];dictionary:Option[]};
 type Props={nodes:Node[];onClose():void;onDirtyChange(value:boolean):void;onBusyChange(value:boolean):void};
-const categories:{kind:Kind;label:string;fields:{key:string;label:string}[]}[]=[
- {kind:"character",label:"Karakterler",fields:[{key:"sideStatus",label:"Taraf durumu"},{key:"age",label:"Yaş"},{key:"species",label:"Tür"},{key:"dimension",label:"Boyut"},{key:"rank",label:"Mevki"}]},
- {kind:"object",label:"Nesneler",fields:[{key:"type",label:"Tür"},{key:"property",label:"Özellik"},{key:"custodian",label:"Sahibi / Koruyucusu"}]},
- {kind:"location",label:"Mekânlar",fields:[{key:"type",label:"Tür"},{key:"position",label:"Konum"},{key:"dimension",label:"Boyut"}]},
-];
-const sides=[
- ["","Belirsiz"],["notr","Nötr"],["aydinlik","Aydınlık"],["karanlik","Karanlık"],
- ["karanlik_once_aydinlik","Karanlık → Aydınlık"],
- ["aydinlik_once_karanlik","Aydınlık → Karanlık"],
-];
-const controlled:Record<Kind,string[]>={character:["species","dimension","rank"],object:["type"],location:["type","position","dimension"]};
 const proposalId=(key:string,field:string)=>key+"::"+field;
 const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
 

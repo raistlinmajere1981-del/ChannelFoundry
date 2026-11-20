@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import RecordAttributes from "./RecordAttributes";
 
 /** Main content editor: shared selection and image dock live in EditorialWorkspaceV3. */
 type WorkspaceRelation = { key: string; runId: number; fromKey: string; toKey: string; label: string; sourceVideoIds: string[]; state: "draft" | "approved"; updatedAt: string };
@@ -9,7 +10,7 @@ type PropsBase = {
   onDirtyChange?: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
 };
-type WorkspaceProps = PropsBase & { node: StudioUniverseWorkspaceNode; relations: WorkspaceRelation[]; allNodes: StudioUniverseWorkspaceNode[] };
+type WorkspaceProps = PropsBase & { node: StudioUniverseWorkspaceNode; relations: WorkspaceRelation[]; allNodes: StudioUniverseWorkspaceNode[]; attributeRefreshVersion?: number };
 type LegacyProps = PropsBase & { item: LegacyItem; relations: StudioPersistedRelation[]; allItems: LegacyItem[] };
 type EditorBridge = NonNullable<typeof window.channelFoundryStudio> & {
   universeWorkspaceUpdate(input: { key: string; name: string; summary: string; aliases: string[]; state: "draft" | "approved"; roles?: string[]; isMainCharacter?: boolean; storyNames?: string[]; characterNames?: string[]; locationNames?: string[]; objectNames?: string[] }): Promise<StudioUniverseWorkspaceNode>;
@@ -34,7 +35,7 @@ function TextLines({ label, value, onChange, placeholder }: { label: string; val
   return <label><span>{label}</span><textarea rows={3} placeholder={placeholder} value={value} onChange={event => onChange(event.target.value)}/></label>;
 }
 
-export function WorkspaceRecordDetail({ node, onReload, onStatus, onDirtyChange, onBusyChange }: WorkspaceProps) {
+export function WorkspaceRecordDetail({ node, allNodes, attributeRefreshVersion, onReload, onStatus, onDirtyChange, onBusyChange }: WorkspaceProps) {
   const bridge = window.channelFoundryStudio as EditorBridge | undefined;
   const [name, setName] = useState(node.name);
   const [summary, setSummary] = useState(node.summary);
@@ -47,6 +48,8 @@ export function WorkspaceRecordDetail({ node, onReload, onStatus, onDirtyChange,
   const [objectNames, setObjectNames] = useState(payloadArray(node,"objectNames").join("\n"));
   const [state, setState] = useState<"draft" | "approved">(node.state);
   const [busy, setBusy] = useState(false);
+  const [attributesDirty, setAttributesDirty] = useState(false);
+  const [attributesBusy, setAttributesBusy] = useState(false);
   useEffect(() => {
     setName(node.name);setSummary(node.summary);setAliases(node.aliases.join("\n"));
     setRoles(payloadArray(node,"roles").join("\n"));setMain(Boolean(node.isMainCharacter));
@@ -55,11 +58,11 @@ export function WorkspaceRecordDetail({ node, onReload, onStatus, onDirtyChange,
   }, [node.key,node.updatedAt]);
   const original = JSON.stringify([node.name,node.summary,node.aliases.join("\n"),payloadArray(node,"roles").join("\n"),Boolean(node.isMainCharacter),payloadArray(node,"storyNames").join("\n"),payloadArray(node,"characterNames").join("\n"),payloadArray(node,"locationNames").join("\n"),payloadArray(node,"objectNames").join("\n"),node.state]);
   const dirty = JSON.stringify([name,summary,aliases,roles,main,storyNames,characterNames,locationNames,objectNames,state])!==original;
-  useEffect(()=>onDirtyChange?.(dirty),[dirty,onDirtyChange]);
-  useEffect(()=>onBusyChange?.(busy),[busy,onBusyChange]);
+  useEffect(()=>onDirtyChange?.(dirty||attributesDirty),[dirty,attributesDirty,onDirtyChange]);
+  useEffect(()=>onBusyChange?.(busy||attributesBusy),[busy,attributesBusy,onBusyChange]);
   const sequence = useMemo(()=>{const list=detailArray(node,"sequence");return list.length?list:detailArray(node,"details");},[node]);
   const save = async()=>{
-    if(!bridge||busy||!dirty)return;
+    if(!bridge||busy||attributesBusy||!dirty)return;
     setBusy(true);onStatus?.(null);
     try {
       await bridge.universeWorkspaceUpdate({key:node.key,name:name.trim()||node.name,summary,aliases:lines(aliases),state,roles:lines(roles),...(node.kind==="character"?{isMainCharacter:main}:{}),storyNames:lines(storyNames),characterNames:lines(characterNames),locationNames:lines(locationNames),objectNames:lines(objectNames)});
@@ -68,13 +71,14 @@ export function WorkspaceRecordDetail({ node, onReload, onStatus, onDirtyChange,
     finally{setBusy(false);}
   };
   return <div className="record-v3-form">
-    <header className="record-v3-heading"><div><small>{kindLabels[node.kind].toUpperCase()} · AI EVRENİ</small><h2>{node.name}</h2><span>{state==="approved"?"Onaylı":"İncelemede"} · {node.sourceVideoIds.length} kaynak</span></div><button className="primary-button" disabled={busy||!dirty} onClick={()=>void save()}>{busy?"Kaydediliyor…":dirty?"Kaydet *":"Kaydedildi"}</button></header>
+    <header className="record-v3-heading"><div><small>{kindLabels[node.kind].toUpperCase()} · AI EVRENİ</small><h2>{node.name}</h2><span>{state==="approved"?"Onaylı":"İncelemede"} · {node.sourceVideoIds.length} kaynak</span></div><button className="primary-button" disabled={busy||attributesBusy||!dirty} onClick={()=>void save()}>{busy?"Kaydediliyor…":dirty?"Kaydet *":"Kaydedildi"}</button></header>
     <section className="record-v3-section"><div className="record-v3-section-title">Kimlik ve özet</div><div className="record-v3-fields">
       <label><span>Başlık / ad</span><input value={name} onChange={event=>setName(event.target.value)}/></label>
       <label><span>Özet</span><textarea className="record-v3-summary" value={summary} onChange={event=>setSummary(event.target.value)}/></label>
       <div className="record-v3-duo"><TextLines label="Diğer adlar" value={aliases} onChange={setAliases} placeholder="Varsa alternatif isimler"/><label><span>Durum</span><select value={state} onChange={event=>setState(event.target.value as "approved"|"draft")}><option value="approved">Onaylı</option><option value="draft">Taslak / incelemede</option></select></label></div>
       {node.kind==="character"&&<><label className="record-v3-checkbox"><input type="checkbox" checked={main} onChange={event=>setMain(event.target.checked)}/><span>Ana karakter</span></label><TextLines label="Roller / türler" value={roles} onChange={setRoles}/></>}
     </div></section>
+    {(node.kind==="character"||node.kind==="object"||node.kind==="location")&&<RecordAttributes node={node} allNodes={allNodes} refreshVersion={attributeRefreshVersion} onDirtyChange={setAttributesDirty} onBusyChange={setAttributesBusy} onStatus={onStatus}/>}
     {node.kind==="story"&&<details className="record-v3-section" open><summary>Anlatı akışı <span>{sequence.length} adım</span></summary><div className="record-v3-sequence">{sequence.map((entry,i)=><article key={i}><strong>{String(i+1).padStart(2,"0")}</strong><div><p>{entry.text}</p><small>{entry.sourceVideoIds.length} kaynak video</small></div></article>)}{!sequence.length&&<p className="record-v3-empty">Bu hikâyede henüz sıralı anlatı akışı yok.</p>}</div></details>}
     {node.kind!=="story"&&sequence.length>0&&<details className="record-v3-section"><summary>Kaynaklı notlar <span>{sequence.length}</span></summary><div className="record-v3-sequence">{sequence.map((entry,i)=><article key={i}><strong>{String(i+1).padStart(2,"0")}</strong><div><p>{entry.text}</p><small>{entry.sourceVideoIds.length} kaynak video</small></div></article>)}</div></details>}
     <details className="record-v3-section"><summary>Evren bağlamı <span>Hikâye · Karakter · Mekân · Nesne</span></summary><div className="record-v3-fields">

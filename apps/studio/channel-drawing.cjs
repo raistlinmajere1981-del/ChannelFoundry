@@ -8,7 +8,11 @@ const catalog = require('./vefk-publication.cjs');
 const artwork = require('./channel-drawing/artwork.json');
 const letters = require('./channel-drawing/letter-outlines.json');
 const ID = 'birdesengor-channel-drawing';
-const SPONSOR_NAME_SIZE = 68;
+// Brief sponsor names are readable on the room-scale board.
+const sponsorNameSize = name => {
+  const n=Array.from(name).length;
+  return n<=14?166:n<=28?128:n<=45?104:84;
+};
 // One-tenth unit glyph precision preserves visual fidelity and keeps complex
 // Turkish letter outlines inside the existing 8192-character SVG path limit.
 const f = n => String(Math.round(n * 10) / 10);
@@ -64,10 +68,12 @@ function textLines(text, maxWidth, size) {
 function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
   const dateHeading = sponsor.names.length ? publicationDateLabel(sponsor.publishedAt) : '';
   const sponsorText = sponsor.names.length ? dateHeading+' '+sponsor.names.join(' · ') : 'Destekçilerimize teşekkürler';
+  const nameSize=sponsorNameSize(sponsor.names.join(' · '));
   const lines = sponsor.names.length
-    ? [ { text:dateHeading, size:34, baseline:666, ink:'letter' },
-        ...textLines(sponsor.names.join(' · '),820,SPONSOR_NAME_SIZE).map((line,row)=>({...line,size:SPONSOR_NAME_SIZE,baseline:732+row*82,ink:'sponsorName'})) ]
-    : textLines(sponsorText,820,38).map((line,row)=>({...line,size:38,baseline:700+row*56,ink:'letter'}));
+    ? [ { text:dateHeading, size:45, baseline:650, ink:'letter' },
+        ...textLines(sponsor.names.join(' · '),820,nameSize)
+          .map((line,row)=>({...line,size:nameSize,baseline:736+row*(nameSize+24),ink:'sponsorName'})) ]
+    : textLines(sponsorText,820,45).map((line,row)=>({...line,size:45,baseline:700+row*62,ink:'letter'}));
   const paths=artwork.paths.map(p=>({...p}));
   let charIndex=0;
   lines.forEach(line=>{
@@ -81,7 +87,7 @@ function makeDocument({ revision = 1, sponsor = {videoId:'',names:[]} } = {}) {
       x+=glyph.advance*scale;charIndex++;
     }
   });
-  const height=Math.max(800,lines.at(-1).baseline+68);
+  const height=Math.max(900,lines.at(-1).baseline+Math.max(90,nameSize*.68));
   const geometry={coordinateSpace:'svg-viewBox',viewBox:[0,0,1000,height],paths,
     inkStyles:{construction:{width:1.3,cap:'round'},seal:{width:1.6,cap:'round'},portrait:{width:1.05,cap:'round'},portraitFeature:{width:.75,cap:'round'},hatch:{width:.95,cap:'round'},letter:{width:1.3,cap:'round'},sponsorName:{width:1.5,cap:'round'}}};
   let cursor=0; const markers=[{id:'outline',atMs:0}];let portraitStarted=false,sponsorStarted=false;

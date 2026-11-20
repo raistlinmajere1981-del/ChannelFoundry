@@ -1,43 +1,35 @@
-// Authoring-only composition guide. This does not change scene geometry,
-// effect target/hit areas, the published photo, or the site's visual assets.
+// Studio-only live composition guide. The old V4 hard-coded rectangles were
+// captured from an obsolete concept image; these guides now derive from the
+// current unsaved scene and current room presentation on every redraw.
 export const COMPOSITION_FRAME=Object.freeze({width:1774,height:887,aspect:2});
-const zone=(id,label,x,y,width,height,help)=>Object.freeze({id,label,x,y,width,height,help});
-export const COMPOSITION_GUIDE=Object.freeze({
-  fixed:Object.freeze([
-    zone('shelves','Kitaplık · fener',.015,.02,.29,.59,'Sabit kitaplık, zayıf soldan sıcak ışık; nesne katmanı yok'),
-    zone('hook','Askılık · duvar',.405,.04,.19,.56,'Ortada sabit metal askılık; kaftan ayrı kumaş katmanı'),
-    zone('window','Pencere · ay ışığı',.795,.005,.2,.605,'Soğuk, yönlü pencere ışığı; hareketli nesneyle birlikte taşınmaz'),
-    zone('table','Tek masa yüzeyi',.01,.625,.98,.35,'Bütün masa üstü nesneleri aynı perspektif ve temas gölgesine oturmalı'),
-    zone('language','Dil anahtarı yuvası',.035,.842,.12,.11,'Yalnız dekoratif metal yuva; gerçek TR/EN kontrolü bağımsız'),
-  ]),
-  focus:Object.freeze([
-    zone('community','Topluluk kitabı',.253,.73,.182,.25,'Masa üzerinde, kapalıyken kendi deri/kağıt gölgesi'),
-    zone('universe','Evren kitabı',.445,.718,.26,.266,'Daha koyu kapak; tılsım için ayrılacak merkezi desen'),
-    zone('camera','Kamera',.795,.73,.18,.24,'LCD afişi okunan, kamera masaya oturan düzlem'),
-    zone('drawing','Çizim cihazı',.62,.39,.16,.40,'Ayağı olmayan, masaüstüne oturan alçak mekanizma'),
-  ]),
-  details:Object.freeze([
-    zone('robe','Kaftan',.415,.16,.18,.47,'Korunan renk ve kuşak, gölge/ışık sahneye göre uyarlanır'),
-    zone('stone','Yeşim ve bakır plaka',.1834,.5851,.1122,.205,'Titreşim dalgaları yeşimden plakaya yayılır'),
-    zone('pendulum','Metal sarkaç',.34,.435,.12,.265,'Korunan pirinç tasarım, bağlantı ve hareketi ayrı'),
-    zone('chest','Sandık',.245,.516,.067,.066,'Kapak rafta hafifçe aralanınca içeriden ışık sızar'),
-    zone('dagger','Tören hançeri',.017,.486,.093,.098,'Özgün hançer iki bronz kancalı askılığa oturur'),
-    zone('incense','Tütsü',.014,.639,.094,.109,'Ayaksız ahşap tablaya yarısı yanmış tütsü takılıdır'),
-    zone('candle','Mum ve su kabı',.08,.585,.15,.265,'Görseli yeniden tasarlanabilir; görünür efekt yeri gerek'),
-  ]),
-});
-export const COMPOSITION_MODES=Object.freeze(['off','fixed','focus','details']);
-export function validateCompositionGuide(guide=COMPOSITION_GUIDE){
-  const all=new Set();
-  for(const mode of COMPOSITION_MODES.slice(1))
-    for(const z of guide[mode]??[]){
-      if(all.has(z.id))throw Error('Tekrarlanan kompozisyon bölgesi: '+z.id);
-      all.add(z.id);
-      if(![z.x,z.y,z.width,z.height].every(Number.isFinite)||
-         z.x<0||z.y<0||z.width<=0||z.height<=0||
-         z.x+z.width>1||z.y+z.height>1)
-        throw Error('2:1 çalışma kadrajını aşan yerleşim bölgesi: '+z.id);
-    }
+export const COMPOSITION_MODES=Object.freeze(['off','focus','details','all']);
+export const FOCUS_IDS=Object.freeze(['research-journal','community-journal','camera','vefk-stand']);
+const focus=new Set(FOCUS_IDS);
+export function validateCompositionGuide(guide){
+  const ids=new Set();
+  for(const box of guide){
+    if(ids.has(box.id))throw Error('Tekrarlanan kompozisyon bölgesi: '+box.id);
+    ids.add(box.id);
+    if(!['x','y','width','height'].every(key=>Number.isFinite(box[key]))||
+      box.x<0||box.y<0||box.width<=0||box.height<=0||
+      box.x+box.width>1.000000001||box.y+box.height>1.000000001)
+      throw Error('2:1 çalışma kadrajını aşan yerleşim bölgesi: '+box.id);
+  }
   return guide;
 }
-validateCompositionGuide();
+export function compositionGuideForScene(scene,mode,{areaFor,visible=()=>true}={}){
+  if(mode==='off')return [];
+  if(!COMPOSITION_MODES.includes(mode))throw Error('Geçersiz plan görünümü: '+mode);
+  if(typeof areaFor!=='function')throw Error('Anlık plan için nesne yerleşimi gerekli.');
+  const result=[];
+  for(const object of scene?.objects??[]){
+    if(!visible(object)||object.visible===false)continue;
+    if(mode==='focus'&&!focus.has(object.id))continue;
+    if(mode==='details'&&focus.has(object.id))continue;
+    const area=areaFor(object);
+    if(!area)continue;
+    result.push({id:object.id,label:object.name,
+      x:area.x,y:area.y,width:area.width,height:area.height});
+  }
+  return validateCompositionGuide(result);
+}

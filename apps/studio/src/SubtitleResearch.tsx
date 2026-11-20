@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import "./subtitle-research.css";
 
 type MatchMode = "contains" | "whole-word";
@@ -130,9 +130,21 @@ export default function SubtitleResearch() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copyFeedbackCount, setCopyFeedbackCount] = useState(0);
+  const copyFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exported, setExported] = useState("");
   const [presets, setPresets] = useState<Preset[]>(() => readPresets());
   const [selectedPreset, setSelectedPreset] = useState("");
+
+  useEffect(() => () => {
+    if (copyFeedbackTimer.current !== null) clearTimeout(copyFeedbackTimer.current);
+  }, []);
+
+  const clearCopyFeedback = () => {
+    if (copyFeedbackTimer.current !== null) clearTimeout(copyFeedbackTimer.current);
+    copyFeedbackTimer.current = null;
+    setCopied(false);
+  };
 
   useEffect(() => {
     if (!studio) return;
@@ -227,7 +239,7 @@ export default function SubtitleResearch() {
     if (searchType === "terms" && !effectiveTerms.length) return setError("En az bir kelime veya ifade ekle.");
     if (searchType === "relationship" && effectiveGroups.some((group) => !group.terms.length)) return setError("Her kavram grubunda en az bir terim olmalı.");
     if (dateFrom && dateTo && dateFrom > dateTo) return setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
-    setBusy(true); setError(""); setCopied(false); setExported("");
+    setBusy(true); setError(""); clearCopyFeedback(); setExported("");
     try {
       const input = searchType === "terms"
         ? { searchType, terms: effectiveTerms, channelId, searchMode, matchMode, sort: sort === "distance" ? "date" : sort, dateFrom, dateTo }
@@ -242,8 +254,20 @@ export default function SubtitleResearch() {
 
   const copyReport = async () => {
     if (!report) return;
-    try { await navigator.clipboard.writeText(report.markdown); setCopied(true); }
-    catch (reason) { setError(`Rapor panoya kopyalanamadı · ${errorText(reason)}`); }
+    try {
+      // Write every time, including when the previous acknowledgement is visible.
+      await navigator.clipboard.writeText(report.markdown);
+      if (copyFeedbackTimer.current !== null) clearTimeout(copyFeedbackTimer.current);
+      setCopied(true);
+      setCopyFeedbackCount((count) => count + 1);
+      copyFeedbackTimer.current = setTimeout(() => {
+        setCopied(false);
+        copyFeedbackTimer.current = null;
+      }, 1700);
+    } catch (reason) {
+      clearCopyFeedback();
+      setError("Rapor panoya kopyalanamadı · " + errorText(reason));
+    }
   };
   const exportMarkdown = () => {
     if (!report) return;
@@ -312,7 +336,7 @@ export default function SubtitleResearch() {
       {report.searchType === "relationship" && <RelationSummary report={report}/>} 
       {report.searchType === "terms" && <TermSummary report={report}/>} 
       <section className="subtitle-report panel">
-        <header className="subtitle-report-head"><div><small>RAPOR</small><h3>{report.searchType === "relationship" ? report.groups.map((group) => group.label).join(" + ") : report.terms.map((term) => `“${term}”`).join(" · ")}</h3><span>{report.searchType === "relationship" ? `${report.videoCount} videoda ${report.relationCount} ilişki örneği` : `${report.videoCount} videoda ${report.totalOccurrences} toplam kullanım`}</span></div><div className="subtitle-report-actions"><button className="secondary-button" onClick={() => void copyReport()}>{copied ? "Kopyalandı" : "Raporu kopyala"}</button><button className="secondary-button" onClick={exportMarkdown}>{exported === "md" ? "Markdown indirildi" : "Markdown dışa aktar"}</button><button className="secondary-button" onClick={exportJson}>{exported === "json" ? "JSON indirildi" : "JSON dışa aktar"}</button></div></header>
+        <header className="subtitle-report-head"><div><small>RAPOR</small><h3>{report.searchType === "relationship" ? report.groups.map((group) => group.label).join(" + ") : report.terms.map((term) => `“${term}”`).join(" · ")}</h3><span>{report.searchType === "relationship" ? `${report.videoCount} videoda ${report.relationCount} ilişki örneği` : `${report.videoCount} videoda ${report.totalOccurrences} toplam kullanım`}</span></div><div className="subtitle-report-actions"><button type="button" className="secondary-button subtitle-copy-button" aria-label="Raporu kopyala" onClick={() => void copyReport()}><span key={copyFeedbackCount} className={copied ? "subtitle-copy-confirmation" : undefined}>{copied ? "✓ Kopyalandı" : "Raporu kopyala"}</span></button><button className="secondary-button" onClick={exportMarkdown}>{exported === "md" ? "Markdown indirildi" : "Markdown dışa aktar"}</button><button className="secondary-button" onClick={exportJson}>{exported === "json" ? "JSON indirildi" : "JSON dışa aktar"}</button></div></header>
         {report.searchType === "terms" ? <TermResults report={report} openVideo={openVideo}/> : <RelationResults report={report} openVideo={openVideo}/>} 
       </section>
     </> : <div className="subtitle-results-empty" aria-live="polite">Arama sonuçları burada görüntülenir.</div>}

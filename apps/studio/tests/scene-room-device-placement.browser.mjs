@@ -4,7 +4,7 @@ import {chromium} from '../../../channels/birdesengor/web/node_modules/playwrigh
 import {siteSceneSource} from '../scene-workshop-site.mjs';
 import {defaultRoomDevicePlacement,roomDevicePlacement,placedDeviceHitArea} from '../../../packages/effect-engine/src/model/scene-presentation.mjs';
 import {effectScenePoint} from '../../../packages/effect-engine/src/runtime/object-scene.mjs';
-import {deviceStagePoint} from '../src/scene-workspace/scene-room-geometry.mjs';
+import {deviceStagePoint,deviceVisibleBox} from '../src/scene-workspace/scene-room-geometry.mjs';
 
 const site=siteSceneSource(),source=await site.snapshot();
 const data={scene:source.scene,presentation:source.presentation,siteSource:true,
@@ -139,13 +139,25 @@ try{
     assert.deepEqual(next.scene,source.scene,'device placement belongs only to presentation');
     assert.equal(site.readiness(next.scene,source,next.presentation).ready,true);
 
-    // The selected object-area frame is the EXACT bounds of the physical
-    // cutout. The visible hit region is the same projection as the live site.
+    // A selected device's area now follows the actual visible cutout. For
+    // Vefk, the original canvas has 333 entirely transparent bottom rows.
     const visualFrame=await page.locator('#stage-object-'+id).boundingBox();
     const physicalFrame=await room.boundingBox();
+    const visible=deviceVisibleBox(next.presentation,id,new Map(data.roomObjects.map(item=>[item.id,item])));
+    const viewport=await page.locator('#scene-viewport').boundingBox();
+    const projected={x:viewport.x+visible.x*viewport.width,y:viewport.y+visible.y*viewport.height,
+      width:visible.width*viewport.width,height:visible.height*viewport.height};
     for(const key of ['x','y','width','height'])
-      assert.ok(Math.abs(visualFrame[key]-physicalFrame[key])<3,
-        id+' visual area follows physical room '+key+' within 3 screen pixels');
+      assert.ok(Math.abs(visualFrame[key]-projected[key])<3,
+        id+' selection uses visible bounds for '+key);
+    if(id==='vefk-stand'){
+      assert.ok(visualFrame.height<physicalFrame.height*.8,'old blank Vefk tail is excluded');
+      assert.ok(Math.abs(visualFrame.width-physicalFrame.width)<3);
+    }else{
+      for(const key of ['x','y','width','height'])
+        assert.ok(Math.abs(visualFrame[key]-physicalFrame[key])<3,
+          id+' camera visible frame remains unchanged for '+key);
+    }
     const native=next.scene.objects.find(object=>object.id===id).hitArea;
     const hit=placedDeviceHitArea(next.presentation,id,native);
     const shownHit=await page.locator('#scene-hit-'+id).evaluate(node=>({
@@ -188,6 +200,10 @@ try{
         id+' effect drag Undo returns to unchanged authored offsets');
     }
     await page.locator('#hit-edit-mode').click();
+    // This scenario deliberately edits the click target independently.
+    // The default linked mode also moves the physical camera/stand.
+    await page.locator('#hit-area-settings').evaluate(node=>node.open=true);
+    await page.locator('#hit-linked').uncheck();
     assert.equal(await page.locator('#scene-hit-'+id).evaluate(node=>getComputedStyle(node).pointerEvents),'auto');
     const hitBox=await page.locator('#scene-hit-'+id).boundingBox();
     await page.mouse.move(hitBox.x+hitBox.width*.5,hitBox.y+hitBox.height*.5);
@@ -201,6 +217,7 @@ try{
       'hit adjustment changes only the native hit geometry, not device placement');
     await page.locator('#undo').click();
     assert.deepEqual((await snapshot()).scene,next.scene,'Undo restores initial device hit geometry');
+    await page.locator('#hit-linked').check();
     await page.locator('#visual-edit-mode').click();
 
     // Mode "Taşı" uses the same physical room image for pointer movement.
@@ -215,7 +232,9 @@ try{
       id+' physical image drag must update scene presentation');
     assert.equal(site.readiness(next.scene,source,next.presentation).ready,true);
 
+    // Reset belongs to the device's Focus inspector, not Visual mode.
     // Undo and reset must not affect its companion device.
+    await page.locator('[data-inspector-tab="focus"]').click();
     await page.locator('#device-room-reset').click();
     next=await snapshot();
     assert.equal(next.presentation.objects[id].roomPlacement,undefined);

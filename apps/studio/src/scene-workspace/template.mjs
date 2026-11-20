@@ -29,7 +29,7 @@ export const sceneTemplate = String.raw`
             <summary title="Sahne üzerine çizilen kılavuzları ve görünür katmanları yönet">Katmanlar</summary>
             <div class="scene-tools-popover" role="group" aria-label="Görünür sahne katmanları">
               <button type="button" id="show-photo" aria-pressed="true" disabled>Fotoğraf</button>
-              <button type="button" id="scene-plan-toggle" title="Sadece Studio'da gösterilen yerleşim kılavuzları" disabled>Plan: kapalı</button>
+              <button type="button" id="scene-plan-toggle" title="Güncel sahneden hesaplanan Ana nesneler, Detaylar ve Tüm nesneler planı. Eski sabit koordinatları kullanmaz." disabled>Plan: kapalı</button>
               <button type="button" id="show-room-objects" aria-pressed="true" aria-controls="scene-room-objects" title="Yalnız Studio görünümü · Nesne görsellerini ve hareketli önizleme katmanlarını birlikte gizle; site kaydını değiştirme">Nesneler</button>
               <button type="button" id="show-object-areas" aria-pressed="false" title="Nesne sınırı · Kamera ve Çizim Atölyesi taşındığında kutu da onunla taşınır">Nesne alanı</button>
               <button type="button" id="show-hit-areas" aria-pressed="true" title="Etkileşim alanı · Nesneyle birlikte taşınır, Alan aracında ayrıca düzenlenebilir">Tıklama alanı</button>

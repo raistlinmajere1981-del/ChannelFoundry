@@ -25,7 +25,6 @@ const PublishCenter = lazy(() => import("./PublishCenter"));
 const productionSections = [
   "Gösterge Paneli",
   "Video Arşivi",
-  "Altyazı Araştırma",
   "AI Atölyesi",
   "Vefk Atölyesi",
   "Sahne Atölyesi",
@@ -35,6 +34,7 @@ const productionSections = [
 const systemSections = [
   "Topluluk",
   "Yayınlama",
+  "Altyazı Araştırma",
   "Ayarlar",
 ] as const;
 

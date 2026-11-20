@@ -135,7 +135,7 @@ h2{margin:0;font-size:15px;letter-spacing:-.1px}
 .scene-plan-zone{position:absolute;box-sizing:border-box;pointer-events:none;
   border:1px dashed #c2d4d0;box-shadow:inset 0 0 0 1px #05111666;
   background:#92b9ca18;border-radius:3px}
-.scene-composition-guide[data-mode="fixed"] .scene-plan-zone{border-color:#d9ae80;background:#c38c471b}
+.scene-composition-guide[data-mode="all"] .scene-plan-zone{border-color:#d9ae80;background:#c38c471b}
 .scene-composition-guide[data-mode="focus"] .scene-plan-zone{border-color:#96c2be;background:#72aeb01c}
 .scene-composition-guide[data-mode="details"] .scene-plan-zone{border-color:#b7aad7;background:#aa90c61c}
 .scene-plan-label{display:inline-block;position:absolute;left:0;top:0;
@@ -689,3 +689,81 @@ html:not([data-studio-theme="light"]) .scene-editor-root {color-scheme:dark;}
 .scene-editor-root .scene-image-optimizer .scene-field{margin:5px 0;}
 .scene-editor-root .scene-image-optimizer .scene-visual-tip{display:block!important;line-height:1.45;}
 .scene-editor-root .scene-image-last-report{font-size:11px;line-height:1.5;margin:8px 0 0;color:var(--text);font-weight:600;}
+
+/* Explicit geometry copy; distinct from proportional linked movement. */
+.scene-editor-root .scene-area-sync-button{display:block;width:100%;min-height:32px;margin:7px 0;padding:7px 9px;border:1px solid var(--border-control);border-radius:5px;background:var(--surface-panel-soft);color:var(--text-primary);font-size:11px;font-weight:600;text-align:left;white-space:normal;cursor:pointer}
+.scene-editor-root .scene-area-sync-button:hover:not(:disabled){background:var(--surface-hover);border-color:var(--accent)}
+.scene-editor-root .scene-area-sync-button:disabled{opacity:.45;cursor:not-allowed}
+
+/* The tabletop Vefk cutout occupies only the top 1203 of 1536 pixels.
+   Its trailing transparent rows must not push lower resize grips into air. */
+.scene-room-figure--vefk [data-room-corner="sw"],
+.scene-room-figure--vefk [data-room-corner="se"]{
+  bottom:21.6796875%;
+}
+
+/* Stone material/effects remain in the historic source host; the editor
+   outline and grips instead use the alpha-tight overlay in scene-controls. */
+.scene-editor-root .scene-object[data-alpha-tight="true"],
+.scene-editor-root .has-photo .scene-object[data-alpha-tight="true"],
+.scene-editor-root .has-photo .scene-object[data-alpha-tight="true"].selected{
+  border-color:transparent;box-shadow:none;background:transparent;
+  pointer-events:none;
+}
+
+/* Hit overlays are visible guides in Visual/Select/Effect mode, not mouse
+   shields. They must only take input while the hit-area editor is active. */
+.scene-editor-root #scene-viewport[data-edit-mode]:not([data-edit-mode="hit"]) .scene-hit-area.selected{
+  pointer-events:none;
+}
+
+/* The stone's tight selection lives in the Studio controls plane (above
+   room-book figures). Its real/native stage host stays behind those figures. */
+.scene-editor-root #stage-object-stone-specimen > .scene-object-label{display:none}
+.scene-editor-root #scene-stone-visible{
+  position:absolute;display:block;box-sizing:border-box;
+  border:1px solid #7a8c92;border-radius:5px;
+  pointer-events:auto;cursor:pointer;touch-action:none;
+}
+.scene-editor-root #scene-stone-visible.selected{
+  border-color:var(--accent);box-shadow:0 0 0 2px #e9a24b44,0 0 18px #e9a24b2e;
+}
+.scene-editor-root #scene-stone-visible:hover{border-color:#b8d4d9}
+.scene-editor-root #scene-viewport[data-edit-mode="hit"] #scene-stone-visible,
+.scene-editor-root #scene-viewport[data-edit-mode="effect"] #scene-stone-visible{
+  pointer-events:none;
+}
+.scene-editor-root .hide-object-areas #scene-stone-visible{
+  border-color:transparent!important;box-shadow:none!important;
+}
+
+/* Independent editor selection bounds. Source photos, effects, and physical
+   book/device cutouts stay in their original native visual frames. */
+.scene-editor-root .scene-object[data-independent-outline="true"],
+.scene-editor-root .has-photo .scene-object[data-independent-outline="true"],
+.scene-editor-root .has-photo .scene-object[data-independent-outline="true"].selected{
+  border-color:transparent!important;background:transparent!important;
+  box-shadow:none!important;pointer-events:none;
+}
+.scene-editor-root #scene-viewport[data-edit-mode="visual"] .scene-room-figure:has([data-editor-area="true"]){
+  outline:0;
+}
+.scene-editor-root #scene-viewport[data-edit-mode="visual"] .scene-room-figure[data-editor-area="true"]{
+  outline:0;cursor:default;
+}
+.scene-editor-root .scene-independent-area{
+  position:absolute;display:block;box-sizing:border-box;border:1px dashed #d8ab75;
+  border-radius:4px;background:#a9771720;pointer-events:auto;
+  cursor:move;touch-action:none;
+}
+.scene-editor-root .scene-independent-area.selected{
+  border:2px solid #f7ba67;box-shadow:0 0 0 2px #0008;
+}
+.scene-editor-root #scene-viewport[data-edit-mode="hit"] .scene-independent-area,
+.scene-editor-root #scene-viewport[data-edit-mode="effect"] .scene-independent-area{pointer-events:none}
+.scene-editor-root #scene-viewport.hide-object-areas .scene-independent-area{
+  background:transparent;border-color:transparent;box-shadow:none;
+}
+.scene-editor-root #scene-viewport[data-edit-mode="visual"] .scene-independent-area.selected{
+  border-color:#f7ba67!important;
+}

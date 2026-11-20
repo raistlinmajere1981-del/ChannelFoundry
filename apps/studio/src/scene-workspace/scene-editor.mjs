@@ -11,7 +11,9 @@ import {sceneProfiles,profileForEffect,applySceneProfile,basicControls,assertSit
 import {History} from './history.mjs';
 import {sceneEditMode,sceneBoxMove,sceneBoxResize} from './scene-editing.mjs';
 import {bookStageArea,bookPlacementFromArea,linkedArea,bookMarkerPoint} from './scene-book-area.mjs';
-import {deviceRoomBox,deviceStageHit,deviceNativeHit,deviceStagePoint} from './scene-room-geometry.mjs';
+import {deviceRoomBox,deviceVisibleBox,deviceVisibleFoundation,devicePlacementFromVisibleBox,deviceStageHit,deviceNativeHit,deviceStagePoint} from './scene-room-geometry.mjs';
+import {areaFromPose,areaFitInside,devicePlacementInside} from './scene-area-sync.mjs';
+import {stoneVisibleArea,stonePoseFromVisibleArea} from './scene-stone-bounds.mjs';
 import {validateProject,importProject,exportProject,MAX_FILE_BYTES} from '../../../../packages/effect-engine/src/model/project.mjs';
 import {objectEffectRegistry,defaultObjectParams,effectTrigger,allowedEffectTriggers} from '../../../../packages/effect-engine/src/registry/effects.mjs';
 import {anchorScenePoint,effectScenePoint} from '../../../../packages/effect-engine/src/runtime/object-scene.mjs';
@@ -21,7 +23,7 @@ import {canCropVisual,visualClipStyle,EMPTY_CROP} from '../../../../packages/eff
 import {SCENE_SCREEN_OPTIONS,sceneScreenProfile} from './scene-viewport-profiles.mjs';
 import {defaultLanguageSwitchLayout} from '../../../../packages/effect-engine/src/model/language-switch-layout.mjs';
 import {defaultRoomDevicePlacement,roomDevicePlacement} from '../../../../packages/effect-engine/src/model/scene-presentation.mjs';
-import {COMPOSITION_MODES} from './composition-plan-v4.mjs';
+import {COMPOSITION_MODES,compositionGuideForScene} from './composition-plan-v4.mjs';
 import {objectFamilyReport,familyForObject} from './object-families-v4.mjs';
 import {sceneAppearanceStyle} from '../../../../packages/effect-engine/src/model/scene-appearance.mjs';
 import {materialGroundingStyle,materialToneForStudio} from '../../../../packages/effect-engine/src/model/material-grounding.mjs';
@@ -102,7 +104,10 @@ function syncAppearancePreview(){
 function renderCompositionGuide(){
   compositionMode=renderCompositionOverlay({
     host:$('#scene-composition-guide'),toggle:$('#scene-plan-toggle'),
-    mode:compositionMode,available:Boolean(siteSource&&backgroundMeta)
+    mode:compositionMode,available:Boolean(siteSource&&backgroundMeta),
+    zones:compositionGuideForScene(scene,compositionMode,{
+      areaFor:item=>visualAreaFor(item),visible:item=>!hiddenInRoom(item.id)
+    })
   });
 }
 function screenPreviewProfile(){
@@ -145,7 +150,7 @@ const editableVisual=item=>Boolean(item&&(canCropVisual(item)||INDEPENDENT_ROOM_
   &&(!siteSource||previewObjects.has(item.id)));
 const visualBase=item=>sourceScene?.objects.find(entry=>entry.id===item?.id)?.pose??item.pose;
 const selectedBookArea=id=>bookStageArea(presentation.objects[id].closedBook);
-const selectedDeviceArea=id=>deviceRoomBox(presentation,id,roomObjects);
+const selectedDeviceArea=id=>deviceVisibleBox(presentation,id,roomObjects);
 const replacementSource=(asset,original)=>assetReplacements.get(asset)?.dataUrl??original;
 function visualAssetSlots(item){
   const artwork=previewObjects.get(item?.id);
@@ -290,9 +295,7 @@ function mutateDeviceArea(id,box,key='device:'+id+':area'){
     const source=roomObjects.get(id),before=deviceStageHit(presentation,id,scene.objects.find(o=>o.id===id).hitArea);
     if(source?.kind!=='device')throw Error('Cihazın oda alanı bulunamadı.');
     const nextPresentation=structuredClone(presentation),nextScene=structuredClone(scene);
-    const placement={...roomDevicePlacement(presentation,id),
-      x:round(box.x+box.width/2),y:round(box.y+box.height/2),
-      scale:round(box.width/source.foundation.width)};
+    const placement=devicePlacementFromVisibleBox(presentation,id,box,roomObjects);
     nextPresentation.objects[id].roomPlacement=placement;
     const owner=nextScene.objects.find(o=>o.id===id);
     // A disconnected click box retains its visible position after a device move.
@@ -303,6 +306,104 @@ function mutateDeviceArea(id,box,key='device:'+id+':area'){
     return true;
   }catch(e){error(e);draw();return false;}
 }
+function visualAreaFor(item){
+  if(!item)return null;
+  if(item.editorArea)return item.editorArea;
+  if(siteSource&&BOOK_OBJECT_IDS.includes(item.id))return selectedBookArea(item.id);
+  if(siteSource&&PHYSICAL_DEVICE_IDS.includes(item.id))return selectedDeviceArea(item.id);
+  if(siteSource&&item.id==='stone-specimen')return stoneVisibleArea(item.pose);
+  return areaFromPose(item.pose);
+}
+function canSyncVisualArea(item){
+  return Boolean(item?.hitArea&&!isDragLocked(item.id)&&
+    (item.editorArea||editableVisual(item)||(siteSource&&BOOK_OBJECT_IDS.includes(item.id))||
+      (siteSource&&PHYSICAL_DEVICE_IDS.includes(item.id))));
+}
+// One explicit copy, unlike the checkbox's proportional linked movement.
+// All mutation is validated/undoable; live site remains untouched.
+function syncArea(id,direction){
+  const item=scene?.objects.find(entry=>entry.id===id);
+  if(!item?.hitArea||isDragLocked(id))return false;
+  if(direction==='visual-from-hit'&&!canSyncVisualArea(item))return false;
+  try{
+    const beforeHit=deviceStageHit(presentation,id,item.hitArea);
+    const beforeVisual=visualAreaFor(item);
+    if(!beforeVisual)throw Error('Nesnenin görsel alanı bulunamadı.');
+    const nextScene=structuredClone(scene),nextPresentation=structuredClone(presentation);
+    const owner=nextScene.objects.find(entry=>entry.id===id);
+    let exact=true;
+    if(direction==='visual-from-hit'){
+      if(item.editorArea){
+        // An editor-only bound can be copied exactly without scaling any art.
+        owner.editorArea=structuredClone(beforeHit);
+      }else if(siteSource&&BOOK_OBJECT_IDS.includes(id)){
+        Object.assign(nextPresentation.objects[id].closedBook,
+          bookPlacementFromArea(presentation.objects[id].closedBook,beforeHit));
+      }else if(siteSource&&PHYSICAL_DEVICE_IDS.includes(id)){
+        const record=roomObjects.get(id);
+        if(record?.kind!=='device')throw Error('Cihazın oda alanı bulunamadı.');
+        const fitted=devicePlacementInside(beforeHit,deviceVisibleFoundation(id,record.foundation));
+        nextPresentation.objects[id].roomPlacement=devicePlacementFromVisibleBox(
+          presentation,id,fitted.box,roomObjects);
+        // A device hit is stored relative to its own placement. Keep the
+        // on-screen hit rectangle stationary after moving the device.
+        owner.hitArea=deviceNativeHit(nextPresentation,id,beforeHit);
+        exact=fitted.exact;
+      }else if(siteSource&&id==='stone-specimen'){
+        // Sync the actual visible rock+plate, not the old tall native canvas.
+        // Unlike device cutouts, its two dimensions may be edited separately.
+        moveVisual(nextScene,id,stonePoseFromVisibleArea(item.pose,beforeHit),false);
+        owner.hitArea=structuredClone(item.hitArea);
+      }else{
+        const target=item.kind==='artwork'?beforeHit:
+          areaFitInside(beforeHit,item.pose.width/item.pose.height);
+        moveVisual(nextScene,id,target,true);
+        // The sync source (hit area) must not be stretched by moveVisual.
+        owner.hitArea=structuredClone(item.hitArea);
+        exact=Math.abs(target.width-beforeHit.width)<.00001&&
+          Math.abs(target.height-beforeHit.height)<.00001;
+      }
+    }else if(direction==='hit-from-visual'){
+      owner.hitArea=deviceNativeHit(presentation,id,beforeVisual);
+    }else throw Error('Alan eşitleme yönü geçersiz.');
+    validateScene(nextScene);validateScenePresentation(nextPresentation);
+    if(JSON.stringify(nextScene)===JSON.stringify(scene)&&
+      JSON.stringify(nextPresentation)===JSON.stringify(presentation)){
+      status('Alanlar zaten eşit.');return true;
+    }
+    recordHistory(scene,'area-sync:'+id+':'+direction);
+    scene=nextScene;presentation=nextPresentation;
+    draw();changed();
+    status(direction==='hit-from-visual'?'Tıklama alanı nesne alanıyla eşitlendi.':
+      exact?'Nesne alanı tıklama alanıyla eşitlendi.':
+      'Nesne tıklama alanına sığdırıldı; görselin en-boy oranı korundu.');
+    return true;
+  }catch(e){error(e);draw();return false;}
+}
+function mutateEditorArea(id,area,key='editor-area:'+id+':bounds'){
+  const current=scene?.objects.find(item=>item.id===id);
+  if(!current?.editorArea||isDragLocked(id))return false;
+  try{
+    const next=structuredClone(scene),owner=next.objects.find(item=>item.id===id);
+    owner.editorArea=structuredClone(area);
+    if(linkVisual&&owner.hitArea){
+      const before=deviceStageHit(presentation,id,current.hitArea);
+      owner.hitArea=deviceNativeHit(presentation,id,linkedArea(current.editorArea,area,before));
+    }
+    validateScene(next);
+    recordHistory(scene,key);scene=next;draw();changed();
+    status('Bağımsız nesne alanı güncellendi. Görselin boyutu ve efektleri değişmedi.');
+    return true;
+  }catch(e){error(e);draw();return false;}
+}
+function addVisualSyncAction(host,item,context='visual'){
+  if(!item?.hitArea)return;
+  host.append(button('Nesne alanını tıklama alanına eşitle',
+    ()=>syncArea(item.id,'visual-from-hit'),{
+      id:'sync-visual-from-hit-'+context,class:'scene-area-sync-button',
+      disabled:!canSyncVisualArea(item),
+      title:'Tıklama kutusunu referans alarak nesne alanını hizala. İşlem geri alınabilir.'}));
+}
 function updateHitArea(id,visible,key='hit:'+id+':area'){
   const original=scene.objects.find(item=>item.id===id);
   if(!original?.hitArea||isDragLocked(id))return false;
@@ -311,18 +412,24 @@ function updateHitArea(id,visible,key='hit:'+id+':area'){
     const nextScene=structuredClone(scene),nextPresentation=structuredClone(presentation);
     const target=nextScene.objects.find(item=>item.id===id);
     target.hitArea=deviceNativeHit(presentation,id,visible);
-    if(linkVisual&&siteSource&&BOOK_OBJECT_IDS.includes(id)){
+    if(linkVisual&&original.editorArea){
+      target.editorArea=linkedArea(beforeHit,visible,original.editorArea);
+    }else if(linkVisual&&siteSource&&BOOK_OBJECT_IDS.includes(id)){
       const cover=bookStageArea(presentation.objects[id].closedBook);
       const changedCover=linkedArea(beforeHit,visible,cover);
       Object.assign(nextPresentation.objects[id].closedBook,
         bookPlacementFromArea(presentation.objects[id].closedBook,changedCover));
     }else if(linkVisual&&siteSource&&PHYSICAL_DEVICE_IDS.includes(id)){
-      const shown=deviceRoomBox(presentation,id,roomObjects),record=roomObjects.get(id);
+      const shown=deviceVisibleBox(presentation,id,roomObjects);
       const changed=linkedArea(beforeHit,visible,shown);
-      nextPresentation.objects[id].roomPlacement={...roomDevicePlacement(presentation,id),
-        x:round(changed.x+changed.width/2),y:round(changed.y+changed.height/2),
-        scale:round(changed.width/record.foundation.width)};
+      nextPresentation.objects[id].roomPlacement=devicePlacementFromVisibleBox(
+        presentation,id,changed,roomObjects);
       target.hitArea=deviceNativeHit(nextPresentation,id,visible);
+    }else if(linkVisual&&siteSource&&id==='stone-specimen'){
+      const shown=stoneVisibleArea(original.pose);
+      const changed=linkedArea(beforeHit,visible,shown);
+      moveVisual(nextScene,id,stonePoseFromVisibleArea(original.pose,changed),false);
+      target.hitArea=deviceNativeHit(presentation,id,visible);
     }else if(linkVisual&&editableVisual(original)&&!PHYSICAL_DEVICE_IDS.includes(id)){
       const pose=linkedArea(beforeHit,visible,original.pose);
       moveVisual(nextScene,id,pose,false);
@@ -503,13 +610,49 @@ function renderVisualInspector(){
   const isBook=Boolean(siteSource&&item&&BOOK_OBJECT_IDS.includes(item.id));
   const isDevice=Boolean(siteSource&&item&&PHYSICAL_DEVICE_IDS.includes(item.id));
   root.hidden=!(editableVisual(item)||isBook||isDevice);host.replaceChildren();
+  if(item)root.hidden=false;
   if(root.hidden)return;
+  host.append(checkField('Nesne alanını görselden bağımsız düzenle',Boolean(item.editorArea),
+    enabled=>{
+      if(isDragLocked(item.id)){status('Önce sürükleme kilidini açın.',true);return;}
+      const initial=visualAreaFor(item);
+      const previousLink=linkVisual;
+      if(enabled)linkVisual=false;
+      const done=mutate(next=>{
+        const target=next.objects.find(entry=>entry.id===item.id);
+        if(enabled)target.editorArea=structuredClone(initial);
+        else delete target.editorArea;
+      },'editor-area:'+item.id+':toggle');
+      if(!done)linkVisual=previousLink;
+      if(done)setInspectorTab('visual');
+    },{id:'editor-area-independent',
+       title:'Görsel, hareket katmanları ve efektler aynı kalır; sadece Studio seçim çerçevesi taşınır ve boyutlanır.'}));
+  if(item.editorArea){
+    host.append(el('p',{class:'scene-visual-tip',text:
+      'Bağımsız seçim alanı · Köşelerden veya aşağıdaki alanlardan düzenlenir. Kaynak resim, efektler ve odak görünümü aynı kalır.'}));
+    const area=item.editorArea;
+    for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)'],
+      ['width','Seçim genişliği (%)'],['height','Seçim yüksekliği (%)']])
+      host.append(numberInput(label,round(area[key]*100),value=>
+        mutateEditorArea(item.id,{...area,[key]:round(value/100)},
+          'editor-area:'+item.id+':'+key),
+        {id:'editor-area-'+key,min:key==='width'||key==='height'?.1:0,max:100,step:.1}));
+    host.append(el('label',{class:'scene-visual-check'},
+      el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
+        onchange:event=>{linkVisual=event.target.checked;}}),
+      el('span',{text:'Seçim alanı değişince tıklama alanı da taşınsın'})));
+    addVisualSyncAction(host,item);
+    return;
+  }
   if(isBook){
+    host.append(el('p',{class:'scene-visual-tip',text:
+      'Varsayılan alan kitaba bağlıdır. Çerçeveyi resmi değiştirmeden daraltmak için üstteki bağımsız alan seçeneğini açın.'}));
     const area=selectedBookArea(item.id);
     host.append(el('label',{class:'scene-visual-check'},
       el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
         onchange:event=>{linkVisual=event.target.checked;}}),
       el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
+    addVisualSyncAction(host,item);
     for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)'],['width','Genişlik (%)'],['height','Yükseklik (%)']]){
       host.append(numberInput(label,round(area[key]*100),value=>{
         const box={...area,[key]:round(value/100)};
@@ -525,18 +668,40 @@ function renderVisualInspector(){
       el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
         onchange:event=>{linkVisual=event.target.checked;}}),
       el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
+    addVisualSyncAction(host,item);
     for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)']]){
       host.append(numberInput(label,round(area[key]*100),value=>mutateDeviceArea(item.id,{
         ...area,[key]:round(value/100)},'device:'+item.id+':'+key),
         {id:'device-area-'+key,min:0,max:100,step:.1}));
     }
     host.append(numberInput('Nesne ölçeği (%)',round(p.scale*100),value=>{
-      const s=value/100,present=roomObjects.get(item.id).foundation,
+      const s=value/100,present=deviceVisibleFoundation(item.id,roomObjects.get(item.id).foundation),
         w=present.width*s,h=present.height*s,
         center={x:area.x+area.width/2,y:area.y+area.height/2};
       mutateDeviceArea(item.id,{x:center.x-w/2,y:center.y-h/2,width:w,height:h},'device:'+item.id+':scale');
     },{id:'device-area-scale',min:55,max:175,step:1}));
-    host.append(el('p',{class:'scene-visual-tip',text:'Görsel modunda cihazı sürükleyip köşeden ölçekleyin. En-boy oranı korunur.'}));
+    host.append(el('p',{class:'scene-visual-tip',text:item.id==='vefk-stand'
+      ?'Çizim tahtasında nesne çerçevesi, kaynak görselin şeffaf alt boşluğu hariç gerçek gövdeyi izler. Köşelerden ölçeklenir; en-boy oranı korunur.'
+      :'Görsel modunda cihazı sürükleyip köşeden ölçekleyin. En-boy oranı korunur.'}));
+    return;
+  }
+  if(siteSource&&item.id==='stone-specimen'){
+    const area=stoneVisibleArea(item.pose);
+    const update=(fields,key)=>mutate(s=>moveVisual(s,item.id,
+      stonePoseFromVisibleArea(item.pose,{...area,...fields})),key);
+    for(const [key,label] of [['x','Sol X (%)'],['y','Üst Y (%)'],
+      ['width','Görünür genişlik (%)'],['height','Görünür yükseklik (%)']]){
+      host.append(numberInput(label,round(area[key]*100),value=>
+        update({[key]:round(value/100)},'visual:stone-specimen:visible:'+key),
+        {id:'stone-visible-'+key,min:key==='width'||key==='height'?.1:0,max:100,step:.1}));
+    }
+    host.append(el('label',{class:'scene-visual-check'},
+      el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
+        onchange:event=>{linkVisual=event.target.checked;}}),
+      el('span',{text:'Nesne ve tıklama alanını birlikte düzenle'})));
+    addVisualSyncAction(host,item);
+    host.append(el('p',{class:'scene-visual-tip',text:
+      'Taş ve bakır plakanın gerçek görünen sınırını düzenlersiniz. Genişlik ve yükseklik birbirinden bağımsızdır; eski uzun kaynak tuvalinin oranı kilitlenmez.'}));
     return;
   }
   const base=visualBase(item);
@@ -568,6 +733,7 @@ function renderVisualInspector(){
     el('input',{type:'checkbox',id:'visual-linked',checked:linkVisual,
       onchange:event=>{linkVisual=event.target.checked;}}),
     el('span',{text:'Efekt ve tıklama alanını birlikte taşı'})));
+  addVisualSyncAction(host,item);
   host.append(el('div',{class:'scene-visual-actions'},
     button('−0,1% Y',()=>adjust({y:round(item.pose.y-.001)},'visual:'+item.id+':y'),{id:'visual-up'}),
     button('+0,1% Y',()=>adjust({y:round(item.pose.y+.001)},'visual:'+item.id+':y'),{id:'visual-down'})));
@@ -1214,6 +1380,11 @@ function renderObjectInspector(){
         updateHitArea(item.id,stage,'hit:'+item.id+':'+key);
       },{min:key==='x'||key==='y'?0:.1,max:100,step:.1,'data-testid':'scene-hit-'+key}));
     }
+    hitHost.append(button('Tıklama alanını nesne alanına eşitle',
+      ()=>syncArea(item.id,'hit-from-visual'),{
+        id:'sync-hit-from-visual',class:'scene-area-sync-button',
+        title:'Nesnenin mevcut görsel çerçevesini etkileşim alanına uygula. Geri alınabilir.'}));
+    if(canSyncVisualArea(item))addVisualSyncAction(hitHost,item,'hit');
   }
   host.append(field('Grup',el('input',{id:'object-group',value:item.group??'',maxLength:80,
     placeholder:'Nesneler',title:'Boş bırakılırsa Nesneler grubunda görünür.',
@@ -1339,7 +1510,7 @@ function buildObject(item){
   });
   // Physical camera and drawing board derive their editor geometry from the
   // same room placement that moves the actual cutout, never a stale pose.
-  const roomBox=deviceRoomBox(presentation,item.id,roomObjects)
+  const roomBox=deviceVisibleBox(presentation,item.id,roomObjects)
     ??(siteSource&&BOOK_OBJECT_IDS.includes(item.id)?selectedBookArea(item.id):null);
   const shownPose=roomBox??item.pose;
   if(roomBox)node.dataset.roomProjected='true';
@@ -1348,9 +1519,11 @@ function buildObject(item){
     transform:`rotate(${item.pose.rotation}deg)`,zIndex:String(100+Math.round(item.pose.depth))
   });
   node.dataset.visualEditable=String(editableVisual(item));
+  if(item.editorArea)node.dataset.independentOutline='true';
+  if(siteSource&&item.id==='stone-specimen')node.dataset.alphaTight='true';
   if(item.id==='ceremonial-robe')Object.assign(node.style,visualClipStyle(item));
   node.addEventListener('pointerdown',event=>{
-    if(visualMode&&editableVisual(item)&&event.button===0)beginVisualDrag(event,item,node);
+    if(visualMode&&!item.editorArea&&editableVisual(item)&&event.button===0)beginVisualDrag(event,item,node);
   });
   const grounding=materialGroundingStyle(item.id);
   if(grounding){
@@ -1391,9 +1564,13 @@ function buildObject(item){
   node.append(el('span',{class:'scene-object-label',text:item.name}));
   for(const point of item.anchors){
     const dot=el('span',{class:`scene-object-anchor ${point.id===anchorId?'is-selected':''}`,'data-anchor-id':point.id,'aria-hidden':'true'});
-    dot.style.left=`${point.x*100}%`;dot.style.top=`${point.y*100}%`;node.append(dot);
+    // Native effect anchors still refer to the complete source canvas.
+    // Convert their display coordinates into the Vefk's alpha-tight frame.
+    const visibleHeight=item.id==='vefk-stand'&&roomBox?1203/1536:1;
+    dot.style.left=`${point.x*100}%`;
+    dot.style.top=`${point.y/visibleHeight*100}%`;node.append(dot);
   }
-  if(editMode==='visual'&&item.id===objectId&&editableVisual(item)&&!isDragLocked(item.id)&&$('#hit-edit-mode')){
+  if(editMode==='visual'&&item.id===objectId&&editableVisual(item)&&!isDragLocked(item.id)&&$('#hit-edit-mode')&&!item.editorArea&&!(siteSource&&item.id==='stone-specimen')){
     for(const corner of ['nw','ne','sw','se']){
       const handle=el('button',{type:'button',class:'scene-visual-resize-handle',
         'data-visual-corner':corner,'aria-label':item.name+' görsel boyutlandır '+corner,
@@ -1405,7 +1582,7 @@ function buildObject(item){
   }
   node.addEventListener('click',()=>selectObject(item.id));
   node.addEventListener('keydown',event=>{
-    if(visualMode&&editableVisual(item)&&!isDragLocked(item.id)&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+    if(visualMode&&!item.editorArea&&editableVisual(item)&&!isDragLocked(item.id)&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
       event.preventDefault();
       const step=event.shiftKey?.01:.001;
       const dx=(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0);
@@ -1575,12 +1752,12 @@ function renderRoomObjects(){
     }
     if(node.childElementCount){
       if(record.kind==='book'||record.kind==='device')node.addEventListener('pointerdown',event=>{
-        if(!visualMode||event.button!==0)return;
+        if(!visualMode||owner.editorArea||event.button!==0)return;
         event.preventDefault();event.stopPropagation();objectId=id;
         if(record.kind==='book')beginBookDeskDrag(event,node,id,record);
         else beginDeviceRoomDrag(event,node,id,placement);
       });
-      if(visualMode&&objectId===id&&!isDragLocked(id)){
+      if(visualMode&&objectId===id&&!owner.editorArea&&!isDragLocked(id)){
         for(const corner of ['nw','ne','sw','se']){
           const handle=el('span',{class:'scene-visual-resize-handle',
             'data-room-corner':corner,'aria-label':owner.name+' nesne alanını boyutlandır'});
@@ -1613,21 +1790,20 @@ function beginDeviceRoomDrag(event,node,id,placement,corner=null){
 function moveDeviceRoomDrag(event){
   const d=deviceRoomDrag;if(!d||event.pointerId!==d.pointerId)return;
   const dx=(event.clientX-d.x)/d.width,dy=(event.clientY-d.y)/d.height;
-  const record=roomObjects.get(d.id),foundation=record.foundation;
+  const record=roomObjects.get(d.id),foundation=record.foundation,
+    visibleFoundation=deviceVisibleFoundation(d.id,foundation);
   let next=d.corner
     ?sceneBoxResize(d.source,d.corner,dx,dy,{aspectLock:true,minSize:.04})
     :sceneBoxMove(d.source,dx,dy);
   if(d.corner){
-    const scale=next.width/foundation.width;
+    const scale=next.width/visibleFoundation.width;
     if(scale<.55||scale>1.75)return;
-    // A physical device has uniform scaling; no perspective stretching.
-    next={...next,height:foundation.height*scale};
+    // The visible artwork has uniform scaling; ignore its transparent padding.
+    next={...next,height:visibleFoundation.height*scale};
     if(d.corner.includes('n'))next.y=d.source.y+d.source.height-next.height;
     if(next.y<0||next.y+next.height>1)return;
   }
-  const placement={...roomDevicePlacement(presentation,d.id),
-    x:round(next.x+next.width/2),y:round(next.y+next.height/2),
-    scale:round(next.width/foundation.width)};
+  const placement=devicePlacementFromVisibleBox(presentation,d.id,next,roomObjects);
   try{
     const draft=structuredClone(presentation);
     draft.objects[d.id].roomPlacement=placement;
@@ -1762,6 +1938,50 @@ function endControlDrag(event){
   },'control:languageSwitch:'+controlDevice+':drag');
   else draw();
 }
+function renderStoneVisibleOverlay(){
+  // The site image stays at the native pose. Only the editor's interaction
+  // outline is drawn above photographic books and the full-sized source host.
+  const host=$('#scene-controls');
+  for(const item of scene?.objects??[]){
+    if(hiddenInRoom(item.id))continue;
+    if(!item.editorArea&&!(siteSource&&item.id==='stone-specimen'))continue;
+    const region=item.editorArea??stoneVisibleArea(item.pose);
+    const id=item.editorArea?'scene-independent-area-'+item.id:'scene-stone-visible';
+    const node=el('span',{
+      id,class:'scene-stone-visible-frame scene-independent-area'+(item.id===objectId?' selected':''),
+      'data-stone-visible-frame':item.id==='stone-specimen'?'true':undefined,
+      'data-editor-area':item.id,role:'button',
+      tabIndex:editMode==='visual'&&item.id===objectId?0:-1,
+      'aria-label':item.name+' bağımsız nesne alanı'});
+    Object.assign(node.style,{left:region.x*100+'%',top:region.y*100+'%',
+      width:region.width*100+'%',height:region.height*100+'%'});
+    node.append(el('span',{class:'scene-object-label',text:item.name}));
+    node.addEventListener('pointerdown',event=>{
+      if(editMode==='visual'&&event.button===0)beginVisualDrag(event,item,node);
+    });
+    node.addEventListener('click',event=>{event.stopPropagation();selectObject(item.id);});
+    node.addEventListener('keydown',event=>{
+      if(editMode!=='visual'||!item.editorArea||isDragLocked(item.id)||
+        !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+      event.preventDefault();
+      const step=event.shiftKey?.01:.001;
+      mutateEditorArea(item.id,sceneBoxMove(item.editorArea,
+        (event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),
+        (event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0)));
+    });
+    if(editMode==='visual'&&item.id===objectId&&!isDragLocked(item.id)){
+      for(const corner of ['nw','ne','sw','se']){
+        const handle=el('button',{type:'button',class:'scene-visual-resize-handle',
+          'data-visual-corner':corner,'aria-label':item.name+' nesne alanını boyutlandır '+corner,
+          title:'Yalnız seçim alanını boyutlandır · Shift: oranı koru'});
+        handle.addEventListener('pointerdown',event=>beginVisualDrag(event,item,node,corner));
+        handle.addEventListener('click',event=>event.stopPropagation());
+        node.append(handle);
+      }
+    }
+    host.append(node);
+  }
+}
 function renderStage(){
   previewHandle?.destroy();previewHandle=null;
   $('#scene-viewport').classList.toggle('hide-room-objects',!showRoomObjects);
@@ -1815,6 +2035,7 @@ function renderStage(){
   bindPreview();
   renderMarkers();
   renderControlStage();
+  renderStoneVisibleOverlay();
   refreshRobePreview();
 }
 function renderFocusToolbar(){
@@ -2040,7 +2261,11 @@ function beginVisualDrag(event,item,node,corner=null){
   event.preventDefault();event.stopPropagation();
   objectId=item.id;effectId=scene.effects.find(e=>e.target.objectId===item.id)?.id??null;
   const rect=$('#scene-viewport').getBoundingClientRect();
-  visualDrag={id:item.id,corner,pointerId:event.pointerId,original:structuredClone(item.pose),
+  const detached=Boolean(item.editorArea);
+  const stone=Boolean(!detached&&siteSource&&item.id==='stone-specimen');
+  visualDrag={id:item.id,corner,pointerId:event.pointerId,
+    original:structuredClone(detached?item.editorArea:stone?stoneVisibleArea(item.pose):item.pose),
+    stone,detached,
     startX:event.clientX,startY:event.clientY,width:rect.width,height:rect.height,
     changed:false,before:structuredClone(scene),node};
   event.target.setPointerCapture?.(event.pointerId);
@@ -2056,14 +2281,32 @@ function moveVisualDrag(event){
     const box=d.corner
       ?sceneBoxResize(d.original,d.corner,dx,dy,{aspectLock:event.shiftKey,minSize:.003})
       :sceneBoxMove(d.original,dx,dy);
-    moveVisual(next,d.id,box);
+    if(d.detached){
+      const owner=next.objects.find(o=>o.id===d.id);
+      owner.editorArea=box;
+      if(linkVisual&&owner.hitArea){
+        const original=d.before.objects.find(o=>o.id===d.id);
+        const hit=deviceStageHit(presentation,d.id,original.hitArea);
+        owner.hitArea=deviceNativeHit(presentation,d.id,linkedArea(d.original,box,hit));
+      }
+    }else moveVisual(next,d.id,d.stone?
+      stonePoseFromVisibleArea(d.before.objects.find(o=>o.id===d.id).pose,box):box);
     validateScene(next);
   }catch(e){error(e);return;}
-  const pose=next.objects.find(o=>o.id===d.id).pose;
-  if(JSON.stringify(pose)===JSON.stringify(scene.objects.find(o=>o.id===d.id).pose))return;
+  const changedObject=next.objects.find(o=>o.id===d.id);
+  const changedBefore=scene.objects.find(o=>o.id===d.id);
+  const pose=changedObject.pose;
+  if(JSON.stringify(d.detached?changedObject.editorArea:pose)===
+     JSON.stringify(d.detached?changedBefore.editorArea:changedBefore.pose))return;
   scene=next;d.changed=true;
-  Object.assign(d.node.style,{left:pose.x*100+'%',top:pose.y*100+'%',
-    width:pose.width*100+'%',height:pose.height*100+'%'});
+  const display=d.detached?changedObject.editorArea:pose;
+  Object.assign(d.node.style,{left:display.x*100+'%',top:display.y*100+'%',
+    width:display.width*100+'%',height:display.height*100+'%'});
+  if(d.stone){
+    const tight=stoneVisibleArea(pose),overlay=$('#scene-stone-visible');
+    if(overlay)Object.assign(overlay.style,{left:tight.x*100+'%',top:tight.y*100+'%',
+      width:tight.width*100+'%',height:tight.height*100+'%'});
+  }
   status('Görsel: '+Math.round(pose.x*1000)/10+'% / '+Math.round(pose.y*1000)/10+
     '% · '+Math.round(pose.width*1000)/10+' × '+Math.round(pose.height*1000)/10+'%');
 }
@@ -2503,6 +2746,10 @@ if($('#object-search')){
       if(owner.hitArea)addMenuAction('Tıklama alanını düzenle',()=>{
         selectObject(owner.id);setEditMode('hit');$('#hit-area-settings').open=true;
       });
+      if(canSyncVisualArea(owner))addMenuAction('Nesne alanını tıklama alanına eşitle',
+        ()=>{selectObject(owner.id);syncArea(owner.id,'visual-from-hit');});
+      if(owner.hitArea)addMenuAction('Tıklama alanını nesne alanına eşitle',
+        ()=>{selectObject(owner.id);syncArea(owner.id,'hit-from-visual');});
       if(scene.effects.some(fx=>fx.target.objectId===owner.id))
         addMenuAction('Efekt hedeflerini düzenle',()=>{selectObject(owner.id);setEditMode('effect');});
       if(editableVisual(owner)&&visualAssetSlots(owner).length)
@@ -2784,6 +3031,9 @@ if($('#scene-plan-toggle'))$('#scene-plan-toggle').onclick=()=>{
   if(!siteSource||!backgroundMeta)return;
   compositionMode=COMPOSITION_MODES[(COMPOSITION_MODES.indexOf(compositionMode)+1)%COMPOSITION_MODES.length];
   renderCompositionGuide();
+  status(compositionMode==='off'
+    ?'Yerleşim planı kapatıldı.'
+    :'Yerleşim planı: güncel taslak nesne alanları gösteriliyor. Yalnız Studio kılavuzudur; görsel veya site verisi oluşturmaz.');
 };
 $('#zoom-out').onclick=()=>setZoom(round(zoom-.25));
 $('#zoom-in').onclick=()=>setZoom(round(zoom+.25));

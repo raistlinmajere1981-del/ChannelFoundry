@@ -59,6 +59,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
  const [menu,setMenu]=useState<{row:ItemRow;x:number;y:number}|null>(null);
  const [openVisualRequest,setOpenVisualRequest]=useState(false);
  const [attributesOpen,setAttributesOpen]=useState(false);
+ const [attributesRevision,setAttributesRevision]=useState(0);
  const [attributesDirty,setAttributesDirty]=useState(false),[attributesBusy,setAttributesBusy]=useState(false);
  const searchRef=useRef<HTMLInputElement>(null);
  const surfaceRef=useRef<HTMLDivElement>(null);
@@ -272,7 +273,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
        <div className="records-v3-main-scroll">
          {creatingSupport?<RecordSupportDetail key="support:new" record={null} sources={sources} creating onUpdated={handleSupportUpdate} onCancel={()=>{setCreatingSupport(false);setFormDirty(false);setSelected(supports[0]?{source:"support",key:supports[0].id}:null);}} onStatus={onStatus} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange}/>
           :connectionsMode&&(activeWorkspace||activeLegacy)?<div className="record-v3-form"><header className="record-v3-heading"><div><small>BAĞLANTI KEŞFİ</small><h2>{activeWorkspace?.name??activeLegacy?.title}</h2><span>{activeRelations.length} ilişkili kayıt</span></div></header><div className="record-v3-connections">{activeRelations.map((r,index)=>{const other=workspaceByKey.get(r.key),legacy=legacyByKey.get(r.key);return <button key={r.key+":"+index} onClick={()=>focusRelation(r.key)}><strong>{other?.name??legacy?.title??r.key}</strong><span>{r.label}{(r as {sourceVideoIds?:string[]}).sourceVideoIds?.length ? ` · ${(r as {sourceVideoIds?:string[]}).sourceVideoIds?.length} kaynak` : ""}</span><span>Kaydı aç ›</span></button>})}{!activeRelations.length&&<p>Bu kayıt için bağlı dosya yok.</p>}</div></div>
-          :activeWorkspace?<WorkspaceRecordDetail key={activeWorkspace.key} node={activeWorkspace} relations={relations} allNodes={nodes} onReload={onReload} onStatus={onStatus} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange}/>
+          :activeWorkspace?<WorkspaceRecordDetail key={activeWorkspace.key} node={activeWorkspace} relations={relations} allNodes={nodes} attributeRefreshVersion={attributesRevision} onReload={onReload} onStatus={onStatus} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange}/>
           :activeLegacy?<LegacyRecordDetail key={activeLegacy.key} item={activeLegacy} relations={legacyRelations} allItems={legacyItems} onReload={onReload} onStatus={onStatus} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange}/>
           :activeSupport?<RecordSupportDetail key={activeSupport.id} record={activeSupport} sources={sources} creating={false} onUpdated={handleSupportUpdate} onCancel={()=>undefined} onStatus={onStatus} onDirtyChange={onDirtyChange} onBusyChange={onBusyChange}/>
           :<div className="record-v3-empty">Soldaki listeden bir kayıt seç.</div>}
@@ -304,7 +305,7 @@ export default function EditorialWorkspaceV3({nodes,legacyItems,legacyRelations,
      {menu.row.source!=="support"&&<button role="menuitem" onClick={()=>{if(selectRecord(menu.row.source,menu.row.key)){setRightOpen(true);setOpenVisualRequest(true);}setMenu(null);}}>Görsel işlemlerini aç</button>}
      {menu.row.source==="legacy"&&<button role="menuitem" onClick={()=>{setMulti(true);toggleChecked(menu.row.key);setMenu(null);}}>Toplu seçime ekle / çıkar</button>}
    </div>}
-   {attributesOpen&&<Suspense fallback={<div className="attribute-overlay">Özellikler yükleniyor…</div>}><UniverseAttributesGrid nodes={nodes} onClose={()=>setAttributesOpen(false)} onDirtyChange={setAttributesDirty} onBusyChange={setAttributesBusy}/></Suspense>}
+   {attributesOpen&&<Suspense fallback={<div className="attribute-overlay">Özellikler yükleniyor…</div>}><UniverseAttributesGrid nodes={nodes} onClose={()=>{setAttributesOpen(false);setAttributesRevision(value=>value+1);}} onDirtyChange={setAttributesDirty} onBusyChange={setAttributesBusy}/></Suspense>}
    <footer className="records-v3-status" aria-live="polite"><span className={status?.tone==="error"?"error":""}>{status?.message??(dirty?"● Kaydedilmemiş değişiklikler":"Yerel arşiv hazır · Canlı site yayını ayrı")}</span><span>{busy?"İşlem sürüyor":supportLoading?"Destek kayıtları yükleniyor":""}</span></footer>
  </div>;
 }

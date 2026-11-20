@@ -78,6 +78,31 @@ try {
   await p.getByRole('button',{name:'Altyazılarda ara'}).click();
   await p.locator('.subtitle-result-video').first().waitFor();
   const after=await dimensions();assert(after.resultScroll>100&&after.submitInside&&after.panelOverflow<=3,JSON.stringify(after));
+  if(viewport.width===1648){
+    await p.evaluate(()=>{
+      window.__copyCalls=[];
+      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+        writeText:async text=>{window.__copyCalls.push(text);}
+      }});
+    });
+    const copy=p.getByRole('button',{name:'Raporu kopyala'});
+    await copy.click();
+    await p.waitForFunction(()=>window.__copyCalls.length===1);
+    assert.equal((await copy.innerText()).trim(),'✓ Kopyalandı');
+    await p.evaluate(()=>window.__previousCopyLabel=document.querySelector('.subtitle-copy-button > span'));
+    await copy.click();
+    await p.waitForFunction(()=>window.__copyCalls.length===2);
+    assert.equal((await copy.innerText()).trim(),'✓ Kopyalandı','second click must give new confirmation');
+    assert.equal(await p.evaluate(()=>window.__previousCopyLabel.isSameNode(document.querySelector('.subtitle-copy-button > span'))),false,
+      'second click must replace feedback so its animation restarts');
+    const copied=await p.evaluate(()=>window.__copyCalls);
+    assert.deepEqual(copied,['test','test'],'each click must really write the report to clipboard');
+    await p.waitForFunction(()=>document.querySelector('.subtitle-copy-button')?.textContent?.includes('Raporu kopyala'),null,{timeout:4000});
+    await copy.click();
+    await p.waitForFunction(()=>window.__copyCalls.length===3);
+    assert.equal((await copy.innerText()).trim(),'✓ Kopyalandı');
+    console.log('PASS clipboard: three writes, feedback repeats, confirmation expires, copy remains enabled');
+  }
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({viewport,termHeight:term.panelHeight,relationHeight:relation.panelHeight,groupScroll:many.railOverflow,resultScroll:after.resultScroll}));
   await p.close();
