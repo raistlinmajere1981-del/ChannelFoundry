@@ -195,7 +195,7 @@ function qa(source,translated,fields){
  if(ratio<0.42||ratio>2.1)flags.push("LENGTH_RATIO:"+ratio.toFixed(2));
  // Do not mistake frequent identity-bearing Turkish proper nouns for untranslated prose.
  // Keep the generic TR script detector active for all remaining words.
- const recognizedProperNameWords=/(?:Eşref|Şami|Çaylık|Çığlık|Ebaruşta|Hurşimi|Huşimi|İbni|Düğümlü|Yaşlı|Şira|Eyşan|Maşrif|Şartem|Şednaz|Hednuriş|Ednuriş|Nuriş|eşhedü)/g;
+ const recognizedProperNameWords=/(?:Eşref|Şami|Çaylık|Çığlık|Ebaruşta|Hurşimi|Huşimi|İbni|Düğümlü|Kapsız|Yaşlı|Şira|Eyşan|Şuzim|Şuti|Aşnim|Fuşvant|Ezviyaş|Kaşfiyen|Maşrif|Şartem|Şednaz|Hednuriş|Ednuriş|Nuriş|eşhedü)/g;
  const trChars=(targetTexts.replace(recognizedProperNameWords,"").match(/[ÇçĞğİıŞş]/g)||[]).length;
  if(trChars>Math.max(10,srcTexts.length/180))flags.push("POSSIBLE_TURKISH");
  // Inline references are fixed-position spans. A following unconnected pronoun

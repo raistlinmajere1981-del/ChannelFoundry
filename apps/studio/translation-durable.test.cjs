@@ -173,3 +173,12 @@ test("repeated Huşimi proper name does not trigger generic untranslated-Turkish
  const bad={summary:en.summary+Array(4).fill("Burası gerçekten çok önemli bir konuydu, çünkü açıklama yapılmamıştı.").join(" ")};
  assert(durable.qa(tr,bad,durable.fieldsFrom(tr,"entity")).flags.includes("POSSIBLE_TURKISH"));
 });
+
+test("repeated Şuzim and companions remain proper names, not untranslated prose",()=>{
+ const tr={summary:Array(5).fill("Şuzim, Şuti, Aşnim, Fuşvant, Ezviyaş ve Kaşfiyen Kapsız Kitap listesinde geçer.").join(" ")};
+ const translated={summary:Array(5).fill("Şuzim says Şuti, Aşnim, Fuşvant, Ezviyaş and Kaşfiyen appear on the Kapsız Kitap list.").join(" ")};
+ const fields=durable.fieldsFrom(tr,"entity");
+ assert(!durable.qa(tr,translated,fields).flags.includes("POSSIBLE_TURKISH"));
+ const improperlyUntranslated={summary:translated.summary+Array(5).fill("Burası gerçekten çok önemli bir konuydu ve henüz açıklama yapılmamıştı.").join(" ")};
+ assert(durable.qa(tr,improperlyUntranslated,fields).flags.includes("POSSIBLE_TURKISH"));
+});
