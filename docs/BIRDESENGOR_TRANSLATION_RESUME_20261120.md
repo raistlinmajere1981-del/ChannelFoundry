@@ -1,3 +1,5 @@
+> **20 Kasım 2026 güncellemesi — TAMAMLANDI:** Bu dosyadaki 805/751/671 gibi kalan iş sayıları tarihsel devam noktalarıdır; artık geçerli değildir. Güncel kaynak karşılaştırması **2.684/2.684 TR/EN, eksik 0** ve canlı publication `pub-38fb798f65705c03770e8cbe` durumundadır. Ayrıntılar için `docs/BIRDESENGOR_EVREN_TRANSLATIONS_COMPLETE_20261120.md` belgesini kullanın. Bu dosyanın eski kuyruklarını yeniden çalıştırmayın.
+
 # BirDeSenGör — Evren İngilizce Çevirileri, 20 Kasım 2026 Devam Noktası
 
 ## Doğrulanmış son durum (20 Kasım 2026, ~02:55 Türkiye saati)
