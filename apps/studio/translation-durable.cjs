@@ -9,6 +9,7 @@ const ROOT=path.resolve(__dirname,"../..");
 const DB=path.join(ROOT,"channels/birdesengor/.local-data/studio/channel-foundry-studio.sqlite");
 const WORK=path.join(ROOT,"channels/birdesengor/.local-data/studio/translation-work-20261119");
 const GLOBAL_QUOTA_PAUSE=path.join(WORK,'quota-paused.json');
+const CODEX_HANDOFF=path.join(WORK,'deepseek-handoff-to-codex-20261120.json');
 const MODEL="opencode/deepseek-v4.1-flash-free", REASONING="max";
 const GLOSSARY=[
   "Ömer","Poyraz","Tuji","Nezrin","Meseyn","Arohan","Kral Arohan",
@@ -32,7 +33,7 @@ function atomic(file,value) {
  try{fs.writeFileSync(fd,JSON.stringify(value,null,2)+"\n");fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
  fs.renameSync(tmp,file);
 }
-function readDb(fn){const db=new DatabaseSync(DB,{readOnly:true});try{return fn(db)}finally{db.close()}}
+function readDb(fn){const db=new DatabaseSync(DB,{readOnly:true});try{db.exec("PRAGMA busy_timeout=15000");return fn(db)}finally{db.close()}}
 function getPack(db,item){
  const s=db.prepare("SELECT source_hash,data_json FROM publication_language_sources WHERE kind=? AND id=?").get(item.kind,item.id);
  const tr=db.prepare("SELECT source_hash,data_json,state,approved_revision FROM publication_language_variants WHERE kind=? AND id=? AND language='tr'").get(item.kind,item.id);
@@ -242,12 +243,15 @@ async function run(){
  const key=credential();
  // Authentication checked before locking or consuming any queue item.
  await opencode.testServer({endpoint:'http://127.0.0.1:4096',apiKey:key});
- const release=acquireLock(),maxRecords=option("--max-records",manifest.items.length),maxRequests=option("--max-requests",99999),maxFailures=option("--max-failures",3),maxChunks=option("--max-chunks",99999),kindOnly=arg('--kind');
+ const maxRecords=option("--max-records",manifest.items.length),maxRequests=option("--max-requests",99999),maxFailures=option("--max-failures",3),maxChunks=option("--max-chunks",99999),kindOnly=arg('--kind');
  if(resume){
   fs.rmSync(GLOBAL_QUOTA_PAUSE,{force:true});
   fs.rmSync(pauseFile,{force:true});
  }
  let done=0,requests=0,failed=0,quota=false,skippedExisting=0,deferredLarge=0,deferredErrors=0,staleSkipped=0;
+ // Never model-call a record that was transferred from an exhausted DeepSeek
+ // quota to a source-pinned Codex lane. The handoff snapshot is atomic.
+ const transferred=fs.existsSync(CODEX_HANDOFF)?new Set(json(CODEX_HANDOFF).items.map(x=>x.id)):new Set();
  const items=[...manifest.items];
  if(process.argv.includes('--short-first')){
   const sizes=readDb(db=>{const st=db.prepare("SELECT length(data_json) AS n FROM publication_language_variants WHERE kind=? AND id=? AND language='tr'");return items.map(x=>st.get(x.kind,x.id)?.n||0)});
@@ -255,10 +259,13 @@ async function run(){
   indexed.sort((a,b)=>a.n-b.n||a.index-b.index);
   items.splice(0,items.length,...indexed.map(x=>x.item));
  }
+ // Acquire after source-read preparation so a busy SQLite reader cannot leave a stale worker lock.
+ const release=acquireLock();
  try{
   for(const item of items){
    if(fs.existsSync(GLOBAL_QUOTA_PAUSE)){console.log('GLOBAL_QUOTA_PAUSE');quota=true;break;}
    if(failed>=maxFailures){console.error('FAILURE_BREAKER',failed,'errors in this run; stopping without losing saved work');break;}
+   if(transferred.has(item.id)){console.log("SKIP_CODEX_HANDOFF",item.id);continue;}
    if(kindOnly&&item.kind!==kindOnly)continue;
    if(done>=maxRecords||requests>=maxRequests)break;
    const base=fileKey(item.kind,item.id),resultFile=path.join(DIR,"results",base+".json");
