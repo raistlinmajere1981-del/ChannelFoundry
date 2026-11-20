@@ -7,6 +7,6 @@ export default function TranslationStatus({onNavigate}:{onNavigate:(section:'Kay
     setCounts(d.counts);
     setOnlyVideoMissing(d.counts.missing>0&&d.rows.every(row=>!row.flags?.missing||row.kind==='video'));
   }}).catch(()=>{});load();return()=>{live=false;};},[]);
-  const labels={ready:'İki dilde hazır içerik',missing:onlyVideoMissing?'Yayın dışı video kaynakları':'İngilizce eksik içerik',pending:'Onay bekleyen çeviri',stale:'Güncelliğini yitirmiş',errors:'Üretim hatası'};
+  const labels={ready:'İki dilde hazır içerik',missing:onlyVideoMissing?'Kamera · İngilizce özet bekliyor':'İngilizce eksik içerik',pending:'Onay bekleyen çeviri',stale:'Güncelliğini yitirmiş',errors:'Üretim hatası'};
   return <section className="panel translation-status"><h3>Çeviri Durumu</h3><div>{Object.entries(labels).map(([key,label])=><button key={key} onClick={()=>{sessionStorage.setItem('studio-language-filter',key);onNavigate('Kayıt Dosyaları');}}><strong>{counts?.[key as keyof typeof labels]??'—'}</strong><span>{label}</span></button>)}</div></section>;
 }

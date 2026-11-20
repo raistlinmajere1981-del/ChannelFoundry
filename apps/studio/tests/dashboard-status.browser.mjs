@@ -62,7 +62,7 @@ document.body.style.cssText='margin:12px;background:#191919;color:#efe5d1;';
  await page.goto(server.resolvedUrls.local[0]);
  await page.getByText('paket güncel',{exact:true}).waitFor();
  await page.getByText('6094 sayfa · tamamı onaylı',{exact:true}).waitFor();
- await page.getByText('Yayın dışı video kaynakları',{exact:true}).waitFor();
+ await page.getByText('Kamera · İngilizce özet bekliyor',{exact:true}).waitFor();
  assert.equal(await page.getByText('Public paketi güncelle',{exact:true}).count(),0,
   '2717 entities vs 2996 total publication records must not trigger update');
  assert.equal(await page.getByText('Demo yayını arama motorlarına kapalı.',{exact:false}).count(),0);
@@ -75,7 +75,7 @@ document.body.style.cssText='margin:12px;background:#191919;color:#efe5d1;';
  assert.equal(await page.getByText('Public paketi güncelle',{exact:true}).count(),0,
   'network errors never count as publication differences');
  assert.deepEqual(errors,[]);
- console.log('PASS Studio Dashboard: accurate live fingerprint state, current/changed/unreachable states, SEO success/error and unpublished video label');
+ console.log('PASS Studio Dashboard: accurate live fingerprint state, current/changed/unreachable states, SEO success/error and Camera English summary status');
 }finally{
  await browser?.close();await server?.close();fs.rmSync(tmp,{recursive:true,force:true});
 }
