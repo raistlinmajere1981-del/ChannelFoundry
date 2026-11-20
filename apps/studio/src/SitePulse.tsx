@@ -4,11 +4,15 @@ export default function SitePulse({onNavigate,onAnalytics}:{onNavigate:(target:"
   const [analytics,setAnalytics]=useState<StudioWebsiteInsights|null>(null);
   const [seo,setSeo]=useState<StudioSeoOverview|null>(null);
   const [offline,setOffline]=useState(false);
+  const [seoState,setSeoState]=useState<"loading"|"ready"|"error">("loading");
   useEffect(()=>{
     let live=true;
     void window.channelFoundryStudio?.analyticsSummary(7).then(value=>{if(live)setAnalytics(value);})
       .catch(()=>{if(live)setOffline(true);});
-    void window.channelFoundryStudio?.seoOverview().then(value=>{if(live)setSeo(value);}).catch(()=>{});
+    const seoRequest=window.channelFoundryStudio?.seoOverview();
+    if(!seoRequest){setSeoState("error");}
+    else void seoRequest.then(value=>{if(live){setSeo(value);setSeoState("ready");}})
+      .catch(()=>{if(live)setSeoState("error");});
     return ()=>{live=false;};
   },[]);
   const go=(tab:"seo")=>{
@@ -26,9 +30,9 @@ export default function SitePulse({onNavigate,onAnalytics}:{onNavigate:(target:"
     </div>
     <div className="site-pulse-line"><span>En çok vakit geçirilen alan</span><strong>{most?labels[most.area]??most.area:offline?"Sunucu güncellemesi bekliyor":"Henüz veri yok"}</strong></div>
     <div className="site-pulse-seo">
-      <div><strong>SEO kontrolü</strong><small>{seo?`${seo.rows.length} sayfa · ${seo.draftCount} kayıt incelenecek`:"Yayın SEO verisi hazırlanıyor"}</small></div>
+      <div><strong>SEO kontrolü</strong><small role="status">{seoState==="loading"?"SEO denetleniyor…":seoState==="error"?"SEO kontrolü başarısız · SEO Atölyesi'nden yeniden dene":seo?.draftCount?`${seo.rows.length} sayfa · ${seo.draftCount} kayıt incelenecek`:`${seo?.rows.length??0} sayfa · tamamı onaylı`}</small></div>
       <button onClick={()=>go("seo")}>SEO Atölyesi →</button>
     </div>
-    <p className="site-pulse-note">Demo yayını arama motorlarına kapalı. Site ve oturum kimliği izlenmez.</p>
+    <p className="site-pulse-note">Arama motoru görünürlüğü SEO Atölyesi'nden yönetilir. Ziyaretçi analitiği anonimdir.</p>
   </section>;
 }

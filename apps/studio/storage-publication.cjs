@@ -48,24 +48,31 @@ function exportPublicSnapshot(db, userDataPath) {
 }
 
 function getPublicationInfo(db, userDataPath = "") {
-  const generatedAt = getMeta(db, "last_export_at");
-  if (!generatedAt && userDataPath) {
+  // The JSON export is authoritative: a separate deploy may update it without
+  // updating last_export_* SQLite metadata.
+  if (userDataPath) {
     const file = path.join(userDataPath,"public-export","content","publication.json");
-    try {
-      const snapshot = JSON.parse(fs.readFileSync(file,"utf8"));
-      if (snapshot.schemaVersion !== 2 || !snapshot.publication?.contentFingerprint) return null;
-      return {
-        file,generatedAt:snapshot.publication.generatedAt,
-        publicationId:snapshot.publication.id,
-        contentFingerprint:snapshot.publication.contentFingerprint,
-        sectionCount:snapshot.journal?.sections?.length ?? 0,
-        entityCount:snapshot.archive?.entities?.length ?? 0,
-        relationCount:snapshot.archive?.relations?.length ?? 0,
-        assetCount:snapshot.assets?.length ?? 0,
-        vefkCount:snapshot.vefkCatalog?.entries?.length ?? 0,
-      };
-    } catch {return null;}
+    if (fs.existsSync(file)) {
+      try {
+        const snapshot = JSON.parse(fs.readFileSync(file,"utf8"));
+        if (snapshot.schemaVersion !== 2 || !snapshot.publication?.contentFingerprint
+          || !snapshot.publication?.id) return null;
+        const sectionCount = snapshot.journal?.sections?.length ?? 0;
+        const entityCount = snapshot.archive?.entities?.length ?? 0;
+        return {
+          file, generatedAt:snapshot.publication.generatedAt,
+          publicationId:snapshot.publication.id,
+          contentFingerprint:snapshot.publication.contentFingerprint,
+          sectionCount, entityCount,
+          relationCount:snapshot.archive?.relations?.length ?? 0,
+          assetCount:snapshot.assets?.length ?? 0,
+          vefkCount:snapshot.vefkCatalog?.entries?.length ?? 0,
+          itemCount:sectionCount + entityCount,
+        };
+      } catch { return null; } // Never mask a broken export using stale metadata.
+    }
   }
+  const generatedAt = getMeta(db, "last_export_at");
   if (!generatedAt) return null;
   const sectionCount = number(getMeta(db, "last_export_sections"));
   const entityCount = number(getMeta(db, "last_export_entities"));
@@ -74,8 +81,7 @@ function getPublicationInfo(db, userDataPath = "") {
     file: String(getMeta(db, "last_export_file") ?? ""),
     publicationId: String(getMeta(db, "last_export_publication_id") ?? ""),
     contentFingerprint: String(getMeta(db, "last_export_fingerprint") ?? ""),
-    sectionCount,
-    entityCount,
+    sectionCount, entityCount,
     relationCount: number(getMeta(db, "last_export_relations")),
     assetCount: number(getMeta(db, "last_export_assets")),
     vefkCount: number(getMeta(db, "last_export_vefks")),

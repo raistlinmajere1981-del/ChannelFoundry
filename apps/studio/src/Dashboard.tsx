@@ -1,6 +1,6 @@
 import TranslationStatus from "./TranslationStatus";
 import SitePulse from "./SitePulse";
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import WebsiteAnalytics from "./WebsiteAnalytics";
 import { readCommunitySummary } from "./community-summary-cache";
 
@@ -36,7 +36,7 @@ type Props = {
   onNavigate: (section: DashboardTarget) => void;
 };
 
-type WorkAction = { label: string; note: string; value: number; target: DashboardTarget; tone: ActionTone };
+type WorkAction = { label: string; note: string; value: number|null; target: DashboardTarget; tone: ActionTone };
 type RecentWork = { key: string; title: string; meta: string; badge: string; state: string; stateClass: string; target: DashboardTarget };
 
 const workspaceLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Karakter", event: "Olay", location: "Mekân", object: "Nesne" };
@@ -64,6 +64,26 @@ function buildRecent(workspaceNodes: StudioUniverseWorkspaceNode[]): RecentWork[
 
 export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceNodes, workspaceStatus, publicationInfo, activeProjectId, onNavigate }: Props) {
   const [showAnalytics,setShowAnalytics]=useState(false);
+  const [publicationCheck,setPublicationCheck]=useState<{state:"checking"|"current"|"changed"|"error";error?:string}>({state:"checking"});
+  useEffect(()=>{
+    let active=true;
+    const bridge=window.channelFoundryStudio;
+    if(!bridge?.publicationPreview){
+      setPublicationCheck({state:"error",error:"Yayın bağlantısı kullanılamıyor."});
+      return;
+    }
+    // Only on Dashboard entry. Compare current Studio content fingerprint with
+    // the live publication, never unrelated counts or stale export metadata.
+    void bridge.publicationPreview().then(preview=>{
+      if(!active)return;
+      setPublicationCheck(preview.baselineAvailable
+        ? {state:preview.changed?"changed":"current"}
+        : {state:"error",error:preview.liveError||"Canlı yayın okunamadı."});
+    }).catch(reason=>{
+      if(active)setPublicationCheck({state:"error",error:String(reason)});
+    });
+    return ()=>{active=false;};
+  },[]);
   const community = readCommunitySummary(activeProjectId);
   const editorialStats = aiStats as EditorialStats;
   const incremental = mergeStatus as MergeStatus | null;
@@ -91,7 +111,10 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
   const awaitingApplyRunId = incremental?.ingest?.awaitingApplyRunId ?? (mergeRun?.state === "done" && editorialWorkspace?.latestImport?.runId !== mergeRun.id ? mergeRun.id : null);
   const editorialBacklog = incremental?.ingest?.backlog?.total ?? workspaceReview;
   const mergeActive = Boolean(mergeRun && ["waiting", "running"].includes(mergeRun.state));
-  const packageChanged = readyToPublish > 0 && (!publicationInfo || publicationInfo.itemCount !== readyToPublish || publicationInfo.relationCount !== readyRelations);
+  const packageChanged = publicationCheck.state==="changed";
+  const publicationNote = publicationCheck.state==="checking" ? "canlı yayın kontrol ediliyor"
+    : publicationCheck.state==="error" ? publicationInfo?.publicationId ? "yerel paket hazır · canlı doğrulanamadı" : "canlı yayın doğrulanamadı"
+    : packageChanged ? "canlı yayın yerelden farklı" : "paket güncel";
 
   const actions: WorkAction[] = [];
   if (aiStats.errors > 0) actions.push({ label: "AI hatalarını incele", note: "Hata alan çözümlemeler kuyruğu durdurmadan yeniden ele alınabilir.", value: aiStats.errors, target: "AI Atölyesi", tone: "attention" });
@@ -102,7 +125,8 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
   if (awaitingApplyRunId) actions.push({ label: "Evrene İşleme sonucunu incelemeye al", note: `Çalışma #${awaitingApplyRunId} tamamlandı; 04 · İnceleme alanına aktarılmayı bekliyor.`, value: mergeRun?.analysisCount ?? 0, target: "AI Atölyesi", tone: "review" });
   else if (pendingSources > 0 && !editorialBacklog) actions.push({ label: "Yeni kaynakları Evrene işle", note: "Yalnız yeni ayıklanmış kaynaklar işlenecek; önceki kaynaklar tekrar AI'ya gönderilmeyecek.", value: pendingSources, target: "AI Atölyesi", tone: "review" });
   if (workspaceReview > 0) actions.push({ label: "Editoryal değişiklikleri incele", note: `${workspaceDrafts} yeni kayıt ve ${pendingRevisions} revizyon kullanıcı kararını bekliyor.`, value: workspaceReview, target: "AI Atölyesi", tone: "review" });
-  if (packageChanged) actions.push({ label: "Public paketi güncelle", note: `${readyToPublish} içerik ve ${readyRelations} bağlantı mevcut paketten farklı.`, value: readyToPublish, target: "Yayınlama", tone: "ready" });
+  if (packageChanged) actions.push({ label: "Public paketi güncelle", note: "Studio içeriğinin parmak izi canlı yayından farklı. Yayınlama bölümünde değişiklikleri incele.", value: null, target: "Yayınlama", tone: "ready" });
+  if (publicationCheck.state==="error") actions.push({ label: "Canlı yayın doğrulanamadı", note: publicationCheck.error||"Yayınlama bölümünden bağlantıyı kontrol et.", value: null, target: "Yayınlama", tone: "attention" });
   if (!actions.length) actions.push({ label: "Üretim hattı güncel", note: "", value: 0, target: "Video Arşivi", tone: "quiet" });
 
   const universeState = mergeRun?.state === "error" ? "error" : mergeActive || pendingSources || awaitingApplyRunId || editorialBacklog ? "waiting" : processedSources ? "done" : "quiet";
@@ -113,7 +137,7 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
     { index: "04", label: "Ayıklama", value: curated, note: editorialPending ? `${editorialPending} inceleme bekliyor` : excluded ? `${excluded} evren dışı` : "karar yok", target: "AI Atölyesi" as DashboardTarget, state: editorialPending ? "waiting" : curated || excluded ? "done" : "quiet" },
     { index: "05", label: "Evrene İşleme", value: processedSources, note: awaitingApplyRunId ? "sonuç aktarılacak" : pendingSources ? `${pendingSources} yeni kaynak` : mergeActive ? "işleniyor" : "yeni kaynak yok", target: "AI Atölyesi" as DashboardTarget, state: universeState },
     { index: "06", label: "İnceleme", value: workspaceApproved, note: workspaceReview ? `${workspaceReview} karar bekliyor` : `${workspaceApproved} onaylı`, target: "AI Atölyesi" as DashboardTarget, state: workspaceReview ? "waiting" : workspaceApproved ? "done" : "quiet" },
-    { index: "07", label: "Yayın", value: readyToPublish, note: packageChanged ? "paket güncellenecek" : readyToPublish ? "paket güncel" : "içerik yok", target: "Yayınlama" as DashboardTarget, state: packageChanged ? "waiting" : readyToPublish ? "done" : "quiet" },
+    { index: "07", label: "Yayın", value: readyToPublish, note: publicationNote, target: "Yayınlama" as DashboardTarget, state: packageChanged ? "waiting" : publicationCheck.state==="error" ? "error" : publicationCheck.state==="checking" ? "quiet" : readyToPublish ? "done" : "quiet" },
   ];
 
   const recent = buildRecent(workspaceNodes);
@@ -129,7 +153,7 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
     <section className="panel ops-flow-panel"><div className="ops-section-head"><div><h3>Üretim hattı</h3></div>{(aiStats.errors > 0 || catalog.total > 0) && <span>{aiStats.errors ? `${aiStats.errors} AI hatası` : `${catalog.total} katalog videosu`}</span>}</div><div className="ops-flow">{pipeline.map((step) => <button key={step.label} className={step.state} onClick={() => onNavigate(step.target)}><span className="ops-flow-index">{step.index}</span><div><small>{step.label}</small><strong>{formatNumber(step.value)}</strong>{(step.value > 0 || step.state === "waiting" || step.state === "error") && <p>{step.note}</p>}</div><i aria-hidden="true"/></button>)}</div></section>
     <TranslationStatus onNavigate={onNavigate}/>
     <div className="ops-lower-grid">
-      <section className="panel ops-tasks-panel"><div className="ops-section-head"><div><h3>Bekleyen işler</h3></div><span>{actions.length} durum</span></div><div className="ops-task-list">{actions.slice(0, 5).map((action, index) => <button key={`${action.label}:${index}`} className={action.tone} onClick={() => onNavigate(action.target)}><span className="ops-task-index">{String(index + 1).padStart(2, "0")}</span><div><strong>{action.label}</strong><small>{action.note}</small></div><b>{action.value ? formatNumber(action.value) : "✓"}</b><em>→</em></button>)}</div></section>
+      <section className="panel ops-tasks-panel"><div className="ops-section-head"><div><h3>Bekleyen işler</h3></div><span>{actions.length} durum</span></div><div className="ops-task-list">{actions.slice(0, 5).map((action, index) => <button key={`${action.label}:${index}`} className={action.tone} onClick={() => onNavigate(action.target)}><span className="ops-task-index">{String(index + 1).padStart(2, "0")}</span><div><strong>{action.label}</strong><small>{action.note}</small></div><b>{action.value===null ? "!" : action.value ? formatNumber(action.value) : "✓"}</b><em>→</em></button>)}</div></section>
       <SitePulse onNavigate={onNavigate} onAnalytics={()=>setShowAnalytics(value=>!value)}/>
     </div>
     {showAnalytics&&<section className="dashboard-analytics-report"><div className="ops-section-head"><h3>Ziyaretçi analitiği</h3><button onClick={()=>setShowAnalytics(false)}>Kapat</button></div><WebsiteAnalytics/></section>}

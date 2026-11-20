@@ -359,7 +359,7 @@ type StudioVisualProfileInput = {
 type StudioPublicExportResult = { readiness?: { readyForTheme: boolean; narrativeChangesPending: boolean; visualComplete: boolean; narrativeSections: number }; root: string; file: string; generatedAt: string; itemCount: number; relationCount: number; editorialNodeCount?: number; editorialRelationCount?: number };
 type StudioLivePublication = { ok: true; published: true; generatedAt: string; itemCount: number; relationCount: number; bytes: number; sha256: string; verified: boolean; publicUrl: string; admin: { id: number; username: string } };
 type StudioPublicPublishResult = StudioPublicExportResult & { live: StudioLivePublication };
-type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number };
+type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number; publicationId?:string; contentFingerprint?:string; sectionCount?:number; entityCount?:number; assetCount?:number; vefkCount?:number };
 type StudioWebsiteInsights = {
   ok: true; anonymous: true; days: number; visits: number; activeSeconds: number;
   areas: Array<{ area: string; opens: number; views: number; plays: number; completions: number; seconds: number }>;
@@ -615,6 +615,7 @@ interface Window {
     seoBatchPause():Promise<StudioSeoBatchStatus>;
     seoBatchResume():Promise<StudioSeoBatchStatus>;
     seoBatchRetry():Promise<StudioSeoBatchStatus>;
+    publicationPreview(): Promise<import("./publish-model").PublicationPreview>;
     getPublicationInfo(): Promise<StudioPublicationInfo | null>;
     showPublicExport(): Promise<boolean>;
     getDatabaseInfo(): Promise<StudioDatabaseInfo>;

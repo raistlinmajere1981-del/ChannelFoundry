@@ -61,7 +61,7 @@
     "verify:records-workspace": "node apps/studio/tests/records-v3.browser.mjs",
     "verify:settings-workspace": "node --test apps/studio/seo-batch.test.cjs && node apps/studio/verify-site-seo.cjs && node apps/studio/tests/settings-v3.browser.mjs",
     "verify:visual-image-pipeline": "node --test apps/studio/visual-image-optimizer.test.cjs && node apps/studio/verify-visual-profiles.cjs && npm run verify:publication-v2",
-    "verify:publication-workspace": "node --test apps/studio/publication-languages.test.cjs apps/studio/publication-translation-batch.test.cjs apps/studio/publication-updates.test.cjs apps/studio/translation-stage-boundary.test.cjs && node apps/studio/tests/publication-v3.browser.mjs"
+    "verify:publication-workspace": "node --test apps/studio/storage-publication.test.cjs apps/studio/publication-languages.test.cjs apps/studio/publication-translation-batch.test.cjs apps/studio/publication-updates.test.cjs apps/studio/translation-stage-boundary.test.cjs && node apps/studio/tests/publication-v3.browser.mjs && node apps/studio/tests/dashboard-status.browser.mjs"
   },
   "allowScripts": {
     "electron@37.10.3": true,
