@@ -75,3 +75,48 @@ Son yayında açıkça şu korumalar doğrulandı: 2.717 Evren, 15 görsel, 5.51
 ## Hedef
 
 Yeni oturumun hedefi mevcut **805** eksik Evren kaydını, kaydedilmiş sonuçları değiştirmeden bitirmek; son kontrol sonrasında kontrollü yayın + SEO güncellemesi yapmak ve yeni fingerprint ile canlı içerik/SEO/SQLite eşleşmesini doğrulamak. Bu oturumda kullanıcıdan tek tek onay istenmiyor; fakat teknik doğrulama insan editoryal incelemesi diye etiketlenmeyecek.
+
+---
+
+## 03:18 Türkiye saati — kota yenilenmesi sonrası ikinci çalışma
+
+Önceki oturum kapanışındaki 805 eksik kaydın 54'ü bu turda tamamlanarak **751 eksik** kaldı. Kullanıcı ekranında Codex haftalık %11, beş saatlik %2 kalan gösterdi; oturumda doğrulanan yeni telemetride Codex haftalık **%89 kullanılmış**, beş saatlik **%99 kullanılmış** düzeyindeyken koruma devreye girdi. Beş saatlik kotanın raporlanan sıfırlanma tarihi **20 Kasım 2026, 03:35 Türkiye saati**. Model isteklerini kota yenilenmeden başlatma.
+
+Güncel durum:
+
+- Geçerli Studio/canlı Evren İngilizce **1.879/2.684**; canlı yayın hâlâ `pub-1ccc2f5f3c4c0584ada7e4e2`.
+- Yerel kaynak-hash sabitli **1.526** Evren adayı, tamamı temiz; bunun 54'ü bu turda üretildi, henüz Studio'ya onaylı EN olarak aktarılmadı ve canlıya gönderilmedi.
+- Bu turdaki +54: DeepSeek A/B/C ile **40**, Codex Terra kısa paketleriyle **14**.
+- DeepSeek ücretsiz kota ikinci kez doldu: `$w/quota-paused.json` açık, OpenCode sunucusunun çalışıyor olması kotanın yeterli olduğu anlamına gelmiyor.
+- İlk eşzamanlı A/B/C denemesinde B'nin SQLite okuması `database is locked` ile durdu; kodda `PRAGMA busy_timeout=15000` ve kilidi hazırlık okumasından sonra alma değişikliği yapıldı. B güvenli yeniden başlatıldı. Artık çalışan DeepSeek işçisi veya pasif `.worker.lock` kalmadı.
+- DeepSeek'in **287** eksik A/B/C kayıt kimliği, kota durdurma kaydı doğrulanarak atomik `$w/deepseek-handoff-to-codex-20261120.json` dosyasıyla Codex'e devredildi. Kaynak ID/hash/TR revizyonu değişmedi. `parallel-deepseek-universe.cjs` bu devri görürse A/B/C'yi yeniden açmıyor; `translation-durable.cjs` devredilen ID'leri model çağrısından önce atlıyor.
+- Codex toplu lane2 83/129 paket tamamlandı; toplam plan 900, 575 kayıt başarılı; bu tur +14. Kalan **319**.
+- Codex toplu lane3: 144 yeni plan (136 daha önce atanmamış + 8 eski DeepSeek hata kurtarması), **30** paket, tamamı bekliyor.
+- Codex toplu lane4: yukarıdaki **287** DeepSeek devir kaydı, **41** paket, tamamı bekliyor.
+- Codex tekil `codex-universe-terra.cjs`: `universe-character-9486e8fa3bbfb1`, 13.181 karakter, dört parçalı tek uzun kayıt; planlı, henüz yeni model çağrısı yok.
+- Toplam bekleyen: 319 + 144 + 287 + 1 = **751**. Ortak `evren-ledger.cjs` bunu onaylı 1.879 + temiz aday 54 + atanmış 751 = 2.684 olarak doğruluyor.
+- 1.526/1.526 yerel adayda QA temiz, 0 flagged/invalid/stale. Tamamlanan 54 adayın ham çıktıları saklı.
+- GitHub `main` en son `55f6130` ile kaynak kilidi/devir kontrolü düzeltmesini aldı; 18/18 regresyon testi geçti.
+
+Yenilenmiş Codex kullanımını onaylamadan `budget-paused.json` işaretini kaldırma. Eski işareti tarihli yedeğe taşıdıktan sonra, şu sırayla kaldığı yerden devam et:
+
+```bash
+cd /home/raistlin/ChannelFoundry
+w=channels/birdesengor/.local-data/studio/translation-work-20261119
+# Yeni beş saatlik kotayı (ve haftalık %95 durma eşiğini) telemetriden doğrula.
+# Dosya duruyorsa yalnız lane2'nin eskimiş budget-paused.json işaretini arşivle.
+BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-2 node "$w/codex-universe-bulk-terra.cjs" run 1
+# Sıfırlama doğrulandıysa uygun paralellik (üç) ile devam:
+BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-2 node "$w/codex-universe-bulk-terra.cjs" run 3
+BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-3 node "$w/codex-universe-bulk-terra.cjs" run 3
+BDS_CODEX_BULK_LANE=codex-universe-bulk-terra-4 node "$w/codex-universe-bulk-terra.cjs" run 3
+node "$w/codex-universe-terra.cjs" run 1
+node "$w/evren-ledger.cjs"
+node apps/studio/translation-durable.cjs audit --batch universe
+```
+
+**Notlar:** Her yeni Codex isteği öncesi son usage yüzdesi yeniden kontrol edilir. Toplu Codex yürütücüsü `fiveHourResetAt` alanını kullanıyor; eski telemetri sıfırlanma tarihinden önceyse durur, gerçek sıfırlanma saati geçtikten sonra yalnız yeni kota durumunu doğrulamak için küçük bir denemeye izin verir. Haftalık %95 koruması değişmedi. İki modelin aynı ID'ye istek yapması engellendi.
+
+Son yayın `public-export/publication-live-baseline.json` ve `public-export/seo-live-baseline.json` dosyaları üzerinden hazırlanmalı; `official-release-20261120/real` artık eski bazdır. Tamamlanan adayların tümü QA'yı geçerse yeni yayın klasörü varsayılan `evren-release-20261120-r2` olacaktır. Önce yeniden bütün yedekleri al; daha sonra `prepare-evren-release.cjs`, `publish-evren-release.cjs`, `apply-evren-release-local.cjs` adımlarını kontrollü çalıştır ve yayındaki Türkçe, 15 görsel, 5.519 ilişki, SEO/sitemap ve SQLite eşleşmesini denetle.
+
+Codex kota yenilenmesini takiben 03:37 Türkiye saatine tek seferlik devam görevi tanımlandı; yalnız bu otomasyonun doğrulanmış çıktıları gerçek tamamlanma ve yayın sonucu olarak kabul edilmeli.
