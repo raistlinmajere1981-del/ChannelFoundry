@@ -5,6 +5,8 @@ const { chat, parseAssistantJson } = require("./ai-client.cjs");
 
 const { VALID:VALID_SIDES, parse:parseSideStatus } = require("./universe-side-status.cjs");
 const quality = require("./universe-attribute-quality.cjs");
+const subtitles = require("./universe-attribute-transcripts.cjs");
+const SOURCE_VERSION=2; // Re-evaluate old character scans with transcript evidence.
 // Central, user-extensible editorial dictionary. Values remain Turkish public labels.
 const CONTROLLED = Object.freeze({
  character:["species","dimension","rank"], object:["type"], location:["type","position","dimension"]
@@ -82,13 +84,17 @@ function ensureSchema(db) {
     for(const kind of ["character","location"])for(let n=1;n<=12;n++)seed.run(kind,"dimension",String(n));
     db.prepare("INSERT INTO universe_attribute_dictionary_meta(name,value) VALUES('seeded','1')").run();
   }
+  // Old source-limited character scans must not be treated as complete.
+  if (!db.prepare("PRAGMA table_info(universe_entity_attribute_analysis)").all().some(row=>row.name==="source_version")) {
+    db.exec("ALTER TABLE universe_entity_attribute_analysis ADD COLUMN source_version INTEGER NOT NULL DEFAULT 1");
+  }
   // Existing Studio databases were created before evidence-backed proposals.
   if (!db.prepare("PRAGMA table_info(universe_entity_attribute_proposals)").all().some(row=>row.name==="evidence_json")) {
     db.exec("ALTER TABLE universe_entity_attribute_proposals ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '[]'");
   }
 }
 function getNode(db, key) {
-  const node = db.prepare("SELECT key,kind,name,summary,source_video_ids_json,payload_json FROM universe_workspace_nodes WHERE key=? AND state='approved'").get(key);
+  const node = db.prepare("SELECT key,kind,name,summary,aliases_json,source_video_ids_json,payload_json FROM universe_workspace_nodes WHERE key=? AND state='approved'").get(key);
   if (!node || !FIELDS[node.kind]) throw new Error("Yalnız onaylı karakter, nesne ve mekân kayıtları düzenlenebilir.");
   return node;
 }
@@ -198,7 +204,7 @@ function list(db) {
     .map(row => ({ entityKey: row.entityKey, fields: JSON.parse(row.fieldsJson) }));
   const proposals = db.prepare("SELECT entity_key AS entityKey,field,value,baseline,reason,source_video_ids_json AS sourceJson,evidence_json AS evidenceJson FROM universe_entity_attribute_proposals ORDER BY entity_key,field").all()
     .map(row => ({ entityKey: row.entityKey, field: row.field, value: row.value, baseline: row.baseline, reason: row.reason, sourceVideoIds: JSON.parse(row.sourceJson), evidence:JSON.parse(row.evidenceJson) }));
-  const analyses = db.prepare("SELECT entity_key AS entityKey,evaluated_at AS evaluatedAt,proposal_count AS proposalCount FROM universe_entity_attribute_analysis").all();
+  const analyses = db.prepare("SELECT entity_key AS entityKey,evaluated_at AS evaluatedAt,proposal_count AS proposalCount,source_version AS sourceVersion FROM universe_entity_attribute_analysis").all();
   const provenance = db.prepare("SELECT entity_key AS entityKey,field,reason,evidence_json AS evidenceJson FROM universe_entity_attribute_evidence").all()
     .map(row=>({entityKey:row.entityKey,field:row.field,reason:row.reason,evidence:JSON.parse(row.evidenceJson)}));
   return { profiles, proposals, analyses, provenance, dictionary:dictionary(db) };
@@ -297,25 +303,32 @@ async function suggest(db, userDataPath, input) {
   const current = new Map(nodes.map(node => [node.key, values(db, node.key)]));
   const snapshots = new Map(nodes.map(node=>[node.key,parsePayload(node)]));
   const vocabulary=dictionary(db);
+  const transcriptCache=new Map();
+  const transcriptAvailable=Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_transcripts'").get());
+  const excerptMap=new Map(nodes.map(node=>[node.key,
+    transcriptAvailable?subtitles.sourceExcerpts(db,node,current.get(node.key),transcriptCache):[]]));
   const examples=db.prepare("SELECT n.kind,n.name,a.fields_json AS json FROM universe_entity_attributes a JOIN universe_workspace_nodes n ON n.key=a.entity_key WHERE n.state='approved' LIMIT 100").all();
   const brief = nodes.map(node => {
     const payload=snapshots.get(node.key);
     return {
       key:node.key,kind:node.kind,name:node.name,
       summary:String(node.summary||"").slice(0,1000),
-      details:quality.sourceContext(node,payload),
+      details:quality.sourceContext(node,payload,excerptMap.get(node.key).length?14:24),
+      transcriptExcerpts:excerptMap.get(node.key),
       fields:current.get(node.key),
       allowed:Object.fromEntries((CONTROLLED[node.kind]||[]).map(field=>[field,vocabulary.filter(v=>v.kind===node.kind&&v.field===field).map(v=>v.value)])),
       examples:examples.filter(item=>item.kind===node.kind&&item.name!==node.name).slice(0,3).map(item=>({name:item.name,fields:JSON.parse(item.json)})),
     };
   });
   const raw = await chat(userDataPath, [
-    {role:"system",content:`Sen BirDeSenGör anlatı evreninin kaynak-sadık, son derece seçici bir kayıt editörüsün. Bu evreni dış dünya gerçekliğiyle karşılaştırma. Sadece gönderilen kaydın açıkça desteklenen, ilk bakışta önemli, atlas/görselleştirme için anlamlı özelliklerini öner. Az sayıda güvenilir öneri, çok sayıda genel/geçersiz etiket üretmekten üstündür.
+    {role:"system",content:`Sen BirDeSenGör anlatı evreninin kaynak-sadık, son derece seçici bir kayıt editörüsün. Bu evreni dış dünya gerçekliğiyle karşılaştırma. Sadece gönderilen kaydın açıkça desteklenen, ilk bakışta önemli, atlas/görselleştirme için anlamlı özelliklerini öner. Açıkça kanıtlanmış ve görselleştirmede kullanılacak HER eksik özelliği öner; kanıtsız genel etiketler üretme.
 
 KAYNAK KURALI:
-- Her alanın dayanağı, gönderilen details listesindeki bir cümlenin BİREBİR alıntısı olmalı. evidence=[{"detailIndex":notun_indexi,"quote":"... kaynaktan kesintisiz en az 14 karakter ...","sourceVideoId":"o notta listelenen video ID"}].
+- Her alanın dayanağı, yalnız bu kayda gönderilmiş details veya transcriptExcerpts içindeki BİREBİR cümledir. details için evidence=[{"detailIndex":orijinal_not_indeksi,"quote":"en az 14 karakter kesintisiz alıntı","sourceVideoId":"notta bulunan video ID"}].
+- transcriptExcerpts doğrudan karakterin BAĞLI Türkçe video altyazısından çıkarılmış aday parçalardır. Buradan kanıt verirsen evidence=[{"sourceType":"transcript","transcriptIndex":alıntı_indeksi,"quote":"alıntının transcriptExcerpts[index].text içindeki BİREBİR kısmı","sourceVideoId":"transcriptExcerpts[index].sourceVideoId"}]. Alıntıyı yeniden ifade etme veya uydurma. Sistem gerçek videoda birebir doğrular.
+- Altyazı yakınlığı kesin aidiyet değildir. Alıntı karakterin ismini açıkça MUHATAP olarak kullanmalı veya çevredeki özne net olmalı. Yakındaki başka kişiye ait inancı, yaşı, mevkiyi ve türü bu karaktere atfetme. Sorular, olasılıklar ve 'olursa/olsaydı' ifadeleri gerçekleşmiş bilgi değildir.
 - Bir kaynak yalnız başka bir kişiden bahsediyorsa o kişi için kayıt özelliği uydurma. Bir olasılığı, korku tarifini, planı veya reddedilen görevi gerçekleşmiş sayma.
-- Özetten veya roles listesinden kaynağı olmayan etiket türetme. Görsel tarifi, kıyafet, renk, küçüklük, eskilik, ham madde nesnenin 'property' alanına konmaz.
+- Özetten veya roles listesinden kaynağı olmayan etiket türetme. Mevcut fields içindeki dolu alanları tekrar önerme; ancak doğrudan kaynaklı açık bir düzeltme varsa farklı değer önerebilirsin. Görsel tarifi, kıyafet, renk, küçüklük, eskilik, ham madde nesnenin 'property' alanına konmaz.
 - Destek yoksa alanı üretme; bilinmiyor/belirsiz/yok vb. etiketleri doldurma.
 - Kısa 1–5 kelimelik değerler tercih et. İçerik Türkçe ve kaynak anlatının kendi bakış açısında olsun.
 - Gönderilen allowed sözlüklerinden mevcut karşılığı seç. Kaynak açıkça başka bir sınıf söylüyorsa yeni değer önerebilirsin; onaylanmadan sözlüğe eklenmez. examples kayıtları biçim örneğidir, kaynak yerine geçmez.
@@ -339,10 +352,10 @@ MUHATAP: "sideStatus", "age", "species", "dimension", "rank".
 NESNE: type (ayırt edici nesne sınıfı), property (ne işe yaradığı, özel işlevi/yeteneği; sadece 'eski','mavi','küçük','gizemli','büyülü','taş' vb. OLAMAZ), custodian (açıkça sahibi, taşıyıcısı veya koruyucusu).
 MEKÂN: type (ayırt edici yer sınıfı), position (açıkça belirtilen coğrafi/evrensel konumu; "evren" tek başına değildir), dimension (ait olduğu boyut; gezilen boyut değildir).
 
-HER kayıt için records satırı ver; desteklenen alan yoksa fields:{} kullan. evidence yalnız kaynak details içinde bulunan index, sourceVideoId ve birebir kısa quote içersin. İddia ve açıklama üretmek yerine doğrulanabilir alan öner.
+Gönderilen HER kayıt için records satırı ver; desteklenen alan yoksa fields:{} kullan. evidence yalnız kaynak details veya transcriptExcerpts içindeki index, sourceVideoId ve birebir kısa quote içersin. Hiçbir kaydı yanıtından düşürme. Kaynak gerçekten açıkça destekliyorsa faydalı tüm eksik alanları öner; az öneri üretmek bir hedef değildir.
 
 SADECE JSON ŞEKLİ:
-{"records":[{"key":"verilen key","fields":{"rank":{"value":"Kral","reason":"Anlatıda unvanı doğrudan belirtiliyor","evidence":[{"detailIndex":3,"quote":"... kaynak nottan aynen kesilmiş alıntı ...","sourceVideoId":"ID"}]},"sideStatus":{"value":"karanlik_once_aydinlik","reason":"Geçmiş ve mevcut taraf ikisi de açık","evidence":[...]}}}]}`},
+{"records":[{"key":"verilen key","fields":{"rank":{"value":"Kral","reason":"Unvan doğrudan belirtiliyor","evidence":[{"detailIndex":3,"quote":"kaynak notundan birebir alıntı","sourceVideoId":"ID"}]},"sideStatus":{"value":"aydinlik","reason":"Karakterin aidiyeti doğrudan belirtiliyor","evidence":[{"sourceType":"transcript","transcriptIndex":0,"quote":"video altyazısından birebir alıntı","sourceVideoId":"ID"}]}}}]}`},
     {role:"user",content:JSON.stringify(brief)},
   ], {json:true,temperature:0,maxTokens:4800});
   const parsed = parseAssistantJson(raw);
@@ -361,7 +374,7 @@ SADECE JSON ŞEKLİ:
       let value;
       try { value = normalize(node.kind, field, proposal.value); } catch {filtered.invalidField++;continue;}
       const baseline = String(current.get(node.key)?.[field] || "");
-      const evidence=quality.evidenceFor(node,payload,proposal.evidence);
+      const evidence=quality.evidenceFor(node,payload,proposal.evidence,excerptMap.get(node.key),transcriptCache);
       if (!evidence.length) {filtered.invalidEvidence++;continue;}
       if (!quality.validateSuggestion(node.kind,field,value,evidence)) {filtered.qualityRejected++;continue;}
       const ids=[...new Set(evidence.map(x=>x.sourceVideoId))];
@@ -375,9 +388,9 @@ SADECE JSON ŞEKLİ:
     const put = db.prepare(`INSERT INTO universe_entity_attribute_proposals(entity_key,field,value,baseline,reason,source_video_ids_json,evidence_json)
       VALUES (?,?,?,?,?,?,?) ON CONFLICT(entity_key,field) DO UPDATE SET
       value=excluded.value, baseline=excluded.baseline,reason=excluded.reason,source_video_ids_json=excluded.source_video_ids_json,evidence_json=excluded.evidence_json,created_at=CURRENT_TIMESTAMP`);
-    const mark = db.prepare(`INSERT INTO universe_entity_attribute_analysis(entity_key,proposal_count)
-      VALUES (?,?) ON CONFLICT(entity_key) DO UPDATE SET
-      evaluated_at=CURRENT_TIMESTAMP, proposal_count=excluded.proposal_count`);
+    const mark = db.prepare(`INSERT INTO universe_entity_attribute_analysis(entity_key,proposal_count,source_version)
+      VALUES (?,?,?) ON CONFLICT(entity_key) DO UPDATE SET
+      evaluated_at=CURRENT_TIMESTAMP, proposal_count=excluded.proposal_count,source_version=excluded.source_version`);
     const counts = new Map([...evaluated].map(key => [key,0]));
     for (const change of changes) {
       // Concurrent editor changes must not turn an old AI response into a new proposal.
@@ -386,7 +399,7 @@ SADECE JSON ŞEKLİ:
       counts.set(change.key,counts.get(change.key)+1);
       saved++;
     }
-    for (const [key, count] of counts) mark.run(key,count);
+    for (const [key, count] of counts) mark.run(key,count,SOURCE_VERSION);
   });
   return { evaluated: evaluated.size, proposed: saved, filtered };
 }

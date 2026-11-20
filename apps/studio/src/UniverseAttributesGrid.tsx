@@ -5,9 +5,10 @@ import "./universe-attributes-grid.css";
 type Kind="character"|"object"|"location";
 type Node=StudioUniverseWorkspaceNode;
 type Profile={entityKey:string;fields:Record<string,string>};
-type Proposal={entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence?:Array<{detailIndex:number;quote:string;sourceVideoId:string}>};
-type Analysis={entityKey:string;evaluatedAt:string;proposalCount:number};
-type Provenance={entityKey:string;field:string;reason:string;evidence:Array<{detailIndex:number;quote:string;sourceVideoId:string}>};
+type Evidence={detailIndex:number;quote:string;sourceVideoId:string;sourceType?:"transcript";};
+type Proposal={entityKey:string;field:string;value:string;baseline:string;reason:string;sourceVideoIds:string[];evidence?:Evidence[]};
+type Analysis={entityKey:string;evaluatedAt:string;proposalCount:number;sourceVersion?:number};
+type Provenance={entityKey:string;field:string;reason:string;evidence:Evidence[]};
 type Option={kind:string;field:string;value:string;labelEn:string};
 type Result={profiles:Profile[];proposals:Proposal[];analyses:Analysis[];provenance:Provenance[];dictionary:Option[]};
 type Props={nodes:Node[];onClose():void;onDirtyChange(value:boolean):void;onBusyChange(value:boolean):void};
@@ -100,10 +101,10 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
  }),[rows,query,filter,current,config,suggestions,drafts]);
  const selectedCount=visible.filter(n=>checked.has(n.key)).length;
  const processedKeys=useMemo(()=>new Set([
-   ...data.analyses.map(a=>a.entityKey),
+   ...data.analyses.filter(a=>nodes.find(n=>n.key===a.entityKey)?.kind!=="character" || (a.sourceVersion??1)>=2).map(a=>a.entityKey),
    // Existing proposals predate the progress ledger: preserve them on the first resume.
    ...data.proposals.map(p=>p.entityKey),
- ]),[data.analyses,data.proposals]);
+ ]),[data.analyses,data.proposals,nodes]);
  const processedCount=rows.filter(n=>processedKeys.has(n.key)).length;
  const pendingForKind=data.proposals.filter(p=>rowKeys.has(p.entityKey));
  const pickedProposals=data.proposals.filter(p=>proposalChecked.has(proposalId(p.entityKey,p.field)) && rowKeys.has(p.entityKey));
@@ -145,11 +146,14 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
    const keys=skipProcessed?selected.filter(key=>!processedKeys.has(key)):selected;
    const skipped=selected.length-keys.length;
    if(!keys.length){setMessage("Seçili kayıtlar daha önce incelenmiş. Tekrar incelemek için 'İncelenenleri atla' seçimini kaldır.");return;}
-   const batches=Array.from({length:Math.ceil(keys.length/8)},(_,i)=>keys.slice(i*8,(i+1)*8));
+   // More linked subtitle context per character: smaller batches avoid truncated AI JSON.
+   const batchSize=kind==="character"?4:8;
+   const batches=Array.from({length:Math.ceil(keys.length/batchSize)},(_,i)=>keys.slice(i*batchSize,(i+1)*batchSize));
    const workers=Math.min(parallel,batches.length);
    if(keys.length>40&&!window.confirm(`${keys.length} kayıt · ${batches.length} paket · ${workers} paralel oturum${skipped?` · ${skipped} incelenen atlandı`:""}. Devam edilsin mi?`))return;
    setBusy(true);setSuggesting(true);setMessage("");stopRef.current=false;
    let next=0,done=0,proposed=0,active=0,failed=0,partial=0;
+   const filtered={invalidField:0,invalidEvidence:0,qualityRejected:0,unchanged:0};
    let error="";
    const update=()=>setProgress(`${done}/${keys.length} kayıt incelendi · ${proposed} öneri · ${active}/${workers} aktif oturum`);
    const worker=async()=>{
@@ -161,6 +165,8 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
        try{
          const result=await bridge.universeAttributesSuggest({keys:batch});
          done+=result.evaluated;proposed+=result.proposed;
+         for(const key of Object.keys(filtered) as Array<keyof typeof filtered>)
+           filtered[key]+=result.filtered?.[key]||0;
          partial+=batch.length-result.evaluated;
          try{await reload();}catch(e){setMessage("Öneriler kaydedildi; liste yenileme başarısız: "+errorText(e));}
        }catch(e){
@@ -172,7 +178,9 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
    try{
      await Promise.all(Array.from({length:workers},()=>worker()));
      try{await reload();}catch(e){setMessage("Öneriler kaydedildi; liste yenileme başarısız: "+errorText(e));}
-     const prefix=`${done}/${keys.length} kayıt incelendi, ${proposed} öneri`;
+     const rejected=filtered.invalidEvidence+filtered.qualityRejected+filtered.invalidField;
+     const detail=rejected?` · ${rejected} alan elendi (kanıt ${filtered.invalidEvidence}, kalite ${filtered.qualityRejected}, biçim ${filtered.invalidField})`:"";
+     const prefix=`${done}/${keys.length} kayıt incelendi, ${proposed} öneri${detail}`;
      if(error)setMessage(prefix+` · İşlem durduruldu (${error}). Kalan kayıtlar tekrar seçilebilir.`);
      else if(stopRef.current)setMessage(prefix+" · İstek üzerine durduruldu. Tamamlanan paketler korundu.");
      else if(partial)setMessage(prefix+` · ${partial} kayıt AI yanıtında eksik kaldı; sonraki çalışmada yeniden incelenebilir.`);
@@ -223,7 +231,7 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
          {[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}
        </select>
      </label>
-     <label className="attribute-select" title="Önceden önerisi hazırlanmış veya tamamlanmış kayıtlar yeniden işlenmez.">
+     <label className="attribute-select" title="Yeni kaynak taraması yapılmış kayıtlar atlanır. Eski sürümde sonuçsuz kalmış karakterler yeniden işlenebilir.">
        <input type="checkbox" disabled={busy} checked={skipProcessed} onChange={e=>setSkipProcessed(e.target.checked)}/>
        İncelenenleri atla ({processedCount})
      </label>
@@ -295,7 +303,7 @@ export default function UniverseAttributesGrid({nodes,onClose,onDirtyChange,onBu
      <strong>{inspecting&&suggestions.has(inspecting)?"AI önerisi":"Onaylı özellik"} · Kaynak dayanağı</strong>
      <p>{inspected.reason||"Kaynakla ilişkili özellik"}</p>
      {inspected.evidence?.map((ev,index)=><blockquote key={index} className="attribute-evidence-quote">
-       “{ev.quote}” <small>Not #{ev.detailIndex+1}</small>
+       “{ev.quote}” <small>{ev.sourceType==="transcript"?"Video altyazısı":ev.detailIndex>=0?`Not #${ev.detailIndex+1}`:"Kaynak notu"}</small>
      </blockquote>)}
      <div>{[...new Set(inspected.evidence?.map(ev=>ev.sourceVideoId)||[])].map(id=><a key={id} href={`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">Video {id} ↗</a>)}</div>
    </section>}

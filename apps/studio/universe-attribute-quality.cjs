@@ -1,13 +1,14 @@
 "use strict";
 // Only source-anchored, meaningful attributes may enter the editor's review queue.
 const {parse:parseSideStatus}=require("./universe-side-status.cjs");
+const {verifyTranscriptExcerpt}=require("./universe-attribute-transcripts.cjs");
 const HISTORY=/(?:eskiden|önceden|önceleri|geçmişte|bir zamanlar|bir dönem|evvelce|daha önce|sonradan|artık|şimdi|şu anda|ayrıldı|geçti|değiştirdi|terk etti)/i;
 const MEMBERSHIP=/(?:taraf|saf|cephe|mensup|bağlı|ayrıldı|geçti|katıldı|aidiyet)/i;
 const SIDE_TERMS={aydinlik:/(?:aydınlık|ışık taraf)/i,karanlik:/karanlık/i,notr:/(?:nötr|bağımsız|tarafsız)/i};
 // In this narrative's own classification, light/dark often corresponds to
 // a character's explicitly described religious position. This is not a
 // general claim about the morality of any real-world religion.
-const FAITH_POSITIVE=/(?:müslüman (?:oldu|olur|olmuş|olduğunu|olduklarını|olduğu|oldukları|olduktan|olduğundan|olarak|olduğum)|müslüman(?:ım|ız|dır|dırlar)|islam['’]?[ıi]? (?:kabul|seç)|islam[a'e]? (?:geç|girdi)|şehadet getir|şehadet etti|kelime[- ]?i? ?şehadet getir|kelimeişehadet getir|iman etti)/i;
+const FAITH_POSITIVE=/(?:müslüman (?:oldu|olmuş|olduğunu|olduklarını|olduğu|oldukları|olduktan|olduğundan|olarak|olduğum|bir (?:kral|padişah|komutan|rehber|dost))|müslüman dostumuz|müslüman(?:ım|ız|dır|dırlar)|islam['’]?[ıi]? (?:kabul|seç)|islam[a'e]? (?:geç|girdi)|şehadet getir|şehadet etti|kelime[- ]?i? ?şehadet getir|kelimeişehadet getir|iman etti)/i;
 const FAITH_NEGATIVE=/(?:müslüman değil|müslüman olmadığ|müslüman olmadığı|müslüman olmadığını|gayrimüslim|kendisini (?:hristiyan|yahudi|musevi|putperest) olarak tanıt|(?:hristiyan|yahudi|musevi) olduğunu söyler)/i;
 const FAITH_UNCONFIRMED=/(?:şehadet.{0,85}(?:kesinleşmez|kesin değildir|belli değil|bilinmiyor|gösterilmez|getirmedi|getirmemiş)|müslüman (?:olduğu kesinleşmez|olup olmadığı)|islam(?:a|['’]?[ıi])? (?:kabul edip etmediği)|(?:henüz|daha) müslüman değil)/i;
 const FAITH_INTENTION=/(?:müslüman (?:olmak ist|olmaya karar|olmayı düşün)|islam(?:a|['’]?[ıi])? (?:geçmek ist|geçmeye karar))/i;
@@ -48,13 +49,13 @@ function detailScore(kind,text){
   for(const [rx,weight] of groups[kind]||[])if(rx.test(text))score+=weight;
   return score;
 }
-function sourceContext(node,payload){
+function sourceContext(node,payload,detailLimit){
   const allowed=new Set(JSON.parse(node.source_video_ids_json||"[]"));
   const details=(Array.isArray(payload.details)?payload.details:[])
     .map((v,index)=>({index,text:String(v?.text??"").trim().replace(/\s+/gu," ").slice(0,720),
       sourceVideoIds:Array.isArray(v?.sourceVideoIds)?v.sourceVideoIds.filter(id=>allowed.has(id)).slice(0,6):[]}))
     .filter(v=>v.text&&v.sourceVideoIds.length);
-  const limit=node.kind==="character"?24:20;
+  const limit=node.kind==="character"?Math.max(1,Math.min(24,Number(detailLimit)||24)):20;
   const scored=details.map(row=>({...row,score:detailScore(node.kind,row.text)}))
     .sort((a,b)=>b.score-a.score||a.index-b.index);
   const chosen=new Map();
@@ -63,12 +64,17 @@ function sourceContext(node,payload){
   for(const row of scored){if(chosen.size>=limit)break;chosen.set(row.index,row);}
   return [...chosen.values()].sort((a,b)=>detailScore(node.kind,b.text)-detailScore(node.kind,a.text)||a.index-b.index);
 }
-function evidenceFor(node,payload,evidence){
+function evidenceFor(node,payload,evidence,excerpts=[],transcriptCache=new Map()){
   if(!Array.isArray(evidence)||!evidence.length||evidence.length>5)return [];
   const allowed=new Set(JSON.parse(node.source_video_ids_json||"[]"));
   const details=Array.isArray(payload.details)?payload.details:[];
   const valid=[];
   for(const source of evidence){
+    if(source?.sourceType==="transcript"){
+      const verified=verifyTranscriptExcerpt(node,source,excerpts,transcriptCache);
+      if(verified)valid.push(verified);
+      continue;
+    }
     if(!Number.isInteger(source?.detailIndex)||source.detailIndex<0||source.detailIndex>=details.length)continue;
     const detail=details[source.detailIndex];
     const full=String(detail?.text||"").replace(/\s+/gu," ").trim();
