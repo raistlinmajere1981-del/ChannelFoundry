@@ -29,56 +29,35 @@ type Props = {
   catalogVideos: StudioYoutubeCatalogVideo[];
   aiStats: StudioAiAnalysisStats;
   mergeStatus: StudioUniverseMergeStatus | null;
-  workspaceNodes: StudioUniverseWorkspaceNode[];
   workspaceStatus: StudioUniverseWorkspaceStatus | null;
   publicationInfo: StudioPublicationInfo | null;
   activeProjectId: string;
+  dashboardStatus: StudioDashboardStatus | null;
   onNavigate: (section: DashboardTarget) => void;
 };
 
 type WorkAction = { label: string; note: string; value: number|null; target: DashboardTarget; tone: ActionTone };
-type RecentWork = { key: string; title: string; meta: string; badge: string; state: string; stateClass: string; target: DashboardTarget };
-
-const workspaceLabels: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "Hikâye", character: "Karakter", event: "Olay", location: "Mekân", object: "Nesne" };
-const workspaceShort: Record<StudioUniverseWorkspaceNode["kind"], string> = { story: "HK", character: "KR", event: "OL", location: "MK", object: "NS" };
-
 function formatNumber(value: number) { return new Intl.NumberFormat("tr-TR").format(Math.max(0, value)); }
 function publishedRelationCount(items: DashboardItem[], relations: StudioPersistedRelation[]) {
   const keys = new Set(items.filter((item) => item.status === "published").map((item) => item.key));
   return relations.filter((relation) => keys.has(relation.fromKey) && keys.has(relation.toKey)).length;
 }
-function buildRecent(workspaceNodes: StudioUniverseWorkspaceNode[]): RecentWork[] {
-  return [...workspaceNodes]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 6)
-    .map((node) => ({
-      key: `workspace:${node.key}`,
-      title: node.name,
-      meta: `${workspaceLabels[node.kind]} · ${node.sourceVideoIds.length} kaynak video`,
-      badge: workspaceShort[node.kind],
-      state: node.state === "approved" ? "Onaylı" : "İncele",
-      stateClass: node.state === "approved" ? "approved" : "draft",
-      target: node.state === "approved" ? (node.kind === "character" ? "Karakterler" : "Kayıt Dosyaları") as DashboardTarget : "AI Atölyesi" as DashboardTarget,
-    }));
-}
-
-export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceNodes, workspaceStatus, publicationInfo, activeProjectId, onNavigate }: Props) {
+export default function Dashboard({ items, relations, catalog, catalogVideos, aiStats, mergeStatus, workspaceStatus, publicationInfo, activeProjectId, dashboardStatus, onNavigate }: Props) {
   const [showAnalytics,setShowAnalytics]=useState(false);
   const [publicationCheck,setPublicationCheck]=useState<{state:"checking"|"current"|"changed"|"error";error?:string}>({state:"checking"});
   useEffect(()=>{
     let active=true;
     const bridge=window.channelFoundryStudio;
-    if(!bridge?.publicationPreview){
+    if(!bridge?.dashboardPublicationCheck){
       setPublicationCheck({state:"error",error:"Yayın bağlantısı kullanılamıyor."});
       return;
     }
-    // Only on Dashboard entry. Compare current Studio content fingerprint with
-    // the live publication, never unrelated counts or stale export metadata.
-    void bridge.publicationPreview().then(preview=>{
+    // Full content comparison runs in a worker, independent of Dashboard counters.
+    void bridge.dashboardPublicationCheck().then(check=>{
       if(!active)return;
-      setPublicationCheck(preview.baselineAvailable
-        ? {state:preview.changed?"changed":"current"}
-        : {state:"error",error:preview.liveError||"Canlı yayın okunamadı."});
+      setPublicationCheck(check.state==="error"
+        ? {state:"error",error:check.error||"Canlı yayın okunamadı."}
+        : {state:check.state});
     }).catch(reason=>{
       if(active)setPublicationCheck({state:"error",error:String(reason)});
     });
@@ -140,7 +119,6 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
     { index: "07", label: "Yayın", value: readyToPublish, note: publicationNote, target: "Yayınlama" as DashboardTarget, state: packageChanged ? "waiting" : publicationCheck.state==="error" ? "error" : publicationCheck.state==="checking" ? "quiet" : readyToPublish ? "done" : "quiet" },
   ];
 
-  const recent = buildRecent(workspaceNodes);
   return <div className="ops-dashboard">
     <section className="ops-metrics" aria-label="Üretim durumu">
       <Metric label="Kanal kataloğu" value={catalog.total} note={archivedTranscriptCount ? `${archivedTranscriptCount} altyazı arşivde` : ""} target="Video Arşivi" onNavigate={onNavigate}/>
@@ -151,10 +129,10 @@ export default function Dashboard({ items, relations, catalog, catalogVideos, ai
       <Metric label="Topluluk" value={community?.threads ?? "—"} note={community ? `${community.posts} mesaj${community.members != null ? ` · ${community.members} üye` : ""} · son görüntülenen` : "Topluluk açılınca güncellenir"} target="Topluluk" onNavigate={onNavigate}/>
     </section>
     <section className="panel ops-flow-panel"><div className="ops-section-head"><div><h3>Üretim hattı</h3></div>{(aiStats.errors > 0 || catalog.total > 0) && <span>{aiStats.errors ? `${aiStats.errors} AI hatası` : `${catalog.total} katalog videosu`}</span>}</div><div className="ops-flow">{pipeline.map((step) => <button key={step.label} className={step.state} onClick={() => onNavigate(step.target)}><span className="ops-flow-index">{step.index}</span><div><small>{step.label}</small><strong>{formatNumber(step.value)}</strong>{(step.value > 0 || step.state === "waiting" || step.state === "error") && <p>{step.note}</p>}</div><i aria-hidden="true"/></button>)}</div></section>
-    <TranslationStatus onNavigate={onNavigate}/>
+    <TranslationStatus onNavigate={onNavigate} counts={dashboardStatus?.languages??null} onlyVideoMissing={dashboardStatus?.missingVideoOnly??false}/>
     <div className="ops-lower-grid">
       <section className="panel ops-tasks-panel"><div className="ops-section-head"><div><h3>Bekleyen işler</h3></div><span>{actions.length} durum</span></div><div className="ops-task-list">{actions.slice(0, 5).map((action, index) => <button key={`${action.label}:${index}`} className={action.tone} onClick={() => onNavigate(action.target)}><span className="ops-task-index">{String(index + 1).padStart(2, "0")}</span><div><strong>{action.label}</strong><small>{action.note}</small></div><b>{action.value===null ? "!" : action.value ? formatNumber(action.value) : "✓"}</b><em>→</em></button>)}</div></section>
-      <SitePulse onNavigate={onNavigate} onAnalytics={()=>setShowAnalytics(value=>!value)}/>
+      <SitePulse onNavigate={onNavigate} onAnalytics={()=>setShowAnalytics(value=>!value)} seoSummary={dashboardStatus?.seo??null}/>
     </div>
     {showAnalytics&&<section className="dashboard-analytics-report"><div className="ops-section-head"><h3>Ziyaretçi analitiği</h3><button onClick={()=>setShowAnalytics(false)}>Kapat</button></div><WebsiteAnalytics/></section>}
   </div>;

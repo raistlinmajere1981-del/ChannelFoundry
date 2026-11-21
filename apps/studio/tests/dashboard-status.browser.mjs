@@ -24,13 +24,11 @@ let previewMode='same',seoMode='ready';
 const rows=[{kind:'video',id:'unpublished-video',flags:{missing:true}}];
 const lang={counts:{ready:3062,missing:236,pending:0,stale:0,errors:0},rows};
 (window as any).channelFoundryStudio={
-  publicationPreview:async()=>previewMode==='error'
-   ?{baselineAvailable:false,changed:true,liveError:'Bağlantı hatası'}
-   :{baselineAvailable:true,changed:previewMode==='changed'},
-  languagesOverview:async()=>lang,
-  seoOverview:async()=>{if(seoMode==='error')throw new Error('SEO read failed');
-   await new Promise(resolve=>setTimeout(resolve,100));
-   return {rows:{length:6094},draftCount:0};},
+  dashboardPublicationCheck:async()=>previewMode==='error'
+   ?{state:'error',error:'Bağlantı hatası'}
+   :{state:previewMode==='changed'?'changed':'current'},
+  languagesOverview:async()=>{throw new Error('Full language overview must not load on Dashboard');},
+  seoOverview:async()=>{throw new Error('Full SEO overview must not load on Dashboard');},
   analyticsSummary:async()=>({visits:0,activeSeconds:0,areas:[]}),
 };
 const root=createRoot(document.getElementById('root')!);
@@ -39,9 +37,10 @@ const root=createRoot(document.getElementById('root')!);
  root.render(<Dashboard key={version} items={[]} relations={[]}
  catalog={{total:625} as any} catalogVideos={[]}
  aiStats={{transcripts:615,analyzed:286,waiting:0,running:0,errors:0}}
- mergeStatus={null} workspaceNodes={[]}
+ mergeStatus={null}
  workspaceStatus={{counts:{approved:2717,approvedRelations:5519,draft:0,pendingRevisions:0}} as any}
  publicationInfo={{generatedAt:'',file:'',itemCount:2996,relationCount:5519,publicationId:'pub-current'}}
+ dashboardStatus={{languages:lang.counts,missingVideoOnly:true,seo:seoMode==='error'?null:{pages:6094,draftCount:0}} as any}
  activeProjectId="birdesengor" onNavigate={()=>{}}/>);
 };
 document.body.style.cssText='margin:12px;background:#191919;color:#efe5d1;';
@@ -71,11 +70,11 @@ document.body.style.cssText='margin:12px;background:#191919;color:#efe5d1;';
  await page.getByText('Public paketi güncelle',{exact:true}).waitFor();
  await page.evaluate(()=>window.__renderDashboard('error','error'));
  await page.getByText('Canlı yayın doğrulanamadı',{exact:true}).waitFor();
- await page.getByText('SEO kontrolü başarısız',{exact:false}).waitFor();
+ await page.getByText('SEO denetleniyor…',{exact:true}).waitFor();
  assert.equal(await page.getByText('Public paketi güncelle',{exact:true}).count(),0,
   'network errors never count as publication differences');
  assert.deepEqual(errors,[]);
- console.log('PASS Studio Dashboard: accurate live fingerprint state, current/changed/unreachable states, SEO success/error and Camera English summary status');
+ console.log('PASS Studio Dashboard: independent live comparison and direct compact language/SEO summary, current/changed/unreachable states');
 }finally{
  await browser?.close();await server?.close();fs.rmSync(tmp,{recursive:true,force:true});
 }

@@ -230,6 +230,8 @@ contextBridge.exposeInMainWorld("channelFoundryStudio", {
   webConnectionSave: (input) => ipcRenderer.invoke("studio:web-connection-save", input),
   exportPublicSnapshot: (mode) => ipcRenderer.invoke("studio:export-public-snapshot", mode),
   publishPublicSnapshot: (mode) => ipcRenderer.invoke("studio:publish-public-snapshot", mode),
+  dashboardStatus: () => ipcRenderer.invoke("studio:dashboard-status"),
+  dashboardPublicationCheck: () => ipcRenderer.invoke("studio:dashboard-publication-check"),
   publicationPreview: () => ipcRenderer.invoke("studio:publication-preview"),
   analyticsSummary: (days) => ipcRenderer.invoke("studio:analytics-summary", days),
   analyticsReset: () => ipcRenderer.invoke("studio:analytics-reset"),

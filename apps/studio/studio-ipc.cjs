@@ -351,6 +351,12 @@ function registerPublishingHandlers() {
   });
   ipcMain.handle("studio:export-public-snapshot", (_event, mode) => runtime.createPublicExport(mode));
   ipcMain.handle("studio:publish-public-snapshot", (_event, mode) => runtime.publishPublicExport(mode));
+  // Dashboard must not construct two full publication snapshots or return 30MB
+  // translation/SEO data merely to render counters.
+  const dashboardStatus=require('./dashboard-fast-status.cjs');
+  const dashboardPublication=require('./dashboard-publication-check.cjs');
+  ipcMain.handle("studio:dashboard-status", () => dashboardStatus.overview(runtime.database(),app.getPath("userData")));
+  ipcMain.handle("studio:dashboard-publication-check", () => dashboardPublication.check(runtime.database(),app.getPath("userData")));
   ipcMain.handle("studio:publication-preview", () => runtime.publicationPreview());
   ipcMain.handle("studio:analytics-summary", (_event, days) => communityAdmin.analyticsSummary(days));
   ipcMain.handle("studio:analytics-reset", () => communityAdmin.analyticsReset());

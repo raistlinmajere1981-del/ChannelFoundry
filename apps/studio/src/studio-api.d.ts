@@ -360,6 +360,13 @@ type StudioPublicExportResult = { readiness?: { readyForTheme: boolean; narrativ
 type StudioLivePublication = { ok: true; published: true; generatedAt: string; itemCount: number; relationCount: number; bytes: number; sha256: string; verified: boolean; publicUrl: string; admin: { id: number; username: string } };
 type StudioPublicPublishResult = StudioPublicExportResult & { live: StudioLivePublication };
 type StudioPublicationInfo = { generatedAt: string; file: string; itemCount: number; relationCount: number; publicationId?:string; contentFingerprint?:string; sectionCount?:number; entityCount?:number; assetCount?:number; vefkCount?:number };
+type StudioDashboardStatus = {
+  missingVideoOnly:boolean;
+  languages: PublicationLanguageOverview["counts"];
+  seo: {pages:number;draftCount:number};
+  merge: StudioUniverseMergeStatus;
+};
+type StudioDashboardPublicationCheck = {state:"current"|"changed"|"error";error?:string;livePublicationId?:string;localPublicationId?:string};
 type StudioWebsiteInsights = {
   ok: true; anonymous: true; days: number; visits: number; activeSeconds: number;
   areas: Array<{ area: string; opens: number; views: number; plays: number; completions: number; seconds: number }>;
@@ -615,6 +622,8 @@ interface Window {
     seoBatchPause():Promise<StudioSeoBatchStatus>;
     seoBatchResume():Promise<StudioSeoBatchStatus>;
     seoBatchRetry():Promise<StudioSeoBatchStatus>;
+    dashboardStatus(): Promise<StudioDashboardStatus>;
+    dashboardPublicationCheck(): Promise<StudioDashboardPublicationCheck>;
     publicationPreview(): Promise<import("./publish-model").PublicationPreview>;
     getPublicationInfo(): Promise<StudioPublicationInfo | null>;
     showPublicExport(): Promise<boolean>;

@@ -105,6 +105,7 @@ export default function StudioPipeline() {
   const [aiStats, setAiStats] = useState<StudioAiAnalysisStats>({ transcripts: 0, analyzed: 0, waiting: 0, running: 0, errors: 0 });
   const [mergeStatus, setMergeStatus] = useState<StudioUniverseMergeStatus | null>(null);
   const [publicationInfo, setPublicationInfo] = useState<StudioPublicationInfo | null>(null);
+  const [dashboardStatus, setDashboardStatus] = useState<StudioDashboardStatus | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -131,35 +132,34 @@ export default function StudioPipeline() {
 
   const loadDashboard = async () => {
     if (!bridge) { setItems([]); setRelations([]); setWorkspaceNodes([]); setWorkspaceStatus(null); setChannels([]); setActiveChannelId(""); setCatalogVideos([]); setReady(true); return; }
-    await bridge.bootstrap({});
-    const [state, info, nextChannels, nextActiveChannel, stats, nextCatalogVideos, nextWorkspaceNodes, nextWorkspaceStatus, nextAiStats, nextMergeStatus, nextPublicationInfo, nextProjects] = await Promise.all([
+    // Startup already bootstrapped the DB; dashboard only needs compact counters.
+    // Never transfer the full 4MB editorial list, 30MB translations, or a publication JSON.
+    const [state, nextChannels, nextActiveChannel, stats, nextCatalogVideos,
+      nextWorkspaceStatus, nextAiStats, nextProjects, nextDashboardStatus] = await Promise.all([
       bridge.loadState(),
-      bridge.getDatabaseInfo(),
       bridge.youtubeCatalogChannels(),
       bridge.youtubeCatalogActive(),
       bridge.youtubeCatalogStats(),
       bridge.youtubeCatalogVideos({}),
-      bridge.universeWorkspaceList(),
       bridge.universeWorkspaceStatus(),
       bridge.aiAnalysisStats(),
-      bridge.universeMergeStatus(),
-      bridge.getPublicationInfo(),
       bridge.channelProjects(),
+      bridge.dashboardStatus(),
     ]);
+    if (activeRef.current !== "Gösterge Paneli") return;
     setProjects(nextProjects.projects);
     setActiveProjectId(nextProjects.activeId);
     setItems(state.items);
     setRelations(state.relations);
-    setDatabaseInfo(info);
+    setWorkspaceNodes([]);
     setChannels(nextChannels);
     setActiveChannelId(nextActiveChannel?.id || "");
     setCatalogStats(stats);
     setCatalogVideos(nextCatalogVideos);
-    setWorkspaceNodes(nextWorkspaceNodes);
     setWorkspaceStatus(nextWorkspaceStatus);
     setAiStats(nextAiStats);
-    setMergeStatus(nextMergeStatus);
-    setPublicationInfo(nextPublicationInfo);
+    setMergeStatus(nextDashboardStatus.merge);
+    setDashboardStatus(nextDashboardStatus);
     setError(null);
     setReady(true);
   };
@@ -299,7 +299,7 @@ export default function StudioPipeline() {
       <section className="studio-content pipeline-content" aria-label="Çalışma alanı" data-workspace-section={active}>
         {error && active !== "AI Atölyesi" && <div className="storage-warning studio-workspace-error" role="alert">Studio uyarısı: {error}</div>}
         <Suspense fallback={<SectionLoading section={active}/> }>
-          {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceNodes={workspaceNodes} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} activeProjectId={activeProjectId} onNavigate={activateSection}/>}
+          {active === "Gösterge Paneli" && <Dashboard items={studioItems} relations={relations} catalog={catalogStats} catalogVideos={catalogVideos} aiStats={aiStats} mergeStatus={mergeStatus} workspaceStatus={workspaceStatus} publicationInfo={publicationInfo} activeProjectId={activeProjectId} dashboardStatus={dashboardStatus} onNavigate={activateSection}/>}
           {active === "Video Arşivi" && <VideoArchive/>}
           {active === "Altyazı Araştırma" && <SubtitleResearch/>}
           {active === "AI Atölyesi" && <AiWorkbench pipelineError={error}/>}
