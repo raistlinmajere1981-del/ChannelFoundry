@@ -85,9 +85,10 @@ function makeIdentity(kind: ItemKind) {
 
 export default function StudioPipeline() {
   const bridge = window.channelFoundryStudio as StudioChannelBridge | undefined;
-  const [active, setActive] = useState<Section>("Video Arşivi");
-  const activeRef = useRef<Section>("Video Arşivi");
-  const lastSectionRef = useRef<Section>("Video Arşivi");
+  const [active, setActive] = useState<Section>("Gösterge Paneli");
+  const activeRef = useRef<Section>("Gösterge Paneli");
+  // Null forces the initial Dashboard snapshot after bootstrap has completed.
+  const lastSectionRef = useRef<Section | null>(null);
   const initialStartupLoadStarted = useRef(false);
   activeRef.current = active;
   const [items, setItems] = useState<StudioPersistedItem[]>([]);
@@ -114,8 +115,8 @@ export default function StudioPipeline() {
   const sceneWorkspaceActive = active === "Sahne Atölyesi" || active === "Kayıt Dosyaları";
   const effectiveSidebarMode: StudioSidebarMode = sidebarMode;
 
-  // Startup only needs the project/channel header. VideoArchive owns its
-  // catalog data and dashboard statistics must not block the first page.
+  // Bootstrap the project/channel header first. Dashboard fetches its compact
+  // snapshot once ready, without blocking the initial Studio shell.
   const loadStartup = async () => {
     if (!bridge) { setReady(true); return; }
     await bridge.bootstrap({});
@@ -188,7 +189,7 @@ export default function StudioPipeline() {
 
   useEffect(() => {
     // React StrictMode invokes mount effects twice during development.
-    // Fetch only lightweight navigation state on launch, once.
+    // Bootstrap only lightweight navigation state on launch, once.
     if (!initialStartupLoadStarted.current) {
       initialStartupLoadStarted.current = true;
       void loadStartup().catch((reason) => { setError(errorText(reason)); setReady(true); });
