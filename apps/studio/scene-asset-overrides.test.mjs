@@ -14,24 +14,24 @@ test('asset replacements are limited to explicit detached image files',()=>{
  const allowed=editableAssets(manifest);
  assert.ok(allowed.has('/scene-assets/robe/ceremonial-kaftan.webp'));
  assert.ok(allowed.has('/scene-assets/stone/jade-rock.webp'));
- assert.ok(!allowed.has('/scene-assets/approved/room-effects-v4-2to1.webp'));
+ assert.ok(allowed.has('/scene-assets/approved/room-effects-v4-2to1.webp'), 'current room backdrop is intentionally editable');
  const path='/scene-assets/robe/ceremonial-kaftan.webp';
  const one=validateAssetOverrides([{path,dataUrl:minimalWebp()}],manifest);
  assert.equal(one.length,1);assert.equal(one[0].bytes.length,physical('/scene-assets/books/community-live/leather.webp').length);
+ assert.throws(()=>validateAssetOverrides([{path:'/scene-assets/approved/room-effects-v4-2to1.webp',dataUrl:minimalWebp()}],manifest),/2:1|Ana oda fotoğrafı/);
  for(const bad of [
-  [{path:'/scene-assets/approved/room-effects-v4-2to1.webp',dataUrl:minimalWebp()}],
   [{path:'../../secret.webp',dataUrl:minimalWebp()}],
   [{path,dataUrl:'https://bad.example/file.webp'}],
   [{path,dataUrl:minimalWebp()},{path,dataUrl:minimalWebp()}],
  ]) assert.throws(()=>validateAssetOverrides(bad,manifest),/kaynağı|Görsel/);
 });
-test('approved book, camera and drawing assets have real dimensions and never include the room photo',()=>{
+test('approved book, camera, drawing and room assets have real dimensions',()=>{
  const allowed=editableAssets(manifest);
  for(const path of ALL_PHYSICAL_ART_PATHS){
   assert.ok(allowed.has(path),path);
   assert.ok(webpDimensions(physical(path)).width>0,path);
  }
- assert.ok(!allowed.has('/scene-assets/approved/room-effects-v4-2to1.webp'));
+ assert.ok(allowed.has('/scene-assets/approved/room-effects-v4-2to1.webp'), 'current room backdrop is intentionally editable');
  assert.ok(!allowed.has('/scene-assets/books/scene-closed/evren-master-closed.png'));
  assert.ok(!allowed.has('/scene-assets/vefk/secret.webp'));
  assert.equal(webpDimensions(physical('/scene-assets/books/scene-closed/evren-master-closed.webp')).width,1536);
